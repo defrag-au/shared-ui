@@ -1,0 +1,13 @@
+[package]
+name = "components"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+primitives = { workspace = true }
+wallet-core = { workspace = true }
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true }
+js-sys = { workspace = true }
+futures-signals = { workspace = true }
+custom-elements = { workspace = true }
