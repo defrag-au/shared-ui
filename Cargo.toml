@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "scss-macros",
     "ui-core",
+    "ui-flow",
     "ui-loader",
     "ui-toast",
     "wallet-core",
@@ -58,6 +59,10 @@ futures-signals = "0.3"
 
 # Async
 futures = "0.3"
+gloo-timers = { version = "0.3", features = ["futures"] }
+
+# Logging
+tracing = "0.1"
 
 # Custom elements
 custom-elements = "0.2"
@@ -71,6 +76,7 @@ maud = "0.26"
 # Internal crates
 scss-macros = { path = "scss-macros" }
 ui-core = { path = "ui-core" }
+ui-flow = { path = "ui-flow" }
 ui-loader = { path = "ui-loader" }
 ui-toast = { path = "ui-toast" }
 wallet-core = { path = "wallet-core" }
