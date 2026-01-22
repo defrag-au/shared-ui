@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
+    "scss-macros",
+    "ui-core",
     "wallet-core",
     "primitives",
     "components",
@@ -62,6 +64,8 @@ custom-elements = "0.2"
 thiserror = "1"
 
 # Internal crates
+scss-macros = { path = "scss-macros" }
+ui-core = { path = "ui-core" }
 wallet-core = { path = "wallet-core" }
 primitives = { path = "primitives" }
 components = { path = "components" }
