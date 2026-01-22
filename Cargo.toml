@@ -3,6 +3,8 @@ resolver = "2"
 members = [
     "scss-macros",
     "ui-core",
+    "ui-loader",
+    "ui-toast",
     "wallet-core",
     "primitives",
     "components",
@@ -63,9 +65,14 @@ custom-elements = "0.2"
 # Error handling
 thiserror = "1"
 
+# HTML templating
+maud = "0.26"
+
 # Internal crates
 scss-macros = { path = "scss-macros" }
 ui-core = { path = "ui-core" }
+ui-loader = { path = "ui-loader" }
+ui-toast = { path = "ui-toast" }
 wallet-core = { path = "wallet-core" }
 primitives = { path = "primitives" }
 components = { path = "components" }

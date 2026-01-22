@@ -10,6 +10,9 @@ publish = false
 # Shared UI crates
 primitives = { path = "../primitives" }
 wallet-core = { path = "../wallet-core" }
+ui-loader = { path = "../ui-loader" }
+ui-toast = { path = "../ui-toast" }
+ui-core = { path = "../ui-core" }
 
 # Core WASM deps
 wasm-bindgen = "0.2"

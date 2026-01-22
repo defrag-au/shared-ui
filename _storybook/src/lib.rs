@@ -29,6 +29,12 @@ enum Story {
     // Wallet Core
     WalletProviders,
     ConnectionStates,
+    // UI Loader
+    LoadingStates,
+    LoaderConfig,
+    // UI Toast
+    ToastTypes,
+    ToastUsage,
 }
 
 impl Story {
@@ -41,6 +47,10 @@ impl Story {
             Story::EventHandlers,
             Story::WalletProviders,
             Story::ConnectionStates,
+            Story::LoadingStates,
+            Story::LoaderConfig,
+            Story::ToastTypes,
+            Story::ToastUsage,
         ]
     }
 
@@ -53,6 +63,10 @@ impl Story {
             Story::EventHandlers => "Event Handlers",
             Story::WalletProviders => "Wallet Providers",
             Story::ConnectionStates => "Connection States",
+            Story::LoadingStates => "Loading States",
+            Story::LoaderConfig => "Loader Config",
+            Story::ToastTypes => "Toast Types",
+            Story::ToastUsage => "Toast Usage",
         }
     }
 
@@ -64,6 +78,8 @@ impl Story {
             | Story::DomHelpers
             | Story::EventHandlers => "Primitives",
             Story::WalletProviders | Story::ConnectionStates => "Wallet Core",
+            Story::LoadingStates | Story::LoaderConfig => "UI Loader",
+            Story::ToastTypes | Story::ToastUsage => "UI Toast",
         }
     }
 }
@@ -185,6 +201,10 @@ fn render_story(story: Story) {
         Story::EventHandlers => render_event_handlers_story(),
         Story::WalletProviders => render_wallet_providers_story(),
         Story::ConnectionStates => render_connection_states_story(),
+        Story::LoadingStates => render_loading_states_story(),
+        Story::LoaderConfig => render_loader_config_story(),
+        Story::ToastTypes => render_toast_types_story(),
+        Story::ToastUsage => render_toast_usage_story(),
     };
 
     main.append(&content);
@@ -875,6 +895,683 @@ fn render_connection_card(state: &ConnectionState) -> Element {
             body.append(&msg);
         }
     }
+
+    card.append(&body);
+    card
+}
+
+// ============================================================================
+// Toast Types Story
+// ============================================================================
+
+fn render_toast_types_story() -> Element {
+    let container = create_element("div", &[]);
+
+    let header = create_element("div", &["story-header"]);
+    let h2 = create_element("h2", &[]);
+    h2.set_text_content(Some("Toast Types"));
+    header.append(&h2);
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(
+        "The ui-toast crate provides four toast types for different notification severities.",
+    ));
+    header.append(&desc);
+    container.append(&header);
+
+    // Toast kinds section
+    let section = create_element("div", &["story-section"]);
+    let h3 = create_element("h3", &[]);
+    h3.set_text_content(Some("ToastKind Variants"));
+    section.append(&h3);
+
+    let canvas = create_element("div", &["story-canvas"]);
+    let grid = create_element("div", &["story-grid"]);
+
+    // Success
+    let card1 = render_toast_kind_card(
+        "Success",
+        "toast--success",
+        "\u{2713}",
+        "Operation completed successfully",
+    );
+    grid.append(&card1);
+
+    // Warning
+    let card2 = render_toast_kind_card(
+        "Warning",
+        "toast--warning",
+        "\u{26A0}",
+        "Something needs attention",
+    );
+    grid.append(&card2);
+
+    // Error
+    let card3 = render_toast_kind_card("Error", "toast--error", "\u{2715}", "An error occurred");
+    grid.append(&card3);
+
+    // Info
+    let card4 = render_toast_kind_card("Info", "toast--info", "\u{2139}", "Informational message");
+    grid.append(&card4);
+
+    canvas.append(&grid);
+    section.append(&canvas);
+    container.append(&section);
+
+    // Convenience functions
+    let section2 = create_element("div", &["story-section"]);
+    let h3_2 = create_element("h3", &[]);
+    h3_2.set_text_content(Some("Convenience Functions"));
+    section2.append(&h3_2);
+
+    let canvas2 = create_element("div", &["story-canvas"]);
+    let grid2 = create_element("div", &["story-grid"]);
+
+    let fn1 = render_toast_fn_card("success(msg)", "Creates a success toast message");
+    grid2.append(&fn1);
+
+    let fn2 = render_toast_fn_card("warning(msg)", "Creates a warning toast message");
+    grid2.append(&fn2);
+
+    let fn3 = render_toast_fn_card("error(msg)", "Creates an error toast message");
+    grid2.append(&fn3);
+
+    let fn4 = render_toast_fn_card("info(msg)", "Creates an info toast message");
+    grid2.append(&fn4);
+
+    canvas2.append(&grid2);
+    section2.append(&canvas2);
+    container.append(&section2);
+
+    // Code example
+    let code_section = create_element("div", &["story-section"]);
+    let code_h3 = create_element("h3", &[]);
+    code_h3.set_text_content(Some("Creating Toast Messages"));
+    code_section.append(&code_h3);
+
+    let code = create_element("pre", &["code-block"]);
+    code.set_text_content(Some(
+        r#"use ui_toast::{success, error, warning, info, show, ToastKind};
+
+// Using convenience functions
+let msg = success("File saved successfully");
+let msg = error("Failed to connect");
+let msg = warning("Low disk space");
+let msg = info("New version available");
+
+// Using show() for more control
+let msg = show("Custom message", ToastKind::Success);
+
+// With custom icon
+let msg = show_with_icon("Uploaded!", ToastKind::Success, "🚀");"#,
+    ));
+    code_section.append(&code);
+    container.append(&code_section);
+
+    container
+}
+
+fn render_toast_kind_card(name: &str, css_class: &str, icon: &str, example: &str) -> Element {
+    let card = create_element("div", &["wallet-card"]);
+
+    let header = create_element("div", &["wallet-card__header"]);
+    let icon_el = create_element("div", &["wallet-card__icon"]);
+    icon_el.set_text_content(Some(icon));
+    header.append(&icon_el);
+
+    let name_span = create_element("span", &["wallet-card__name"]);
+    name_span.set_text_content(Some(name));
+    header.append(&name_span);
+    card.append(&header);
+
+    let body = create_element("div", &["wallet-card__body"]);
+
+    // CSS class row
+    let row1 = create_element("div", &["wallet-card__row"]);
+    let label1 = create_element("span", &["wallet-card__label"]);
+    label1.set_text_content(Some("CSS Class"));
+    row1.append(&label1);
+    let value1 = create_element("span", &["wallet-card__value"]);
+    value1.set_text_content(Some(css_class));
+    row1.append(&value1);
+    body.append(&row1);
+
+    // Example row
+    let row2 = create_element("div", &["wallet-card__row"]);
+    let label2 = create_element("span", &["wallet-card__label"]);
+    label2.set_text_content(Some("Example"));
+    row2.append(&label2);
+    let value2 = create_element("span", &["wallet-card__value"]);
+    value2.set_text_content(Some(example));
+    row2.append(&value2);
+    body.append(&row2);
+
+    card.append(&body);
+    card
+}
+
+fn render_toast_fn_card(signature: &str, description: &str) -> Element {
+    let card = create_element("div", &["wallet-card"]);
+
+    let header = create_element("div", &["wallet-card__header"]);
+    let name_span = create_element("span", &["wallet-card__name"]);
+    name_span.set_text_content(Some(signature));
+    header.append(&name_span);
+    card.append(&header);
+
+    let body = create_element("div", &["wallet-card__body"]);
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(description));
+    body.append(&desc);
+    card.append(&body);
+
+    card
+}
+
+// ============================================================================
+// Toast Usage Story
+// ============================================================================
+
+fn render_toast_usage_story() -> Element {
+    let container = create_element("div", &[]);
+
+    let header = create_element("div", &["story-header"]);
+    let h2 = create_element("h2", &[]);
+    h2.set_text_content(Some("Toast Usage"));
+    header.append(&h2);
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(
+        "Integrate toasts into your widget using the HasToasts trait.",
+    ));
+    header.append(&desc);
+    container.append(&header);
+
+    // HasToasts trait section
+    let section = create_element("div", &["story-section"]);
+    let h3 = create_element("h3", &[]);
+    h3.set_text_content(Some("HasToasts Trait"));
+    section.append(&h3);
+
+    let canvas = create_element("div", &["story-canvas"]);
+    let grid = create_element("div", &["story-grid"]);
+
+    let m1 = render_trait_method_card(
+        "toasts()",
+        "&VecDeque<Toast>",
+        "Get reference to toast queue",
+    );
+    grid.append(&m1);
+
+    let m2 = render_trait_method_card(
+        "toasts_mut()",
+        "&mut VecDeque<Toast>",
+        "Get mutable reference to toast queue",
+    );
+    grid.append(&m2);
+
+    let m3 = render_trait_method_card("next_toast_id()", "u32", "Get the next toast ID");
+    grid.append(&m3);
+
+    let m4 = render_trait_method_card("set_next_toast_id(id)", "()", "Set the next toast ID");
+    grid.append(&m4);
+
+    canvas.append(&grid);
+    section.append(&canvas);
+    container.append(&section);
+
+    // Provided methods section
+    let section2 = create_element("div", &["story-section"]);
+    let h3_2 = create_element("h3", &[]);
+    h3_2.set_text_content(Some("Provided Methods"));
+    section2.append(&h3_2);
+
+    let canvas2 = create_element("div", &["story-canvas"]);
+    let grid2 = create_element("div", &["story-grid"]);
+
+    let p1 = render_trait_method_card("add_toast(msg, kind)", "u32", "Add a toast, returns its ID");
+    grid2.append(&p1);
+
+    let p2 = render_trait_method_card(
+        "add_toast_with_icon(...)",
+        "u32",
+        "Add toast with custom icon",
+    );
+    grid2.append(&p2);
+
+    let p3 = render_trait_method_card("dismiss_toast(id)", "()", "Remove a specific toast");
+    grid2.append(&p3);
+
+    let p4 = render_trait_method_card(
+        "cleanup_expired_toasts()",
+        "()",
+        "Remove all expired toasts",
+    );
+    grid2.append(&p4);
+
+    canvas2.append(&grid2);
+    section2.append(&canvas2);
+    container.append(&section2);
+
+    // Code example
+    let code_section = create_element("div", &["story-section"]);
+    let code_h3 = create_element("h3", &[]);
+    code_h3.set_text_content(Some("Implementation Example"));
+    code_section.append(&code_h3);
+
+    let code = create_element("pre", &["code-block"]);
+    code.set_text_content(Some(
+        r#"use ui_toast::{Toast, ToastKind, HasToasts};
+use std::collections::VecDeque;
+
+struct Model {
+    toasts: VecDeque<Toast>,
+    next_toast_id: u32,
+}
+
+impl HasToasts for Model {
+    fn toasts(&self) -> &VecDeque<Toast> { &self.toasts }
+    fn toasts_mut(&mut self) -> &mut VecDeque<Toast> { &mut self.toasts }
+    fn next_toast_id(&self) -> u32 { self.next_toast_id }
+    fn set_next_toast_id(&mut self, id: u32) { self.next_toast_id = id; }
+}
+
+// Then use the provided methods:
+model.add_toast("Success!".to_string(), ToastKind::Success);
+model.cleanup_expired_toasts();"#,
+    ));
+    code_section.append(&code);
+    container.append(&code_section);
+
+    container
+}
+
+fn render_trait_method_card(signature: &str, returns: &str, description: &str) -> Element {
+    let card = create_element("div", &["wallet-card"]);
+
+    let header = create_element("div", &["wallet-card__header"]);
+    let name_span = create_element("span", &["wallet-card__name"]);
+    name_span.set_text_content(Some(signature));
+    header.append(&name_span);
+    card.append(&header);
+
+    let body = create_element("div", &["wallet-card__body"]);
+
+    // Returns row
+    let row = create_element("div", &["wallet-card__row"]);
+    let label = create_element("span", &["wallet-card__label"]);
+    label.set_text_content(Some("Returns"));
+    row.append(&label);
+    let value = create_element("span", &["wallet-card__value"]);
+    value.set_text_content(Some(returns));
+    row.append(&value);
+    body.append(&row);
+
+    // Description
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(description));
+    desc.set_attribute(
+        "style",
+        "margin-top: 0.5rem; font-size: 0.9em; color: #8b8fa3;",
+    )
+    .unwrap();
+    body.append(&desc);
+
+    card.append(&body);
+    card
+}
+
+// ============================================================================
+// Loading States Story
+// ============================================================================
+
+fn render_loading_states_story() -> Element {
+    let container = create_element("div", &[]);
+
+    let header = create_element("div", &["story-header"]);
+    let h2 = create_element("h2", &[]);
+    h2.set_text_content(Some("Loading States"));
+    header.append(&h2);
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(
+        "The ui-loader crate provides a framework-agnostic loading orchestrator for WASM widgets.",
+    ));
+    header.append(&desc);
+    container.append(&header);
+
+    // Overview section
+    let section = create_element("div", &["story-section"]);
+    let h3 = create_element("h3", &[]);
+    h3.set_text_content(Some("Loading Flow"));
+    section.append(&h3);
+
+    let canvas = create_element("div", &["story-canvas"]);
+    let grid = create_element("div", &["story-grid"]);
+
+    // Step 1
+    let card1 = render_loader_step_card(
+        "1",
+        "Show Loading",
+        "Immediately display a loading screen with customizable message",
+    );
+    grid.append(&card1);
+
+    // Step 2
+    let card2 = render_loader_step_card(
+        "2",
+        "Validate Auth",
+        "Parse URL token and validate JWT authentication",
+    );
+    grid.append(&card2);
+
+    // Step 3
+    let card3 = render_loader_step_card(
+        "3",
+        "Fetch Data",
+        "Run async load function with progress updates",
+    );
+    grid.append(&card3);
+
+    // Step 4
+    let card4 = render_loader_step_card(
+        "4",
+        "Hand Off",
+        "Pass loaded data to your framework (Seed, Leptos, etc.)",
+    );
+    grid.append(&card4);
+
+    canvas.append(&grid);
+    section.append(&canvas);
+    container.append(&section);
+
+    // Error states section
+    let section2 = create_element("div", &["story-section"]);
+    let h3_2 = create_element("h3", &[]);
+    h3_2.set_text_content(Some("Error States"));
+    section2.append(&h3_2);
+
+    let canvas2 = create_element("div", &["story-canvas"]);
+    let grid2 = create_element("div", &["story-grid"]);
+
+    // Auth Required
+    let err1 = render_loader_error_card("AuthRequired", "Missing or invalid authentication token");
+    grid2.append(&err1);
+
+    // Token Expired
+    let err2 = render_loader_error_card("TokenExpired", "JWT token has passed its expiration time");
+    grid2.append(&err2);
+
+    // Fetch Failed
+    let err3 = render_loader_error_card(
+        "FetchFailed",
+        "Network error or API returned an error status",
+    );
+    grid2.append(&err3);
+
+    canvas2.append(&grid2);
+    section2.append(&canvas2);
+    container.append(&section2);
+
+    // Code example
+    let code_section = create_element("div", &["story-section"]);
+    let code_h3 = create_element("h3", &[]);
+    code_h3.set_text_content(Some("Usage"));
+    code_section.append(&code_h3);
+
+    let code = create_element("pre", &["code-block"]);
+    code.set_text_content(Some(
+        r#"use ui_loader::{LoadingOrchestrator, LoaderConfig};
+
+#[wasm_bindgen(start)]
+pub async fn start() {
+    let config = LoaderConfig::new()
+        .auth_required(true)
+        .initial_message("Loading...");
+
+    let result = LoadingOrchestrator::run(config, |auth, loader| async move {
+        loader.set_message("Fetching data...");
+        let data = fetch_data(&auth).await?;
+        Ok(data)
+    }).await;
+
+    match result {
+        Ok(loaded) => {
+            // Start your UI framework with loaded.data
+        }
+        Err(_) => {
+            // Error screen already shown
+        }
+    }
+}"#,
+    ));
+    code_section.append(&code);
+    container.append(&code_section);
+
+    container
+}
+
+fn render_loader_step_card(step: &str, title: &str, description: &str) -> Element {
+    let card = create_element("div", &["wallet-card"]);
+
+    let header = create_element("div", &["wallet-card__header"]);
+    let icon = create_element("div", &["wallet-card__icon"]);
+    icon.set_text_content(Some(step));
+    header.append(&icon);
+
+    let name = create_element("span", &["wallet-card__name"]);
+    name.set_text_content(Some(title));
+    header.append(&name);
+    card.append(&header);
+
+    let body = create_element("div", &["wallet-card__body"]);
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(description));
+    body.append(&desc);
+    card.append(&body);
+
+    card
+}
+
+fn render_loader_error_card(error_type: &str, description: &str) -> Element {
+    let card = create_element("div", &["wallet-card"]);
+
+    let header = create_element("div", &["wallet-card__header"]);
+    let status = create_element(
+        "span",
+        &["status-indicator", "status-indicator--disconnected"],
+    );
+    status.set_text_content(Some(error_type));
+    header.append(&status);
+    card.append(&header);
+
+    let body = create_element("div", &["wallet-card__body"]);
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(description));
+    body.append(&desc);
+    card.append(&body);
+
+    card
+}
+
+// ============================================================================
+// Loader Config Story
+// ============================================================================
+
+fn render_loader_config_story() -> Element {
+    let container = create_element("div", &[]);
+
+    let header = create_element("div", &["story-header"]);
+    let h2 = create_element("h2", &[]);
+    h2.set_text_content(Some("Loader Configuration"));
+    header.append(&h2);
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(
+        "Configure the loading orchestrator behavior with LoaderConfig.",
+    ));
+    header.append(&desc);
+    container.append(&header);
+
+    // Options section
+    let section = create_element("div", &["story-section"]);
+    let h3 = create_element("h3", &[]);
+    h3.set_text_content(Some("Configuration Options"));
+    section.append(&h3);
+
+    let canvas = create_element("div", &["story-canvas"]);
+    let grid = create_element("div", &["story-grid"]);
+
+    // auth_required
+    let opt1 = render_config_option_card(
+        "auth_required",
+        "bool",
+        "true",
+        "Whether authentication is required. If true, shows error for missing/invalid tokens.",
+    );
+    grid.append(&opt1);
+
+    // log_level
+    let opt2 = render_config_option_card(
+        "log_level",
+        "Level",
+        "DEBUG",
+        "Tracing log level for the widget runtime (DEBUG, INFO, WARN, ERROR).",
+    );
+    grid.append(&opt2);
+
+    // initial_message
+    let opt3 = render_config_option_card(
+        "initial_message",
+        "String",
+        "\"Loading...\"",
+        "The message shown on the loading screen before fetch starts.",
+    );
+    grid.append(&opt3);
+
+    // on_before_load
+    let opt4 = render_config_option_card(
+        "on_before_load",
+        "fn()",
+        "None",
+        "Optional hook called after auth validation, before the load function runs.",
+    );
+    grid.append(&opt4);
+
+    canvas.append(&grid);
+    section.append(&canvas);
+    container.append(&section);
+
+    // LoadResult section
+    let section2 = create_element("div", &["story-section"]);
+    let h3_2 = create_element("h3", &[]);
+    h3_2.set_text_content(Some("LoadResult Fields"));
+    section2.append(&h3_2);
+
+    let canvas2 = create_element("div", &["story-canvas"]);
+    let grid2 = create_element("div", &["story-grid"]);
+
+    let field1 = render_config_option_card(
+        "auth",
+        "AuthState",
+        "-",
+        "The validated authentication state (Authenticated, Anonymous, etc.)",
+    );
+    grid2.append(&field1);
+
+    let field2 = render_config_option_card(
+        "data",
+        "T",
+        "-",
+        "Your loaded data returned from the fetch function",
+    );
+    grid2.append(&field2);
+
+    let field3 = render_config_option_card(
+        "world_id",
+        "Option<String>",
+        "-",
+        "World ID extracted from URL ?world= parameter",
+    );
+    grid2.append(&field3);
+
+    let field4 = render_config_option_card(
+        "discord_url",
+        "Option<String>",
+        "-",
+        "Return URL from JWT claims for 'Return to Discord' button",
+    );
+    grid2.append(&field4);
+
+    canvas2.append(&grid2);
+    section2.append(&canvas2);
+    container.append(&section2);
+
+    // Code example
+    let code_section = create_element("div", &["story-section"]);
+    let code_h3 = create_element("h3", &[]);
+    code_h3.set_text_content(Some("Builder Pattern"));
+    code_section.append(&code_h3);
+
+    let code = create_element("pre", &["code-block"]);
+    code.set_text_content(Some(
+        r#"use ui_loader::{LoaderConfig, Level};
+
+let config = LoaderConfig::new()
+    .auth_required(true)
+    .log_level(Level::INFO)
+    .initial_message("Starting up...")
+    .on_before_load(|| {
+        // Register custom elements, etc.
+    });"#,
+    ));
+    code_section.append(&code);
+    container.append(&code_section);
+
+    container
+}
+
+fn render_config_option_card(
+    name: &str,
+    type_name: &str,
+    default: &str,
+    description: &str,
+) -> Element {
+    let card = create_element("div", &["wallet-card"]);
+
+    let header = create_element("div", &["wallet-card__header"]);
+    let name_span = create_element("span", &["wallet-card__name"]);
+    name_span.set_text_content(Some(name));
+    header.append(&name_span);
+    card.append(&header);
+
+    let body = create_element("div", &["wallet-card__body"]);
+
+    // Type row
+    let row1 = create_element("div", &["wallet-card__row"]);
+    let label1 = create_element("span", &["wallet-card__label"]);
+    label1.set_text_content(Some("Type"));
+    row1.append(&label1);
+    let value1 = create_element("span", &["wallet-card__value"]);
+    value1.set_text_content(Some(type_name));
+    row1.append(&value1);
+    body.append(&row1);
+
+    // Default row
+    let row2 = create_element("div", &["wallet-card__row"]);
+    let label2 = create_element("span", &["wallet-card__label"]);
+    label2.set_text_content(Some("Default"));
+    row2.append(&label2);
+    let value2 = create_element("span", &["wallet-card__value"]);
+    value2.set_text_content(Some(default));
+    row2.append(&value2);
+    body.append(&row2);
+
+    // Description
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(description));
+    desc.set_attribute(
+        "style",
+        "margin-top: 0.5rem; font-size: 0.9em; color: #8b8fa3;",
+    )
+    .unwrap();
+    body.append(&desc);
 
     card.append(&body);
     card
