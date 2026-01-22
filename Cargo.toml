@@ -4,6 +4,7 @@ members = [
     "wallet-core",
     "primitives",
     "components",
+    "_storybook",
 ]
 
 [workspace.package]

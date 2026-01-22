@@ -1,0 +1,50 @@
+[package]
+name = "shared-ui-storybook"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# DEV ONLY - Storybook for testing shared-ui components
+
+[dependencies]
+# Shared UI crates
+primitives = { path = "../primitives" }
+wallet-core = { path = "../wallet-core" }
+
+# Core WASM deps
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1"
+
+# Reactive signals
+futures-signals = "0.3"
+
+# Web APIs
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlButtonElement",
+    "HtmlDivElement",
+    "HtmlSelectElement",
+    "Location",
+    "Event",
+    "InputEvent",
+    "MouseEvent",
+    "EventTarget",
+    "CustomEvent",
+    "CustomEventInit",
+    "CssStyleDeclaration",
+    "DomTokenList",
+    "ShadowRoot",
+    "ShadowRootInit",
+    "ShadowRootMode",
+    "Node",
+    "Text",
+] }
+js-sys = "0.3"
+
+[lib]
+crate-type = ["cdylib"]
