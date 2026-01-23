@@ -74,6 +74,46 @@ components::define_all();
 - Web components should be framework-agnostic (no Leptos/Yew dependencies in components)
 - Use `futures-signals` for reactivity, not framework-specific signals
 
+## Leptos 0.8 (CRITICAL)
+
+This workspace uses **Leptos 0.8**. The API changed significantly from 0.6.
+
+**Key differences from 0.6:**
+
+| 0.6 Pattern | 0.8 Pattern |
+|-------------|-------------|
+| `use leptos::*` | `use leptos::prelude::*` |
+| `create_signal(value)` | `signal(value)` |
+| `create_memo(fn)` | `Memo::new(fn)` |
+| `create_effect(fn)` | `Effect::new(fn)` |
+| `MaybeSignal<T>` | `Signal<T>` |
+| `callback.call(args)` | `callback.run(args)` |
+| `.into_view()` (type erasure) | `.into_any()` |
+| `mount_to_body(App).forget()` | `let _ = mount_to_body(App);` |
+
+**Send + Sync requirements:**
+
+Leptos 0.8 requires closures in views to be `Send + Sync`. For `Rc<RefCell<...>>` patterns common in CSR WASM apps, wrap with `SendWrapper`:
+
+```rust
+use send_wrapper::SendWrapper;
+
+let ws: SendWrapper<Rc<RefCell<Option<WebSocket>>>> = 
+    SendWrapper::new(Rc::new(RefCell::new(None)));
+```
+
+**CollectView trait:**
+
+The `collect_view()` method requires an explicit import:
+
+```rust
+use leptos::prelude::CollectView;
+
+items.iter().map(|item| view! { <li>{item}</li> }).collect_view()
+```
+
+**Full migration guide:** See `docs/leptos-0.6-to-0.8-migration.md` for comprehensive patterns and examples.
+
 ## DOM Construction (CRITICAL)
 
 **DO NOT use `maud` or any HTML string templating in this workspace.**
