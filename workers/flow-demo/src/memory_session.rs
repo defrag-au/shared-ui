@@ -204,6 +204,7 @@ impl MemoryGameSessionDO {
             match &game_state.phase {
                 GamePhase::Lobby { .. } => "Lobby",
                 GamePhase::Starting { .. } => "Starting",
+                GamePhase::Loading { .. } => "Loading",
                 GamePhase::Playing => "Playing",
                 GamePhase::Finished { .. } => "Finished",
             },
@@ -287,6 +288,9 @@ impl MemoryGameSessionDO {
             }
             MemoryAction::AckCardLoaded { index } => {
                 self.handle_ack_card_loaded(ws, conn, op_id, index).await?;
+            }
+            MemoryAction::Ready => {
+                self.handle_ready(ws, conn, op_id).await?;
             }
             MemoryAction::RequestRematch => {
                 self.handle_request_rematch(ws, conn, op_id).await?;
@@ -435,7 +439,7 @@ impl MemoryGameSessionDO {
     async fn handle_start_game(
         &self,
         ws: &WebSocket,
-        conn: &ConnectionInfo,
+        _conn: &ConnectionInfo,
         op_id: OpId,
     ) -> Result<()> {
         let mut state = self.get_game_state().await;
@@ -449,8 +453,9 @@ impl MemoryGameSessionDO {
 
         // Need at least 1 non-spectating player
         let active_players: Vec<_> = state.players.values().filter(|p| !p.spectating).collect();
+        let total_players = active_players.len();
 
-        if active_players.is_empty() {
+        if total_players == 0 {
             self.send_action_error(ws, op_id, "Need at least one player")
                 .await;
             return Ok(());
@@ -492,7 +497,6 @@ impl MemoryGameSessionDO {
         state.turn_order.shuffle(&mut rng);
 
         state.current_turn = 0;
-        state.phase = GamePhase::Playing;
         state.turn_state = TurnState::AwaitingFirst;
 
         // Reset player scores
@@ -501,13 +505,13 @@ impl MemoryGameSessionDO {
             player.flipped.clear();
         }
 
-        self.save_game_state(&state).await;
-
-        // Broadcast game started (turn order, phase change)
-        let started_delta = MemoryDelta::GameStarted {
-            turn_order: state.turn_order.clone(),
+        // Enter Loading phase - wait for players to signal ready
+        state.phase = GamePhase::Loading {
+            ready_players: Vec::new(),
+            total_players,
         };
-        self.broadcast_delta(started_delta).await;
+
+        self.save_game_state(&state).await;
 
         // Broadcast cards dealt (hidden card structure - no face data revealed)
         let hidden_cards: Vec<HiddenCard> = state.cards.iter().map(HiddenCard::from).collect();
@@ -522,15 +526,80 @@ impl MemoryGameSessionDO {
             .collect();
 
         tracing::info!(
-            "Game started - broadcasting {} hidden cards via CardsDealt delta ({} unique assets for preload)",
+            "Dealing cards - broadcasting {} hidden cards ({} unique assets for preload), waiting for {} players to be ready",
             hidden_cards.len(),
-            asset_ids.len()
+            asset_ids.len(),
+            total_players
         );
         let cards_delta = MemoryDelta::CardsDealt {
             cards: hidden_cards,
             asset_ids,
+            total_players,
         };
         self.broadcast_delta(cards_delta).await;
+
+        self.send_action_ok(ws, op_id).await;
+
+        Ok(())
+    }
+
+    async fn handle_ready(&self, ws: &WebSocket, conn: &ConnectionInfo, op_id: OpId) -> Result<()> {
+        let mut state = self.get_game_state().await;
+
+        // Must be in Loading phase
+        let (ready_players, total_players) = match &mut state.phase {
+            GamePhase::Loading {
+                ready_players,
+                total_players,
+            } => (ready_players, *total_players),
+            _ => {
+                self.send_action_error(ws, op_id, "Not in loading phase")
+                    .await;
+                return Ok(());
+            }
+        };
+
+        // Check if already ready
+        if ready_players.contains(&conn.user_id) {
+            self.send_action_ok(ws, op_id).await;
+            return Ok(());
+        }
+
+        // Mark player as ready
+        ready_players.push(conn.user_id.clone());
+        let ready_count = ready_players.len();
+
+        tracing::info!(
+            "Player {} is ready ({}/{})",
+            conn.user_id,
+            ready_count,
+            total_players
+        );
+
+        // Broadcast player ready
+        let ready_delta = MemoryDelta::PlayerReady {
+            user_id: conn.user_id.clone(),
+            ready_count,
+            total_players,
+        };
+        self.broadcast_delta(ready_delta).await;
+
+        // Check if all players are ready
+        if ready_count >= total_players {
+            tracing::info!("All players ready - starting game!");
+
+            // Transition to Playing phase
+            state.phase = GamePhase::Playing;
+            self.save_game_state(&state).await;
+
+            // Broadcast game started
+            let started_delta = MemoryDelta::GameStarted {
+                turn_order: state.turn_order.clone(),
+            };
+            self.broadcast_delta(started_delta).await;
+        } else {
+            self.save_game_state(&state).await;
+        }
 
         self.send_action_ok(ws, op_id).await;
 

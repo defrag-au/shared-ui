@@ -204,6 +204,10 @@ impl CustomElement for AssetCache {
         &["assets"]
     }
 
+    fn constructor(&mut self, _this: &HtmlElement) {
+        // No-op - assets will be set via attribute
+    }
+
     fn attribute_changed_callback(
         &mut self,
         this: &HtmlElement,
@@ -213,15 +217,15 @@ impl CustomElement for AssetCache {
     ) {
         if name == "assets" {
             if let Some(json) = new_value {
-                self.preload_assets(this, &json);
+                if !json.is_empty() {
+                    self.preload_assets(this, &json);
+                }
             }
         }
     }
 
-    fn inject_children(&mut self, this: &HtmlElement) {
-        // Check if assets attribute is already set
-        if let Some(json) = this.get_attribute("assets") {
-            self.preload_assets(this, &json);
-        }
+    fn inject_children(&mut self, _this: &HtmlElement) {
+        // No children to inject - this is a non-visual component
+        // Assets will be loaded via attribute_changed_callback
     }
 }

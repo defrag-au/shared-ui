@@ -139,6 +139,13 @@ pub enum GamePhase {
     Lobby { min_players: u8, max_players: u8 },
     /// Countdown before game starts
     Starting { countdown: u8 },
+    /// Loading assets - waiting for players to signal ready
+    Loading {
+        /// Players who have signaled ready
+        ready_players: Vec<String>,
+        /// Total players expected to be ready
+        total_players: usize,
+    },
     /// Game in progress
     Playing,
     /// Game finished
@@ -457,17 +464,28 @@ pub enum MemoryDelta {
     // === Starting Phase ===
     /// Countdown tick
     CountdownTick { seconds: u8 },
-    /// Game started - announces turn order and game beginning
-    GameStarted {
-        /// Turn order (turn-taking mode)
-        turn_order: Vec<String>,
-    },
     /// Cards have been dealt - contains hidden card structure and asset IDs for preloading
+    /// Game enters Loading phase after this
     CardsDealt {
         /// Hidden cards (no face data - just matched state)
         cards: Vec<HiddenCard>,
         /// Asset IDs for all unique cards (for preloading images)
         asset_ids: Vec<AssetId>,
+        /// Total number of players expected to signal ready
+        total_players: usize,
+    },
+    /// A player has signaled they are ready (assets loaded)
+    PlayerReady {
+        user_id: String,
+        /// Number of players now ready
+        ready_count: usize,
+        /// Total players expected
+        total_players: usize,
+    },
+    /// All players ready - game actually starts now
+    GameStarted {
+        /// Turn order (turn-taking mode)
+        turn_order: Vec<String>,
     },
 
     // === Turn-Taking Mode ===
@@ -551,6 +569,8 @@ pub enum MemoryAction {
     FlipCard { index: usize },
     /// Acknowledge that a flipped card's image has loaded (starts flip-back timer)
     AckCardLoaded { index: usize },
+    /// Signal that client has finished preloading assets and is ready to play
+    Ready,
     /// Request a rematch after game ends
     RequestRematch,
     /// Reset entire game state (admin)

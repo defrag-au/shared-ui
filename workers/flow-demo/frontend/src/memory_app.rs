@@ -65,6 +65,10 @@ pub enum GamePhase {
     Starting {
         countdown: u8,
     },
+    Loading {
+        ready_players: Vec<String>,
+        total_players: usize,
+    },
     Playing,
     Finished {
         winner: Option<String>,
@@ -169,12 +173,7 @@ pub struct HiddenCard {
     pub matched_by: Option<String>,
 }
 
-/// Asset ID for preloading (mirrors cardano_assets::AssetId)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AssetIdInfo {
-    pub policy_id: String,
-    pub asset_name_hex: String,
-}
+use cardano_assets::AssetId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -196,13 +195,20 @@ pub enum MemoryDelta {
     CountdownTick {
         seconds: u8,
     },
-    GameStarted {
-        turn_order: Vec<String>,
-    },
     CardsDealt {
         cards: Vec<HiddenCard>,
         #[serde(default)]
-        asset_ids: Vec<AssetIdInfo>,
+        asset_ids: Vec<AssetId>,
+        #[serde(default)]
+        total_players: usize,
+    },
+    PlayerReady {
+        user_id: String,
+        ready_count: usize,
+        total_players: usize,
+    },
+    GameStarted {
+        turn_order: Vec<String>,
     },
     CardFlipped {
         index: usize,
@@ -278,6 +284,7 @@ pub enum MemoryAction {
     AckCardLoaded {
         index: usize,
     },
+    Ready,
     RequestRematch,
     ResetGame,
 }
@@ -306,7 +313,7 @@ pub fn MemoryApp() -> impl IntoView {
     // Revealed card faces (from server)
     let (revealed_faces, set_revealed_faces) = create_signal(HashMap::<usize, CardFace>::new());
     // Asset IDs for preloading images
-    let (preload_assets, set_preload_assets) = create_signal(Vec::<AssetIdInfo>::new());
+    let (preload_assets, set_preload_assets) = create_signal(Vec::<AssetId>::new());
 
     let ws: Rc<RefCell<Option<WebSocket>>> = Rc::new(RefCell::new(None));
 
@@ -565,6 +572,9 @@ pub fn MemoryApp() -> impl IntoView {
         }
     });
 
+    // Clone send_action for the cache-ready handler
+    let send_ready = send_action.clone();
+
     view! {
         <div class="memory-app">
             <div class="header">
@@ -577,7 +587,7 @@ pub fn MemoryApp() -> impl IntoView {
                 />
             </div>
 
-            // Asset cache for preloading card images
+            // Asset cache for preloading card images - sends Ready when loaded
             <asset-cache
                 attr:assets=preload_assets_json
                 on:cache-ready=move |e: CustomEvent| {
@@ -591,7 +601,9 @@ pub fn MemoryApp() -> impl IntoView {
                             .ok()
                             .and_then(|v| v.as_f64())
                             .unwrap_or(0.0) as u32;
-                        tracing::info!("Asset cache ready: {} loaded, {} failed", loaded, failed);
+                        tracing::info!("Asset cache ready: {} loaded, {} failed - signaling ready", loaded, failed);
+                        // Signal to server that we're ready to play
+                        send_ready(MemoryAction::Ready);
                     }
                 }
             />
@@ -636,6 +648,29 @@ pub fn MemoryApp() -> impl IntoView {
                             <div class="countdown">
                                 <h2>"Game starting in..."</h2>
                                 <div class="countdown-number">{countdown}</div>
+                            </div>
+                        }.into_view()
+                    }
+
+                    GamePhase::Loading { ready_players, total_players } => {
+                        let ready_count = ready_players.len();
+                        view! {
+                            <div class="loading-phase">
+                                <h2>"Loading assets..."</h2>
+                                <div class="loading-progress">
+                                    <div class="loading-spinner"></div>
+                                    <p>{format!("Waiting for players: {}/{}", ready_count, total_players)}</p>
+                                </div>
+                                <div class="ready-players">
+                                    {ready_players.iter().map(|id| {
+                                        let player_name = state.players.get(id)
+                                            .map(|p| p.user_name.clone())
+                                            .unwrap_or_else(|| id.clone());
+                                        view! {
+                                            <span class="ready-player">{player_name}" ✓"</span>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
                             </div>
                         }.into_view()
                     }
@@ -717,7 +752,7 @@ fn handle_server_message(
     set_presence: WriteSignal<Vec<PresenceInfo>>,
     set_revealed_faces: WriteSignal<HashMap<usize, CardFace>>,
     set_local_flipped: WriteSignal<Vec<usize>>,
-    set_preload_assets: WriteSignal<Vec<AssetIdInfo>>,
+    set_preload_assets: WriteSignal<Vec<AssetId>>,
 ) {
     match msg {
         ServerMessage::Connected { .. } => {
@@ -796,7 +831,7 @@ fn apply_delta(
     set_game_state: WriteSignal<MemoryGameState>,
     set_revealed_faces: WriteSignal<HashMap<usize, CardFace>>,
     set_local_flipped: WriteSignal<Vec<usize>>,
-    set_preload_assets: WriteSignal<Vec<AssetIdInfo>>,
+    set_preload_assets: WriteSignal<Vec<AssetId>>,
 ) {
     match delta {
         MemoryDelta::PlayerJoined {
@@ -853,8 +888,13 @@ fn apply_delta(
             set_local_flipped.set(Vec::new());
         }
 
-        MemoryDelta::CardsDealt { cards, asset_ids } => {
+        MemoryDelta::CardsDealt {
+            cards,
+            asset_ids,
+            total_players,
+        } => {
             // Convert hidden cards to full Card structs (face data hidden)
+            // and enter Loading phase
             set_game_state.update(|s| {
                 s.cards = cards
                     .into_iter()
@@ -867,12 +907,36 @@ fn apply_delta(
                         pair_id: 0, // Not needed on client
                     })
                     .collect();
+                s.phase = GamePhase::Loading {
+                    ready_players: Vec::new(),
+                    total_players,
+                };
             });
             // Trigger preloading of asset images
             if !asset_ids.is_empty() {
                 tracing::info!("Preloading {} assets", asset_ids.len());
                 set_preload_assets.set(asset_ids);
             }
+        }
+
+        MemoryDelta::PlayerReady {
+            user_id,
+            ready_count,
+            total_players,
+        } => {
+            set_game_state.update(|s| {
+                if let GamePhase::Loading {
+                    ready_players,
+                    total_players: tp,
+                } = &mut s.phase
+                {
+                    if !ready_players.contains(&user_id) {
+                        ready_players.push(user_id);
+                    }
+                    *tp = total_players;
+                }
+            });
+            tracing::info!("Player ready: {}/{}", ready_count, total_players);
         }
 
         MemoryDelta::CardFlipped { index, by: _, face } => {
