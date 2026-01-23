@@ -179,33 +179,38 @@ impl AssetCard {
         )
     }
 
-    /// Setup click handler to forward events with asset-id
+    /// Setup click handler once on the shadow root using event delegation.
+    /// Gets asset-id from host attribute at click time, avoiding listener accumulation.
     fn setup_click_handler(&self, element: &HtmlElement) {
-        if self.is_static {
-            return;
-        }
-
         let (shadow, host) = primitives::get_shadow_and_host(element);
-        if let Ok(Some(image_card)) = shadow.query_selector("image-card") {
-            let asset_id = self.asset_id.clone();
 
-            let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_: web_sys::Event| {
+        // Use event delegation - listen on shadow root for card-click bubbling from image-card
+        let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_: web_sys::Event| {
+            // Check is_static at event time
+            if !host.has_attribute("static") {
+                // Get current asset-id at event time
+                let asset_id = host.get_attribute("asset-id").unwrap_or_default();
                 dispatch_event_with_detail(&host, "card-click", &asset_id);
-            }) as Box<dyn Fn(_)>);
+            }
+        }) as Box<dyn Fn(_)>);
 
-            image_card
-                .add_event_listener_with_callback("card-click", closure.as_ref().unchecked_ref())
-                .ok();
-            closure.forget();
-        }
+        let _ =
+            shadow.add_event_listener_with_callback("card-click", closure.as_ref().unchecked_ref());
+        closure.forget();
     }
 
-    /// Setup image load handler to forward the event from nested image-card
+    /// Setup image load handler once on the shadow root using event delegation.
     fn setup_image_load_handler(&self, element: &HtmlElement) {
         let (shadow, host) = primitives::get_shadow_and_host(element);
-        if let Ok(Some(image_card)) = shadow.query_selector("image-card") {
-            primitives::forward_event(&image_card, "image-loaded", &host, "image-loaded");
-        }
+
+        // Listen for image-loaded bubbling from image-card
+        let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_: web_sys::Event| {
+            primitives::dispatch_event(&host, "image-loaded");
+        }) as Box<dyn Fn(_)>);
+
+        let _ = shadow
+            .add_event_listener_with_callback("image-loaded", closure.as_ref().unchecked_ref());
+        closure.forget();
     }
 }
 
@@ -253,13 +258,13 @@ impl CustomElement for AssetCard {
             _ => {}
         }
 
+        // Only re-render HTML - event handlers use delegation and don't need re-attaching
         render_to_shadow(this, &self.render_html());
-        self.setup_click_handler(this);
-        self.setup_image_load_handler(this);
     }
 
     fn inject_children(&mut self, this: &HtmlElement) {
         render_to_shadow(this, &self.render_html());
+        // Set up handlers once - they use event delegation on shadow root
         self.setup_click_handler(this);
         self.setup_image_load_handler(this);
     }

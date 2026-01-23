@@ -22,8 +22,10 @@
 
 use crate::render_to_shadow;
 use custom_elements::CustomElement;
-use primitives::{dispatch_event, on_click};
+use primitives::dispatch_event;
 use scss_macros::scss_inline;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
 /// Connection state values
@@ -123,18 +125,33 @@ impl ConnectionStatus {
         )
     }
 
-    /// Setup click handler after rendering
+    /// Setup click handler once on the shadow root using event delegation.
+    /// The handler checks current state at click time, avoiding listener accumulation.
     fn setup_click_handler(&self, element: &HtmlElement) {
-        if !self.is_clickable() {
-            return;
-        }
-
         let (shadow, host) = primitives::get_shadow_and_host(element);
-        if let Ok(Some(container)) = shadow.query_selector(".connection-status") {
-            on_click(&container, move |_| {
-                dispatch_event(&host, "reconnect");
-            });
-        }
+
+        // Use event delegation: attach one listener to shadow root that checks
+        // the current clickable state at event time
+        let closure = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
+            // Check if the clicked element or its parent has the clickable class
+            if let Some(target) = e.target() {
+                if let Some(el) = target.dyn_ref::<web_sys::Element>() {
+                    // Walk up to find .connection-status and check if it's clickable
+                    let container = el.closest(".connection-status").ok().flatten();
+                    if let Some(container) = container {
+                        if container
+                            .class_list()
+                            .contains("connection-status--clickable")
+                        {
+                            dispatch_event(&host, "reconnect");
+                        }
+                    }
+                }
+            }
+        }) as Box<dyn Fn(_)>);
+
+        let _ = shadow.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
+        closure.forget();
     }
 }
 
@@ -181,12 +198,13 @@ impl CustomElement for ConnectionStatus {
             _ => {}
         }
 
+        // Only re-render HTML, don't re-attach event handlers
         render_to_shadow(this, &self.render_html());
-        self.setup_click_handler(this);
     }
 
     fn inject_children(&mut self, this: &HtmlElement) {
         render_to_shadow(this, &self.render_html());
+        // Set up click handler once - uses event delegation so it doesn't need re-attaching
         self.setup_click_handler(this);
     }
 }

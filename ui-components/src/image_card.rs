@@ -34,8 +34,10 @@
 use crate::render_to_shadow;
 use custom_elements::CustomElement;
 use phf::phf_map;
-use primitives::{dispatch_event, on_click};
+use primitives::dispatch_event;
 use scss_macros::scss_inline;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
 /// Card size variants
@@ -183,21 +185,31 @@ impl ImageCard {
         }
     }
 
-    /// Setup click handler after rendering
+    /// Setup click handler once on the shadow root using event delegation.
+    /// Checks is_static state at click time via CSS class, avoiding listener accumulation.
     fn setup_click_handler(&self, element: &HtmlElement) {
-        if self.is_static {
-            return;
-        }
-
         let (shadow, host) = primitives::get_shadow_and_host(element);
-        if let Ok(Some(card)) = shadow.query_selector(".image-card") {
-            on_click(&card, move |_| {
-                dispatch_event(&host, "card-click");
-            });
-        }
+
+        let closure = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
+            if let Some(target) = e.target() {
+                if let Some(el) = target.dyn_ref::<web_sys::Element>() {
+                    // Find the card container and check if it's static
+                    if let Some(card) = el.closest(".image-card").ok().flatten() {
+                        if !card.class_list().contains("image-card--static") {
+                            dispatch_event(&host, "card-click");
+                        }
+                    }
+                }
+            }
+        }) as Box<dyn Fn(_)>);
+
+        let _ = shadow.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
+        closure.forget();
     }
 
-    /// Setup image load handler to dispatch image-loaded event
+    /// Setup image load handler on the actual img element.
+    /// Must be called after each render since render_to_shadow replaces the DOM.
+    /// Uses primitives::setup_image_load_handler which handles cached images correctly.
     fn setup_image_load_handler(&self, element: &HtmlElement) {
         let (shadow, host) = primitives::get_shadow_and_host(element);
         if let Ok(Some(img)) = shadow.query_selector(".image-card__image") {
@@ -250,13 +262,16 @@ impl CustomElement for ImageCard {
         }
 
         render_to_shadow(this, &self.render_html());
-        self.setup_click_handler(this);
+        // Image load handler must be re-attached since render replaces the img element
+        // Click handler uses delegation on shadow root, so doesn't need re-attaching
         self.setup_image_load_handler(this);
     }
 
     fn inject_children(&mut self, this: &HtmlElement) {
         render_to_shadow(this, &self.render_html());
+        // Click handler uses delegation on shadow root - only needs setup once
         self.setup_click_handler(this);
+        // Image load handler attaches to the img element
         self.setup_image_load_handler(this);
     }
 }

@@ -27,8 +27,10 @@
 
 use crate::render_to_shadow;
 use custom_elements::CustomElement;
-use primitives::{dispatch_event, on_click};
+use primitives::dispatch_event;
 use scss_macros::scss_inline;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
 /// Memory card custom element - a flippable wrapper around asset-card
@@ -113,40 +115,45 @@ impl MemoryCard {
         }
     }
 
-    /// Setup click handler after rendering
+    /// Setup click handler once on the shadow root using event delegation.
+    /// The handler checks current state at click time, avoiding listener accumulation.
     fn setup_click_handler(&self, element: &HtmlElement) {
-        tracing::debug!("memory-card: setup_click_handler called");
-
         let (shadow, host) = primitives::get_shadow_and_host(element);
 
-        if let Ok(Some(card)) = shadow.query_selector(".memory-card") {
-            tracing::debug!("memory-card: found .memory-card element, attaching click handler");
-            on_click(&card, move |_| {
-                tracing::debug!("memory-card: click detected!");
-                // Check disabled/matched state at click time via attributes
-                let is_disabled = host.has_attribute("disabled");
-                let is_matched = host.has_attribute("matched");
-                tracing::debug!(
-                    is_disabled,
-                    is_matched,
-                    "memory-card: checking state at click time"
-                );
-                if !is_disabled && !is_matched {
-                    tracing::debug!("memory-card: dispatching card-click event");
-                    dispatch_event(&host, "card-click");
+        // Use event delegation on shadow root - survives DOM re-renders
+        let closure = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
+            if let Some(target) = e.target() {
+                if let Some(el) = target.dyn_ref::<web_sys::Element>() {
+                    // Check if click was inside the card
+                    if el.closest(".memory-card").ok().flatten().is_some() {
+                        // Check disabled/matched state at click time via attributes
+                        let is_disabled = host.has_attribute("disabled");
+                        let is_matched = host.has_attribute("matched");
+                        if !is_disabled && !is_matched {
+                            dispatch_event(&host, "card-click");
+                        }
+                    }
                 }
-            });
-        } else {
-            tracing::warn!("memory-card: .memory-card element NOT found in shadow DOM");
-        }
+            }
+        }) as Box<dyn Fn(_)>);
+
+        let _ = shadow.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
+        closure.forget();
     }
 
-    /// Setup image load handler to forward as card-loaded event
+    /// Setup image load handler once on the shadow root using event delegation.
+    /// Listens for image-loaded events bubbling from nested asset-card.
     fn setup_image_load_handler(&self, element: &HtmlElement) {
         let (shadow, host) = primitives::get_shadow_and_host(element);
-        if let Ok(Some(asset_card)) = shadow.query_selector("asset-card") {
-            primitives::forward_event(&asset_card, "image-loaded", &host, "card-loaded");
-        }
+
+        // Listen for image-loaded events bubbling up from asset-card
+        let closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            dispatch_event(&host, "card-loaded");
+        }) as Box<dyn Fn(_)>);
+
+        let _ = shadow
+            .add_event_listener_with_callback("image-loaded", closure.as_ref().unchecked_ref());
+        closure.forget();
     }
 }
 
@@ -188,19 +195,15 @@ impl CustomElement for MemoryCard {
             _ => {}
         }
 
+        // Only re-render HTML - event handlers use delegation and don't need re-attaching
         render_to_shadow(this, &self.render_html());
-        // Re-setup handlers since render_to_shadow replaces DOM content
-        self.setup_click_handler(this);
-        self.setup_image_load_handler(this);
     }
 
     fn inject_children(&mut self, this: &HtmlElement) {
-        tracing::debug!("memory-card: inject_children called");
         render_to_shadow(this, &self.render_html());
-        tracing::debug!("memory-card: after render_to_shadow, setting up handlers");
+        // Set up handlers once - they use event delegation on shadow root
         self.setup_click_handler(this);
         self.setup_image_load_handler(this);
-        tracing::debug!("memory-card: inject_children complete");
     }
 }
 
