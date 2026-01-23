@@ -4,26 +4,13 @@
 //! for use in the memory game.
 
 use crate::types::Card;
+pub use cardano_assets::AssetId;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use serde::Deserialize;
 use worker::*;
 
 const API_BASE_URL: &str = "https://a2.pfp.city";
-
-/// Asset ID from PFP City API
-#[derive(Deserialize, Debug, Clone)]
-pub struct AssetId {
-    pub policy_id: String,
-    pub asset_name_hex: String,
-}
-
-impl AssetId {
-    /// Get the full asset ID (policy_id + asset_name_hex)
-    pub fn full_id(&self) -> String {
-        format!("{}{}", self.policy_id, self.asset_name_hex)
-    }
-}
 
 /// Asset details from PFP City API (V3)
 #[derive(Deserialize, Debug, Clone)]
@@ -133,16 +120,16 @@ pub async fn fetch_game_cards(policy_id: &str, pair_count: u8, seed: u64) -> Res
     let mut cards: Vec<Card> = Vec::with_capacity(pair_count as usize * 2);
 
     for (pair_id, asset) in all_assets.into_iter().enumerate() {
-        let full_id = asset.id.full_id();
+        let concatenated_id = asset.id.concatenated();
 
         // Use image from API if available, otherwise generate from asset ID
         let img_url = asset
             .image
             .clone()
-            .unwrap_or_else(|| image_url(policy_id, &full_id));
+            .unwrap_or_else(|| image_url(policy_id, &concatenated_id));
 
         let card = Card {
-            asset_id: full_id,
+            asset_id: concatenated_id,
             name: asset.name.clone(),
             image_url: img_url,
             matched: false,

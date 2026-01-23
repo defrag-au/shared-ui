@@ -169,6 +169,13 @@ pub struct HiddenCard {
     pub matched_by: Option<String>,
 }
 
+/// Asset ID for preloading (mirrors cardano_assets::AssetId)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetIdInfo {
+    pub policy_id: String,
+    pub asset_name_hex: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MemoryDelta {
@@ -194,6 +201,8 @@ pub enum MemoryDelta {
     },
     CardsDealt {
         cards: Vec<HiddenCard>,
+        #[serde(default)]
+        asset_ids: Vec<AssetIdInfo>,
     },
     CardFlipped {
         index: usize,
@@ -296,6 +305,8 @@ pub fn MemoryApp() -> impl IntoView {
     let (local_flipped, set_local_flipped) = create_signal(Vec::<usize>::new());
     // Revealed card faces (from server)
     let (revealed_faces, set_revealed_faces) = create_signal(HashMap::<usize, CardFace>::new());
+    // Asset IDs for preloading images
+    let (preload_assets, set_preload_assets) = create_signal(Vec::<AssetIdInfo>::new());
 
     let ws: Rc<RefCell<Option<WebSocket>>> = Rc::new(RefCell::new(None));
 
@@ -347,6 +358,7 @@ pub fn MemoryApp() -> impl IntoView {
                 let set_presence_clone = set_presence;
                 let set_revealed_clone = set_revealed_faces;
                 let set_local_flipped_clone = set_local_flipped;
+                let set_preload_assets_clone = set_preload_assets;
                 let on_message = Closure::wrap(Box::new(move |e: MessageEvent| {
                     if let Ok(buffer) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
                         let array = js_sys::Uint8Array::new(&buffer);
@@ -360,6 +372,7 @@ pub fn MemoryApp() -> impl IntoView {
                                     set_presence_clone,
                                     set_revealed_clone,
                                     set_local_flipped_clone,
+                                    set_preload_assets_clone,
                                 );
                             }
                             Err(e) => {
@@ -542,6 +555,16 @@ pub fn MemoryApp() -> impl IntoView {
         ConnectionStatus::Disconnected => "disconnected",
     };
 
+    // Create derived signal for preload assets JSON
+    let preload_assets_json = Signal::derive(move || {
+        let assets = preload_assets.get();
+        if assets.is_empty() {
+            String::new()
+        } else {
+            serde_json::to_string(&assets).unwrap_or_default()
+        }
+    });
+
     view! {
         <div class="memory-app">
             <div class="header">
@@ -553,6 +576,25 @@ pub fn MemoryApp() -> impl IntoView {
                     }
                 />
             </div>
+
+            // Asset cache for preloading card images
+            <asset-cache
+                attr:assets=preload_assets_json
+                on:cache-ready=move |e: CustomEvent| {
+                    let detail = e.detail();
+                    if detail.is_object() {
+                        let loaded = js_sys::Reflect::get(&detail, &"loaded".into())
+                            .ok()
+                            .and_then(|v| v.as_f64())
+                            .unwrap_or(0.0) as u32;
+                        let failed = js_sys::Reflect::get(&detail, &"failed".into())
+                            .ok()
+                            .and_then(|v| v.as_f64())
+                            .unwrap_or(0.0) as u32;
+                        tracing::info!("Asset cache ready: {} loaded, {} failed", loaded, failed);
+                    }
+                }
+            />
 
             {move || {
                 let state = game_state.get();
@@ -675,6 +717,7 @@ fn handle_server_message(
     set_presence: WriteSignal<Vec<PresenceInfo>>,
     set_revealed_faces: WriteSignal<HashMap<usize, CardFace>>,
     set_local_flipped: WriteSignal<Vec<usize>>,
+    set_preload_assets: WriteSignal<Vec<AssetIdInfo>>,
 ) {
     match msg {
         ServerMessage::Connected { .. } => {
@@ -691,13 +734,25 @@ fn handle_server_message(
 
         ServerMessage::Delta { delta, seq, .. } => {
             tracing::debug!("Received Delta at seq {}", seq);
-            apply_delta(delta, set_game_state, set_revealed_faces, set_local_flipped);
+            apply_delta(
+                delta,
+                set_game_state,
+                set_revealed_faces,
+                set_local_flipped,
+                set_preload_assets,
+            );
         }
 
         ServerMessage::Deltas { deltas, seq, .. } => {
             tracing::debug!("Received {} Deltas, final seq {}", deltas.len(), seq);
             for delta in deltas {
-                apply_delta(delta, set_game_state, set_revealed_faces, set_local_flipped);
+                apply_delta(
+                    delta,
+                    set_game_state,
+                    set_revealed_faces,
+                    set_local_flipped,
+                    set_preload_assets,
+                );
             }
         }
 
@@ -741,6 +796,7 @@ fn apply_delta(
     set_game_state: WriteSignal<MemoryGameState>,
     set_revealed_faces: WriteSignal<HashMap<usize, CardFace>>,
     set_local_flipped: WriteSignal<Vec<usize>>,
+    set_preload_assets: WriteSignal<Vec<AssetIdInfo>>,
 ) {
     match delta {
         MemoryDelta::PlayerJoined {
@@ -797,7 +853,7 @@ fn apply_delta(
             set_local_flipped.set(Vec::new());
         }
 
-        MemoryDelta::CardsDealt { cards } => {
+        MemoryDelta::CardsDealt { cards, asset_ids } => {
             // Convert hidden cards to full Card structs (face data hidden)
             set_game_state.update(|s| {
                 s.cards = cards
@@ -812,6 +868,11 @@ fn apply_delta(
                     })
                     .collect();
             });
+            // Trigger preloading of asset images
+            if !asset_ids.is_empty() {
+                tracing::info!("Preloading {} assets", asset_ids.len());
+                set_preload_assets.set(asset_ids);
+            }
         }
 
         MemoryDelta::CardFlipped { index, by: _, face } => {

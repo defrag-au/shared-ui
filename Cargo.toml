@@ -73,6 +73,9 @@ tracing = "0.1"
 # Worker utilities
 worker_utils = { git = "https://github.com/defrag-au/shared-crates", package = "worker_utils", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
 
+# Cardano assets
+cardano-assets = { git = "https://github.com/defrag-au/shared-crates", package = "cardano-assets", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
+
 # Custom elements
 custom-elements = "0.2"
 

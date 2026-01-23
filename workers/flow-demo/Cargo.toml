@@ -29,3 +29,6 @@ rand = { version = "0.8", features = ["small_rng"] }
 # Logging
 tracing = "0.1"
 worker_utils = { workspace = true }
+
+# Cardano assets
+cardano-assets = { workspace = true }

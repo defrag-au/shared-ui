@@ -7,6 +7,7 @@
 //!
 //! - `<image-card>` - Basic image card with optional name overlay
 //! - `<asset-card>` - Cardano NFT asset card with IIIF URL generation (wraps image-card)
+//! - `<asset-cache>` - Non-visual component for preloading NFT images
 //! - `<connection-status>` - WebSocket/realtime connection indicator with click-to-reconnect
 //! - `<memory-card>` - Flippable card for memory matching game (wraps image-card)
 //!
@@ -29,11 +30,13 @@
 //! <memory-card image-url="https://..." name="Asset Name"></memory-card>
 //! ```
 
+mod asset_cache;
 mod asset_card;
 mod connection_status;
 mod image_card;
 mod memory_card;
 
+pub use asset_cache::AssetCache;
 pub use asset_card::{AssetCard, IiifSize};
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use image_card::{CardSize, ImageCard};
@@ -61,6 +64,7 @@ pub fn define_all() {
         // Register in dependency order - ImageCard first since others wrap it
         ImageCard::define();
         AssetCard::define();
+        AssetCache::define();
         ConnectionStatus::define();
         MemoryCard::define();
     });

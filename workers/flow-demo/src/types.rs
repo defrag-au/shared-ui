@@ -3,6 +3,7 @@
 //! These types demonstrate how to define application-specific state, deltas,
 //! events, and actions that work with the unified protocol.
 
+use cardano_assets::AssetId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -461,10 +462,12 @@ pub enum MemoryDelta {
         /// Turn order (turn-taking mode)
         turn_order: Vec<String>,
     },
-    /// Cards have been dealt - contains hidden card structure
+    /// Cards have been dealt - contains hidden card structure and asset IDs for preloading
     CardsDealt {
         /// Hidden cards (no face data - just matched state)
         cards: Vec<HiddenCard>,
+        /// Asset IDs for all unique cards (for preloading images)
+        asset_ids: Vec<AssetId>,
     },
 
     // === Turn-Taking Mode ===

@@ -3,7 +3,7 @@
 //! This implements the server-side game logic for the Black Flag memory game,
 //! supporting both turn-taking and race modes with 2-8 players.
 
-use crate::assets::fetch_game_cards;
+use crate::assets::{fetch_game_cards, AssetId};
 use crate::types::*;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
@@ -511,12 +511,24 @@ impl MemoryGameSessionDO {
 
         // Broadcast cards dealt (hidden card structure - no face data revealed)
         let hidden_cards: Vec<HiddenCard> = state.cards.iter().map(HiddenCard::from).collect();
+
+        // Extract unique asset IDs for preloading (each pair shares an asset_id)
+        let mut seen_pairs = std::collections::HashSet::new();
+        let asset_ids: Vec<AssetId> = state
+            .cards
+            .iter()
+            .filter(|card| seen_pairs.insert(card.pair_id))
+            .filter_map(|card| AssetId::parse_smart(&card.asset_id).ok())
+            .collect();
+
         tracing::info!(
-            "Game started - broadcasting {} hidden cards via CardsDealt delta",
-            hidden_cards.len()
+            "Game started - broadcasting {} hidden cards via CardsDealt delta ({} unique assets for preload)",
+            hidden_cards.len(),
+            asset_ids.len()
         );
         let cards_delta = MemoryDelta::CardsDealt {
             cards: hidden_cards,
+            asset_ids,
         };
         self.broadcast_delta(cards_delta).await;
 
