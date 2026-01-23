@@ -10,6 +10,7 @@ publish = false
 # Shared UI crates
 primitives = { path = "../primitives" }
 wallet-core = { path = "../wallet-core" }
+components = { path = "../components" }
 ui-loader = { path = "../ui-loader" }
 ui-toast = { path = "../ui-toast" }
 ui-core = { path = "../ui-core" }

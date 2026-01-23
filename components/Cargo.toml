@@ -6,8 +6,15 @@ edition.workspace = true
 [dependencies]
 primitives = { workspace = true }
 wallet-core = { workspace = true }
+scss-macros = { path = "../scss-macros" }
 wasm-bindgen = { workspace = true }
-web-sys = { workspace = true }
+web-sys = { workspace = true, features = [
+    "CustomEvent",
+    "CustomEventInit",
+    "MouseEvent",
+    "ShadowRoot",
+    "HtmlStyleElement",
+] }
 js-sys = { workspace = true }
 futures-signals = { workspace = true }
 custom-elements = { workspace = true }

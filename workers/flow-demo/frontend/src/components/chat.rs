@@ -8,6 +8,8 @@ use leptos::*;
 pub fn Chat<F>(
     /// List of chat messages
     messages: Signal<Vec<ChatMessage>>,
+    /// Current user's ID to identify own messages
+    current_user_id: ReadSignal<String>,
     /// Called when a message is sent
     on_send: F,
     /// Whether input is disabled
@@ -31,10 +33,17 @@ where
                     each=move || messages.get()
                     key=|msg| msg.id
                     children=move |msg| {
+                        let is_me = msg.user_id == current_user_id.get();
+                        let author_display = if is_me {
+                            format!("{} (me)", msg.user_name)
+                        } else {
+                            msg.user_name.clone()
+                        };
+                        let message_class = if is_me { "message message--mine" } else { "message" };
                         view! {
-                            <div class="message">
+                            <div class=message_class>
                                 <div class="meta">
-                                    <span class="author">{msg.user_name.clone()}</span>
+                                    <span class="author">{author_display}</span>
                                     <span class="time">{format_time(msg.timestamp)}</span>
                                 </div>
                                 <div class="content">{msg.text.clone()}</div>

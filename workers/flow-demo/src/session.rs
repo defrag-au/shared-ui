@@ -9,6 +9,11 @@ use std::cell::RefCell;
 use ui_flow_protocol::{encode, OpId, PresenceInfo, PresenceStatus, ServerMessage};
 use worker::*;
 
+/// Storage keys for persisted state
+const STORAGE_KEY_STATE: &str = "room_state";
+const STORAGE_KEY_SEQ: &str = "seq";
+const STORAGE_KEY_MSG_ID: &str = "next_message_id";
+
 /// Connection information stored as WebSocket attachment
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ConnectionInfo {
@@ -21,13 +26,14 @@ struct ConnectionInfo {
 #[durable_object]
 pub struct FlowDemoSessionDO {
     state: State,
+    #[allow(dead_code)]
     env: Env,
-    /// Current room state
-    room_state: RefCell<DemoState>,
-    /// Current sequence number
-    seq: RefCell<u64>,
-    /// Message ID counter
-    next_message_id: RefCell<u64>,
+    /// Current room state (cached from storage)
+    room_state: RefCell<Option<DemoState>>,
+    /// Current sequence number (cached from storage)
+    seq: RefCell<Option<u64>>,
+    /// Message ID counter (cached from storage)
+    next_message_id: RefCell<Option<u64>>,
 }
 
 impl DurableObject for FlowDemoSessionDO {
@@ -35,9 +41,10 @@ impl DurableObject for FlowDemoSessionDO {
         Self {
             state,
             env,
-            room_state: RefCell::new(DemoState::default()),
-            seq: RefCell::new(0),
-            next_message_id: RefCell::new(1),
+            // Start as None - will be lazily loaded from storage
+            room_state: RefCell::new(None),
+            seq: RefCell::new(None),
+            next_message_id: RefCell::new(None),
         }
     }
 
@@ -111,6 +118,89 @@ impl DurableObject for FlowDemoSessionDO {
 }
 
 impl FlowDemoSessionDO {
+    /// Load room state from storage, or return default if not found
+    async fn get_room_state(&self) -> DemoState {
+        // Check cache first
+        if let Some(state) = self.room_state.borrow().clone() {
+            return state;
+        }
+
+        // Load from storage
+        let state: DemoState = self
+            .state
+            .storage()
+            .get(STORAGE_KEY_STATE)
+            .await
+            .ok()
+            .unwrap_or_default();
+
+        // Cache it
+        *self.room_state.borrow_mut() = Some(state.clone());
+        state
+    }
+
+    /// Save room state to storage
+    async fn save_room_state(&self, state: &DemoState) {
+        // Update cache
+        *self.room_state.borrow_mut() = Some(state.clone());
+
+        // Persist to storage
+        let _ = self.state.storage().put(STORAGE_KEY_STATE, state).await;
+    }
+
+    /// Get current sequence number
+    async fn get_seq(&self) -> u64 {
+        if let Some(seq) = *self.seq.borrow() {
+            return seq;
+        }
+
+        let seq: u64 = self
+            .state
+            .storage()
+            .get(STORAGE_KEY_SEQ)
+            .await
+            .ok()
+            .unwrap_or(0);
+
+        *self.seq.borrow_mut() = Some(seq);
+        seq
+    }
+
+    /// Increment and save sequence number
+    async fn next_seq(&self) -> u64 {
+        let seq = self.get_seq().await + 1;
+        *self.seq.borrow_mut() = Some(seq);
+        let _ = self.state.storage().put(STORAGE_KEY_SEQ, seq).await;
+        seq
+    }
+
+    /// Get next message ID
+    async fn get_next_message_id(&self) -> u64 {
+        if let Some(id) = *self.next_message_id.borrow() {
+            return id;
+        }
+
+        let id: u64 = self
+            .state
+            .storage()
+            .get(STORAGE_KEY_MSG_ID)
+            .await
+            .ok()
+            .unwrap_or(1);
+
+        *self.next_message_id.borrow_mut() = Some(id);
+        id
+    }
+
+    /// Increment and save message ID
+    async fn next_message_id(&self) -> u64 {
+        let id = self.get_next_message_id().await;
+        let next_id = id + 1;
+        *self.next_message_id.borrow_mut() = Some(next_id);
+        let _ = self.state.storage().put(STORAGE_KEY_MSG_ID, next_id).await;
+        id
+    }
+
     /// Handle WebSocket upgrade request
     async fn handle_websocket_upgrade(&self, req: Request) -> Result<Response> {
         // Extract user info from query params (in production, use JWT)
@@ -146,9 +236,10 @@ impl FlowDemoSessionDO {
             let _ = server.send_with_bytes(&bytes);
         }
 
-        // Send current state snapshot
-        let snapshot_msg: ServerMsg =
-            ServerMessage::snapshot(self.room_state.borrow().clone(), *self.seq.borrow(), now());
+        // Send current state snapshot (load from storage)
+        let room_state = self.get_room_state().await;
+        let seq = self.get_seq().await;
+        let snapshot_msg: ServerMsg = ServerMessage::snapshot(room_state, seq, now());
         if let Ok(bytes) = encode(&snapshot_msg) {
             let _ = server.send_with_bytes(&bytes);
         }
@@ -181,12 +272,10 @@ impl FlowDemoSessionDO {
             }
 
             ClientMessage::Resync { last_seq: _ } => {
-                // Send full snapshot
-                let snapshot_msg: ServerMsg = ServerMessage::snapshot(
-                    self.room_state.borrow().clone(),
-                    *self.seq.borrow(),
-                    now(),
-                );
+                // Send full snapshot (load from storage)
+                let room_state = self.get_room_state().await;
+                let seq = self.get_seq().await;
+                let snapshot_msg: ServerMsg = ServerMessage::snapshot(room_state, seq, now());
                 if let Ok(bytes) = encode(&snapshot_msg) {
                     let _ = ws.send_with_bytes(&bytes);
                 }
@@ -222,11 +311,10 @@ impl FlowDemoSessionDO {
     ) -> Result<()> {
         match action {
             DemoAction::Increment => {
-                let new_value = {
-                    let mut state = self.room_state.borrow_mut();
-                    state.counter = state.counter.saturating_add(1);
-                    state.counter
-                };
+                let mut state = self.get_room_state().await;
+                state.counter = state.counter.saturating_add(1);
+                let new_value = state.counter;
+                self.save_room_state(&state).await;
 
                 let delta = DemoDelta::CounterChanged { value: new_value };
                 self.broadcast_delta(delta).await;
@@ -239,11 +327,10 @@ impl FlowDemoSessionDO {
             }
 
             DemoAction::Decrement => {
-                let new_value = {
-                    let mut state = self.room_state.borrow_mut();
-                    state.counter = state.counter.saturating_sub(1);
-                    state.counter
-                };
+                let mut state = self.get_room_state().await;
+                state.counter = state.counter.saturating_sub(1);
+                let new_value = state.counter;
+                self.save_room_state(&state).await;
 
                 let delta = DemoDelta::CounterChanged { value: new_value };
                 self.broadcast_delta(delta).await;
@@ -256,28 +343,25 @@ impl FlowDemoSessionDO {
             }
 
             DemoAction::SendMessage { text } => {
-                let message = {
-                    let mut state = self.room_state.borrow_mut();
-                    let id = *self.next_message_id.borrow();
-                    *self.next_message_id.borrow_mut() += 1;
+                let mut state = self.get_room_state().await;
+                let id = self.next_message_id().await;
 
-                    let msg = ChatMessage {
-                        id,
-                        user_id: conn.user_id.clone(),
-                        user_name: conn.user_name.clone(),
-                        text,
-                        timestamp: now(),
-                    };
-
-                    state.messages.push(msg.clone());
-
-                    // Keep only last 100 messages
-                    if state.messages.len() > 100 {
-                        state.messages.remove(0);
-                    }
-
-                    msg
+                let message = ChatMessage {
+                    id,
+                    user_id: conn.user_id.clone(),
+                    user_name: conn.user_name.clone(),
+                    text,
+                    timestamp: now(),
                 };
+
+                state.messages.push(message.clone());
+
+                // Keep only last 100 messages
+                if state.messages.len() > 100 {
+                    state.messages.remove(0);
+                }
+
+                self.save_room_state(&state).await;
 
                 let delta = DemoDelta::MessageAdded { message };
                 self.broadcast_delta(delta).await;
@@ -310,8 +394,7 @@ impl FlowDemoSessionDO {
 
     /// Broadcast a delta to all connected clients
     async fn broadcast_delta(&self, delta: DemoDelta) {
-        *self.seq.borrow_mut() += 1;
-        let seq = *self.seq.borrow();
+        let seq = self.next_seq().await;
 
         let msg: ServerMsg = ServerMessage::delta(delta, seq, now());
 

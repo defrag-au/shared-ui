@@ -19,7 +19,70 @@ use std::rc::Rc;
 use ui_flow_protocol::{ClientMessage, OpId, PresenceInfo, ServerMessage};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{MessageEvent, WebSocket};
+use web_sys::{CustomEvent, MessageEvent, WebSocket};
+
+/// Generate or retrieve the user's ULID from localStorage
+fn get_or_create_user_id() -> String {
+    let window = web_sys::window().expect("no window");
+    let storage = window
+        .local_storage()
+        .ok()
+        .flatten()
+        .expect("no localStorage");
+
+    const KEY: &str = "flow_demo_user_id";
+
+    // Try to get existing ID
+    if let Ok(Some(id)) = storage.get_item(KEY) {
+        return id;
+    }
+
+    // Generate new ULID-like ID: timestamp (48 bits) + random (80 bits)
+    // Encoded as Crockford base32 (26 characters)
+    let id = generate_ulid();
+
+    // Store for future sessions
+    let _ = storage.set_item(KEY, &id);
+
+    id
+}
+
+/// Generate a ULID-like identifier
+fn generate_ulid() -> String {
+    const ENCODING: &[u8] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+    let timestamp = js_sys::Date::now() as u64;
+
+    // Generate 10 random bytes for the random portion
+    let mut random_bytes = [0u8; 10];
+    for byte in &mut random_bytes {
+        *byte = (js_sys::Math::random() * 256.0) as u8;
+    }
+
+    // Encode timestamp (first 10 chars)
+    let mut result = String::with_capacity(26);
+    result.push(ENCODING[((timestamp >> 45) & 0x1F) as usize] as char);
+    result.push(ENCODING[((timestamp >> 40) & 0x1F) as usize] as char);
+    result.push(ENCODING[((timestamp >> 35) & 0x1F) as usize] as char);
+    result.push(ENCODING[((timestamp >> 30) & 0x1F) as usize] as char);
+    result.push(ENCODING[((timestamp >> 25) & 0x1F) as usize] as char);
+    result.push(ENCODING[((timestamp >> 20) & 0x1F) as usize] as char);
+    result.push(ENCODING[((timestamp >> 15) & 0x1F) as usize] as char);
+    result.push(ENCODING[((timestamp >> 10) & 0x1F) as usize] as char);
+    result.push(ENCODING[((timestamp >> 5) & 0x1F) as usize] as char);
+    result.push(ENCODING[(timestamp & 0x1F) as usize] as char);
+
+    // Encode random bytes (remaining 16 chars)
+    // 10 bytes = 80 bits, encoded as 16 base32 chars (5 bits each)
+    let random_bits: u128 = random_bytes
+        .iter()
+        .fold(0u128, |acc, &b| (acc << 8) | b as u128);
+    for i in (0..16).rev() {
+        result.push(ENCODING[((random_bits >> (i * 5)) & 0x1F) as usize] as char);
+    }
+
+    result
+}
 
 /// Application state synced from server
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -84,6 +147,9 @@ pub fn main() {
     // Initialize logging
     tracing_wasm::set_as_global_default();
 
+    // Register shared UI web components
+    ::components::define_all();
+
     // Mount the app
     mount_to_body(App);
 }
@@ -91,6 +157,10 @@ pub fn main() {
 /// Main application component
 #[component]
 fn App() -> impl IntoView {
+    // Get or create persistent user ID
+    let user_id = get_or_create_user_id();
+    let user_id_for_ws = user_id.clone();
+
     // Room ID (can be changed)
     let (room_id, set_room_id) = create_signal("default".to_string());
 
@@ -102,6 +172,9 @@ fn App() -> impl IntoView {
 
     // Presence list
     let (presence, set_presence) = create_signal(Vec::<PresenceInfo>::new());
+
+    // Current user ID signal for components
+    let (current_user_id, _set_current_user_id) = create_signal(user_id);
 
     // WebSocket reference
     let ws: Rc<RefCell<Option<WebSocket>>> = Rc::new(RefCell::new(None));
@@ -117,9 +190,10 @@ fn App() -> impl IntoView {
 
     // Connect to WebSocket
     let ws_connect = ws.clone();
+    let user_id_ws = user_id_for_ws.clone();
     let connect = Rc::new(move || {
         let room = room_id.get();
-        let ws_url = get_ws_url(&room);
+        let ws_url = get_ws_url(&room, &user_id_ws);
 
         set_status.set(ConnectionStatus::Connecting);
 
@@ -204,6 +278,14 @@ fn App() -> impl IntoView {
     // Clone for view handlers
     let connect_view = connect.clone();
     let disconnect_view = disconnect.clone();
+    let connect_reconnect = connect.clone();
+
+    // Convert status to string for web component
+    let status_str = move || match status.get() {
+        ConnectionStatus::Connected => "connected",
+        ConnectionStatus::Connecting => "connecting",
+        ConnectionStatus::Disconnected => "disconnected",
+    };
 
     view! {
         <div class="header">
@@ -223,7 +305,12 @@ fn App() -> impl IntoView {
                     connect_view();
                 }
             />
-            <ConnectionStatusBadge status=status />
+            <connection-status
+                attr:status=status_str
+                on:reconnect=move |_: CustomEvent| {
+                    connect_reconnect();
+                }
+            />
         </div>
 
         <div class="main-content">
@@ -243,6 +330,7 @@ fn App() -> impl IntoView {
 
                 <Chat
                     messages=Signal::derive(move || state.get().messages)
+                    current_user_id=current_user_id
                     on_send={
                         let send = send_action.clone();
                         move |text: String| send(DemoAction::SendMessage { text })
@@ -252,25 +340,8 @@ fn App() -> impl IntoView {
             </div>
 
             <div class="right-column">
-                <Presence users=presence />
+                <Presence users=presence current_user_id=current_user_id />
             </div>
-        </div>
-    }
-}
-
-/// Connection status badge component
-#[component]
-fn ConnectionStatusBadge(status: ReadSignal<ConnectionStatus>) -> impl IntoView {
-    let (class, text) = match status.get() {
-        ConnectionStatus::Connected => ("connection-status connected", "Connected"),
-        ConnectionStatus::Connecting => ("connection-status connecting", "Connecting..."),
-        ConnectionStatus::Disconnected => ("connection-status disconnected", "Disconnected"),
-    };
-
-    view! {
-        <div class=class>
-            <span class="indicator"></span>
-            <span>{text}</span>
         </div>
     }
 }
@@ -375,7 +446,7 @@ fn apply_delta(state: &mut DemoState, delta: DemoDelta) {
 }
 
 /// Get WebSocket URL based on current location
-fn get_ws_url(room_id: &str) -> String {
+fn get_ws_url(room_id: &str, user_id: &str) -> String {
     let window = web_sys::window().expect("no window");
     let location = window.location();
     let protocol = location.protocol().unwrap_or_else(|_| "http:".to_string());
@@ -385,5 +456,11 @@ fn get_ws_url(room_id: &str) -> String {
 
     let ws_protocol = if protocol == "https:" { "wss:" } else { "ws:" };
 
-    format!("{}//{}/ws/{}?user_name=User", ws_protocol, host, room_id)
+    // Use first 8 chars of ULID as display name for simplicity
+    let display_name = &user_id[..8.min(user_id.len())];
+
+    format!(
+        "{}//{}/ws/{}?user_id={}&user_name={}",
+        ws_protocol, host, room_id, user_id, display_name
+    )
 }

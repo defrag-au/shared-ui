@@ -15,6 +15,9 @@ leptos_meta = { version = "0.6", features = ["csr"] }
 # Protocol types
 ui-flow-protocol = { path = "../../../ui-flow-protocol" }
 
+# Shared UI components
+components = { path = "../../../components" }
+
 # WebSocket + WASM
 web-sys = { version = "0.3", features = [
     "WebSocket",
@@ -28,6 +31,7 @@ web-sys = { version = "0.3", features = [
     "HtmlInputElement",
     "Event",
     "KeyboardEvent",
+    "Storage",
 ] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
