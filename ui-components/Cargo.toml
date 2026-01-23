@@ -9,12 +9,17 @@ primitives = { workspace = true }
 wallet-core = { workspace = true }
 scss-macros = { path = "../scss-macros" }
 wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
 web-sys = { workspace = true, features = [
+    "Blob",
     "CustomEvent",
     "CustomEventInit",
     "MouseEvent",
+    "Response",
     "ShadowRoot",
     "HtmlStyleElement",
+    "Url",
+    "Window",
 ] }
 js-sys = { workspace = true }
 futures-signals = { workspace = true }

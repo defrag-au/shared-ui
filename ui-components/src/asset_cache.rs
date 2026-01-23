@@ -1,8 +1,7 @@
 //! Asset Cache Web Component
 //!
 //! A non-visual component that preloads NFT asset images in the background.
-//! When images are preloaded, they will be served from browser cache when
-//! displayed by `<asset-card>` or `<image-card>` components.
+//! Images are stored in a global cache and can be retrieved by other components.
 //!
 //! ## Attributes
 //!
@@ -23,11 +22,13 @@
 //! </asset-cache>
 //! ```
 
+use crate::image_cache;
 use custom_elements::CustomElement;
 use js_sys::{Array, Object, Reflect};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlElement;
 
 /// Asset cache custom element - preloads images in background
@@ -99,9 +100,8 @@ impl AssetCache {
             return;
         }
 
-        let loaded = Rc::new(RefCell::new(0u32));
-        let failed = Rc::new(RefCell::new(0u32));
-
+        // Collect URLs to preload
+        let mut urls = Vec::new();
         for i in 0..total {
             let asset = assets.get(i);
 
@@ -113,48 +113,68 @@ impl AssetCache {
                 .ok()
                 .and_then(|v| v.as_string());
 
-            let (policy_id, asset_name_hex) = match (policy_id, asset_name_hex) {
-                (Some(p), Some(a)) => (p, a),
-                _ => {
-                    *failed.borrow_mut() += 1;
-                    continue;
-                }
-            };
+            if let (Some(p), Some(a)) = (policy_id, asset_name_hex) {
+                urls.push(Self::build_image_url(&p, &a));
+            }
+        }
 
-            let url = Self::build_image_url(&policy_id, &asset_name_hex);
+        let total = urls.len() as u32;
+        if total == 0 {
+            Self::dispatch_detail_event(
+                &host,
+                "cache-ready",
+                &Self::make_detail(&[("loaded", 0), ("failed", 0)]),
+            );
+            return;
+        }
+
+        tracing::info!("Preloading {} images into cache", total);
+
+        let loaded = Rc::new(RefCell::new(0u32));
+        let failed = Rc::new(RefCell::new(0u32));
+
+        for url in urls {
             let host = host.clone();
             let loaded = Rc::clone(&loaded);
             let failed = Rc::clone(&failed);
 
-            // Create an Image element to preload
-            let window = web_sys::window().expect("no window");
-            let document = window.document().expect("no document");
-            let img: web_sys::HtmlImageElement = document
-                .create_element("img")
-                .expect("create img")
-                .dyn_into()
-                .expect("cast to HtmlImageElement");
+            spawn_local(async move {
+                let success = match image_cache::preload_image(url.clone()).await {
+                    Ok(_blob_url) => {
+                        tracing::debug!("Cached image: {}", url);
+                        true
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to cache image {}: {:?}", url, e);
+                        false
+                    }
+                };
 
-            // Set up load handler
-            let host_load = host.clone();
-            let loaded_load = Rc::clone(&loaded);
-            let failed_load = Rc::clone(&failed);
-            let on_load = Closure::wrap(Box::new(move || {
-                *loaded_load.borrow_mut() += 1;
-                let current_loaded = *loaded_load.borrow();
-                let current_failed = *failed_load.borrow();
+                if success {
+                    *loaded.borrow_mut() += 1;
+                } else {
+                    *failed.borrow_mut() += 1;
+                }
+
+                let current_loaded = *loaded.borrow();
+                let current_failed = *failed.borrow();
 
                 // Emit progress
                 Self::dispatch_detail_event(
-                    &host_load,
+                    &host,
                     "cache-progress",
                     &Self::make_detail(&[("loaded", current_loaded), ("total", total)]),
                 );
 
                 // Check if all done
                 if current_loaded + current_failed >= total {
+                    tracing::info!(
+                        "Image cache ready: {} loaded, {} failed",
+                        current_loaded,
+                        current_failed
+                    );
                     Self::dispatch_detail_event(
-                        &host_load,
+                        &host,
                         "cache-ready",
                         &Self::make_detail(&[
                             ("loaded", current_loaded),
@@ -162,39 +182,7 @@ impl AssetCache {
                         ]),
                     );
                 }
-            }) as Box<dyn Fn()>);
-
-            // Set up error handler
-            let host_error = host.clone();
-            let loaded_error = Rc::clone(&loaded);
-            let failed_error = Rc::clone(&failed);
-            let on_error = Closure::wrap(Box::new(move || {
-                *failed_error.borrow_mut() += 1;
-                let current_loaded = *loaded_error.borrow();
-                let current_failed = *failed_error.borrow();
-
-                // Check if all done
-                if current_loaded + current_failed >= total {
-                    Self::dispatch_detail_event(
-                        &host_error,
-                        "cache-ready",
-                        &Self::make_detail(&[
-                            ("loaded", current_loaded),
-                            ("failed", current_failed),
-                        ]),
-                    );
-                }
-            }) as Box<dyn Fn()>);
-
-            img.set_onload(Some(on_load.as_ref().unchecked_ref()));
-            img.set_onerror(Some(on_error.as_ref().unchecked_ref()));
-
-            // Leak closures - they need to live until the image loads
-            on_load.forget();
-            on_error.forget();
-
-            // Start loading
-            img.set_src(&url);
+            });
         }
     }
 }

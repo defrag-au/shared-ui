@@ -159,9 +159,12 @@ impl ImageCard {
 
     fn build_image_html(&self) -> String {
         if !self.image_url.is_empty() {
+            // Check cache for preloaded blob URL, fall back to original URL
+            let url = crate::image_cache::get_cached_url(&self.image_url)
+                .unwrap_or_else(|| self.image_url.clone());
             format!(
                 r#"<img class="image-card__image" src="{}" alt="{}" loading="lazy" />"#,
-                html_escape(&self.image_url),
+                html_escape(&url),
                 html_escape(&self.name)
             )
         } else {

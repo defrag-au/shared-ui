@@ -33,6 +33,7 @@
 mod asset_cache;
 mod asset_card;
 mod connection_status;
+pub mod image_cache;
 mod image_card;
 mod memory_card;
 
