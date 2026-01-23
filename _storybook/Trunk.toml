@@ -13,5 +13,5 @@ watch = [
     "src",
     "../primitives/src",
     "../wallet-core/src",
-    "../components/src",
+    "../ui-components/src",
 ]
