@@ -181,6 +181,8 @@ fn RootApp() -> impl IntoView {
     });
 
     view! {
+        // Include ui-components styles (MemoryCard, ConnectionStatus, etc.)
+        <style>{ui_components::STYLES}</style>
         <div class="root-app">
             <nav class="mode-tabs">
                 <button

@@ -117,6 +117,8 @@ fn App() -> impl IntoView {
     let (current_story, set_current_story) = create_signal(Story::Welcome);
 
     view! {
+        // Include ui-components styles
+        <style>{ui_components::STYLES}</style>
         <div class="storybook">
             <Sidebar current_story=current_story set_current_story=set_current_story />
             <main class="storybook-main">

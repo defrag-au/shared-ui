@@ -19,10 +19,6 @@
 //! ```
 
 use leptos::*;
-use scss_macros::scss;
-
-/// Compiled SCSS styles for ConnectionStatus
-const COMPONENT_STYLES: &str = scss!("src/styles/connection_status.scss");
 
 /// Connection state values
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -98,7 +94,6 @@ pub fn ConnectionStatus(
     };
 
     view! {
-        <style>{COMPONENT_STYLES}</style>
         <div class=status_class on:click=handle_click>
             <span class="connection-status__indicator"></span>
             {move || show_text.then(|| {

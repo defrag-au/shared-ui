@@ -7,6 +7,7 @@
 //!
 //! - `asset_id` - Cardano asset ID (policy_id + asset_name hex) for IIIF image
 //! - `name` - Name shown when flipped
+//! - `size` - Card size (uses CardSize from image_card)
 //! - `flipped` - Whether the card is face-up
 //! - `matched` - Whether the card has been matched (stays revealed, shows glow)
 //! - `matched_by` - Name of player who matched this card
@@ -20,6 +21,7 @@
 //! <MemoryCard
 //!     asset_id="b3dab69f...506972617465313839"
 //!     name="Captain Jack"
+//!     size=CardSize::Sm
 //!     flipped=is_flipped
 //!     matched=is_matched
 //!     on_click=move |_| { flip_card(); }
@@ -30,44 +32,6 @@
 use crate::asset_card::AssetCard;
 use crate::image_card::CardSize;
 use leptos::*;
-use scss_macros::scss;
-
-/// Compiled SCSS styles for MemoryCard
-const COMPONENT_STYLES: &str = scss!("src/styles/memory_card.scss");
-
-/// Memory card size variants
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum MemoryCardSize {
-    /// 80px
-    Xs,
-    /// 100px (default for memory games)
-    #[default]
-    Sm,
-    /// 120px
-    Md,
-    /// 160px
-    Lg,
-}
-
-impl MemoryCardSize {
-    fn css_class(&self) -> &'static str {
-        match self {
-            MemoryCardSize::Xs => "memory-card--xs",
-            MemoryCardSize::Sm => "memory-card--sm",
-            MemoryCardSize::Md => "memory-card--md",
-            MemoryCardSize::Lg => "memory-card--lg",
-        }
-    }
-
-    fn to_inner_card_size(&self) -> CardSize {
-        // Map to appropriate CardSize for inner AssetCard image resolution
-        match self {
-            MemoryCardSize::Xs | MemoryCardSize::Sm => CardSize::Xs,
-            MemoryCardSize::Md => CardSize::Sm,
-            MemoryCardSize::Lg => CardSize::Sm,
-        }
-    }
-}
 
 /// Memory card component - a flippable wrapper around AssetCard
 #[component]
@@ -78,9 +42,9 @@ pub fn MemoryCard(
     /// Asset name (shown when flipped)
     #[prop(into, optional)]
     name: Option<MaybeSignal<String>>,
-    /// Card size (default: Sm = 100px)
-    #[prop(optional, default = MemoryCardSize::Sm)]
-    size: MemoryCardSize,
+    /// Card size (default: Sm)
+    #[prop(optional, default = CardSize::Sm)]
+    size: CardSize,
     /// Whether card is face-up
     #[prop(into)]
     flipped: MaybeSignal<bool>,
@@ -100,19 +64,18 @@ pub fn MemoryCard(
     #[prop(into, optional)]
     on_load: Option<Callback<()>>,
 ) -> impl IntoView {
-    let size_class = size.css_class();
-    let inner_card_size = size.to_inner_card_size();
+    let size_class = format!("memory-card--{}", size.class_suffix());
 
     let card_class = move || {
-        let mut classes = vec!["memory-card", size_class];
+        let mut classes = vec!["memory-card".to_string(), size_class.clone()];
         if flipped.get() || matched.get() {
-            classes.push("memory-card--flipped");
+            classes.push("memory-card--flipped".to_string());
         }
         if matched.get() {
-            classes.push("memory-card--matched");
+            classes.push("memory-card--matched".to_string());
         }
         if disabled.get() {
-            classes.push("memory-card--disabled");
+            classes.push("memory-card--disabled".to_string());
         }
         classes.join(" ")
     };
@@ -130,7 +93,6 @@ pub fn MemoryCard(
         create_memo(move |_| matched_by.as_ref().map(|m| m.get()));
 
     view! {
-        <style>{COMPONENT_STYLES}</style>
         <div class=card_class on:click=handle_click>
             <div class="memory-card__inner">
                 // Front (card back - shown when face-down)
@@ -151,7 +113,7 @@ pub fn MemoryCard(
                             let name = name.clone();
                             move || name.as_ref().map(|n| n.get()).unwrap_or_default()
                         })
-                        size=inner_card_size
+                        size=size
                         is_static=true
                         on_load=move |()| {
                             if let Some(cb) = on_load {

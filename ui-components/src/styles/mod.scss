@@ -1,0 +1,13 @@
+// UI Components - Combined Stylesheet
+// Include this once in your app's main stylesheet
+//
+// Usage in Leptos app:
+//   <style>{ui_components::STYLES}</style>
+//
+// Or import in your app's SCSS:
+//   @use "ui-components/styles";
+
+// Import all component styles - each file is self-contained with BEM
+@use "image_card";
+@use "memory_card";
+@use "connection_status";

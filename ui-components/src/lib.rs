@@ -10,6 +10,22 @@
 //! - `ConnectionStatus` - WebSocket/realtime connection indicator
 //! - `AssetCache` - Non-visual component for preloading NFT images
 //!
+//! ## Styles
+//!
+//! Include the component styles once at your app root:
+//!
+//! ```ignore
+//! use ui_components::STYLES;
+//!
+//! #[component]
+//! fn App() -> impl IntoView {
+//!     view! {
+//!         <style>{STYLES}</style>
+//!         // ... rest of app
+//!     }
+//! }
+//! ```
+//!
 //! ## Usage
 //!
 //! ```ignore
@@ -33,6 +49,7 @@
 //! <MemoryCard
 //!     asset_id="..."
 //!     name="Asset Name"
+//!     size=CardSize::Sm
 //!     flipped=is_flipped
 //!     on_click=move |_| { flip(); }
 //! />
@@ -50,9 +67,11 @@ mod connection_status;
 pub mod image_cache;
 mod image_card;
 mod memory_card;
+mod styles;
 
 pub use asset_cache::{AssetCache, PreloadAsset};
 pub use asset_card::{generate_iiif_url, AssetCard, IiifSize};
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use image_card::{parse_card_size, CardSize, ImageCard};
-pub use memory_card::{MemoryCard, MemoryCardSize};
+pub use memory_card::MemoryCard;
+pub use styles::STYLES;

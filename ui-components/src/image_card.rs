@@ -27,10 +27,6 @@
 
 use leptos::*;
 use phf::phf_map;
-use scss_macros::scss;
-
-/// Compiled SCSS styles for ImageCard
-const COMPONENT_STYLES: &str = scss!("src/styles/image_card.scss");
 
 /// Card size variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -152,8 +148,11 @@ pub fn ImageCard(
     let accent_signal: Memo<Option<String>> =
         create_memo(move |_| accent_color.as_ref().map(|c| c.get()));
 
+    // Store callback in StoredValue to safely handle async image load events
+    // even if the reactive scope is disposed
+    let stored_on_load = store_value(on_load);
+
     view! {
-        <style>{COMPONENT_STYLES}</style>
         <div
             class=card_class
             title=move || name_signal.get()
@@ -177,7 +176,8 @@ pub fn ImageCard(
                                 alt=move || name_signal.get()
                                 loading="lazy"
                                 on:load=move |_| {
-                                    if let Some(cb) = on_load {
+                                    // Use try_get_value to safely handle disposed scope
+                                    if let Some(Some(cb)) = stored_on_load.try_get_value() {
                                         cb.call(());
                                     }
                                 }

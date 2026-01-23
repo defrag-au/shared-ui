@@ -48,6 +48,10 @@ pub fn GameBoard(
     let on_flip = std::rc::Rc::new(on_flip);
     let on_card_loaded = std::rc::Rc::new(on_card_loaded);
 
+    // Create derived signals for each card's state to enable CSS transitions
+    // The key insight: we need stable DOM elements that update their classes,
+    // not recreated elements, for CSS transitions to animate.
+
     view! {
         <div class="game-board-container">
             <div
@@ -60,50 +64,60 @@ pub fn GameBoard(
                     )
                 }
             >
-                {move || {
-                    let cards_vec = cards.get();
-                    let flipped = flipped_indices.get();
-                    let my_turn = is_my_turn.get();
-                    let is_disabled = disabled.get();
-
-                    cards_vec.into_iter().enumerate().map(|(idx, card)| {
+                <For
+                    each=move || {
+                        let cards_vec = cards.get();
+                        cards_vec.into_iter().enumerate().collect::<Vec<_>>()
+                    }
+                    key=|(idx, _)| *idx
+                    children=move |(idx, card)| {
                         let on_flip = on_flip.clone();
                         let on_card_loaded = on_card_loaded.clone();
-                        let is_flipped = flipped.contains(&idx) || card.visible;
-                        let can_click = my_turn && !is_disabled && !card.matched && !is_flipped;
 
-                        if idx == 0 {
-                            tracing::debug!(
-                                my_turn,
-                                is_disabled,
-                                card_matched = card.matched,
-                                is_flipped,
-                                can_click,
-                                "GameBoard card[0] state"
-                            );
-                        }
+                        // Create reactive derived signals for this card's state
+                        let is_flipped = Signal::derive(move || {
+                            let flipped = flipped_indices.get();
+                            let cards_vec = cards.get();
+                            let card_visible = cards_vec.get(idx).map(|c| c.visible).unwrap_or(false);
+                            flipped.contains(&idx) || card_visible
+                        });
+
+                        let is_matched = Signal::derive(move || {
+                            cards.get().get(idx).map(|c| c.matched).unwrap_or(false)
+                        });
+
+                        let matched_by_signal = Signal::derive(move || {
+                            cards.get().get(idx).and_then(|c| c.matched_by.clone()).unwrap_or_default()
+                        });
+
+                        let can_click = Signal::derive(move || {
+                            let my_turn = is_my_turn.get();
+                            let is_disabled_val = disabled.get();
+                            let matched = is_matched.get();
+                            let flipped = is_flipped.get();
+                            my_turn && !is_disabled_val && !matched && !flipped
+                        });
 
                         view! {
                             <MemoryCard
                                 asset_id=card.asset_id.clone().unwrap_or_default()
                                 name=card.name.clone().unwrap_or_default()
                                 flipped=is_flipped
-                                matched=card.matched
-                                matched_by=card.matched_by.clone().unwrap_or_default()
-                                disabled=!can_click
+                                matched=is_matched
+                                matched_by=matched_by_signal
+                                disabled=Signal::derive(move || !can_click.get())
                                 on_click=move |()| {
-                                    if can_click {
+                                    if can_click.get_untracked() {
                                         on_flip(idx);
                                     }
                                 }
                                 on_load=move |()| {
-                                    // Notify server that card image has loaded
                                     on_card_loaded(idx);
                                 }
                             />
                         }
-                    }).collect_view()
-                }}
+                    }
+                />
             </div>
         </div>
     }

@@ -2,7 +2,7 @@
 
 use crate::stories::helpers::AttributeCard;
 use leptos::*;
-use ui_components::{MemoryCard, MemoryCardSize};
+use ui_components::MemoryCard;
 
 #[component]
 pub fn MemoryCardStory() -> impl IntoView {
