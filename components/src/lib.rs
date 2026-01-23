@@ -6,6 +6,7 @@
 //! ## Available Components
 //!
 //! - `<connection-status>` - WebSocket/realtime connection indicator with click-to-reconnect
+//! - `<memory-card>` - Flippable card for memory matching game
 //!
 //! ## Usage
 //!
@@ -15,12 +16,14 @@
 //!
 //! // Use in HTML
 //! <connection-status status="connected"></connection-status>
-//! <connection-status status="disconnected"></connection-status>
+//! <memory-card image-url="https://..." name="Asset Name"></memory-card>
 //! ```
 
 mod connection_status;
+mod memory_card;
 
 pub use connection_status::{ConnectionState, ConnectionStatus};
+pub use memory_card::MemoryCard;
 
 use std::sync::Once;
 use wasm_bindgen::prelude::*;
@@ -40,5 +43,6 @@ static INIT: Once = Once::new();
 pub fn define_all() {
     INIT.call_once(|| {
         ConnectionStatus::define();
+        MemoryCard::define();
     });
 }

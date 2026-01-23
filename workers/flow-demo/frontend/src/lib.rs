@@ -10,9 +10,11 @@
 //! - Optimistic UI with action feedback
 
 mod components;
+pub mod memory_app;
 
 use components::{Chat, Counter, Presence};
 use leptos::*;
+pub use memory_app::MemoryApp;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -22,7 +24,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{CustomEvent, MessageEvent, WebSocket};
 
 /// Generate or retrieve the user's ULID from localStorage
-fn get_or_create_user_id() -> String {
+pub fn get_or_create_user_id() -> String {
     let window = web_sys::window().expect("no window");
     let storage = window
         .local_storage()
@@ -131,6 +133,7 @@ pub enum DemoAction {
 
 /// Connection status
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ConnectionStatus {
     Disconnected,
     Connecting,
@@ -140,6 +143,13 @@ pub enum ConnectionStatus {
 /// Type aliases for protocol messages
 type ServerMsg = ServerMessage<DemoState, DemoDelta, DemoEvent>;
 type ClientMsg = ClientMessage<DemoAction>;
+
+/// Available app modes
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppMode {
+    Demo,
+    MemoryGame,
+}
 
 /// Main application entry point
 #[wasm_bindgen(start)]
@@ -151,7 +161,59 @@ pub fn main() {
     ::components::define_all();
 
     // Mount the app
-    mount_to_body(App);
+    mount_to_body(RootApp);
+}
+
+/// Root application component with mode switching
+#[component]
+fn RootApp() -> impl IntoView {
+    // Check URL hash for initial mode
+    let initial_mode = {
+        let window = web_sys::window().expect("no window");
+        let hash = window.location().hash().unwrap_or_default();
+        if hash == "#memory" {
+            AppMode::MemoryGame
+        } else {
+            AppMode::Demo
+        }
+    };
+
+    let (mode, set_mode) = create_signal(initial_mode);
+
+    // Update URL hash when mode changes
+    create_effect(move |_| {
+        let current_mode = mode.get();
+        let window = web_sys::window().expect("no window");
+        let hash = match current_mode {
+            AppMode::Demo => "#demo",
+            AppMode::MemoryGame => "#memory",
+        };
+        let _ = window.location().set_hash(hash);
+    });
+
+    view! {
+        <div class="root-app">
+            <nav class="mode-tabs">
+                <button
+                    class:active=move || mode.get() == AppMode::Demo
+                    on:click=move |_| set_mode.set(AppMode::Demo)
+                >
+                    "Counter/Chat Demo"
+                </button>
+                <button
+                    class:active=move || mode.get() == AppMode::MemoryGame
+                    on:click=move |_| set_mode.set(AppMode::MemoryGame)
+                >
+                    "Memory Game"
+                </button>
+            </nav>
+
+            {move || match mode.get() {
+                AppMode::Demo => view! { <App /> }.into_view(),
+                AppMode::MemoryGame => view! { <MemoryApp /> }.into_view(),
+            }}
+        </div>
+    }
 }
 
 /// Main application component

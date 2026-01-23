@@ -19,7 +19,12 @@ ui-flow-protocol = { path = "../../ui-flow-protocol" }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 rmp-serde = "1.3"
+
+# RNG for shuffling
+getrandom = { version = "0.2", features = ["js"] }
+rand = { version = "0.8", features = ["small_rng"] }
 
 # Logging
 tracing = "0.1"
