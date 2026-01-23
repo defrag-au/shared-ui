@@ -181,23 +181,16 @@ impl CustomElement for MemoryCard {
         }
 
         render_to_shadow(this, &self.render_html());
-        // Don't re-setup click handler on attribute changes - it's set once in inject_children
+        // Re-setup click handler since render_to_shadow replaces DOM content
+        self.setup_click_handler(this);
     }
 
     fn inject_children(&mut self, this: &HtmlElement) {
-        let shadow_exists_before = this.shadow_root().is_some();
-        tracing::debug!(
-            shadow_exists = shadow_exists_before,
-            "memory-card: inject_children called"
-        );
+        tracing::debug!("memory-card: inject_children called");
         render_to_shadow(this, &self.render_html());
-        let shadow_exists_after = this.shadow_root().is_some();
-        tracing::debug!(
-            shadow_exists = shadow_exists_after,
-            "memory-card: after render_to_shadow"
-        );
-        // Only set up click handler once during initial render
+        tracing::debug!("memory-card: after render_to_shadow, calling setup_click_handler");
         self.setup_click_handler(this);
+        tracing::debug!("memory-card: inject_children complete");
     }
 }
 
