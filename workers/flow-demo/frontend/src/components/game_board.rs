@@ -48,9 +48,9 @@ pub fn GameBoard(
     let on_flip = std::rc::Rc::new(on_flip);
     let on_card_loaded = std::rc::Rc::new(on_card_loaded);
 
-    // Create derived signals for each card's state to enable CSS transitions
-    // The key insight: we need stable DOM elements that update their classes,
-    // not recreated elements, for CSS transitions to animate.
+    // Get the card count once at setup - this determines the grid size
+    // Cards are created once and their state is updated reactively
+    let card_count = create_memo(move |_| cards.get().len());
 
     view! {
         <div class="game-board-container">
@@ -64,21 +64,27 @@ pub fn GameBoard(
                     )
                 }
             >
+                // Use For with a stable index range that only changes when card count changes
+                // This ensures DOM elements persist and CSS transitions can animate
                 <For
-                    each=move || {
-                        let cards_vec = cards.get();
-                        cards_vec.into_iter().enumerate().collect::<Vec<_>>()
-                    }
-                    key=|(idx, _)| *idx
-                    children=move |(idx, card)| {
+                    each=move || 0..card_count.get()
+                    key=|idx| *idx
+                    children=move |idx| {
                         let on_flip = on_flip.clone();
                         let on_card_loaded = on_card_loaded.clone();
 
-                        // Create reactive derived signals for this card's state
+                        // All card state is derived reactively from the cards signal
+                        let asset_id = Signal::derive(move || {
+                            cards.get().get(idx).and_then(|c| c.asset_id.clone()).unwrap_or_default()
+                        });
+
+                        let name = Signal::derive(move || {
+                            cards.get().get(idx).and_then(|c| c.name.clone()).unwrap_or_default()
+                        });
+
                         let is_flipped = Signal::derive(move || {
                             let flipped = flipped_indices.get();
-                            let cards_vec = cards.get();
-                            let card_visible = cards_vec.get(idx).map(|c| c.visible).unwrap_or(false);
+                            let card_visible = cards.get().get(idx).map(|c| c.visible).unwrap_or(false);
                             flipped.contains(&idx) || card_visible
                         });
 
@@ -100,8 +106,8 @@ pub fn GameBoard(
 
                         view! {
                             <MemoryCard
-                                asset_id=card.asset_id.clone().unwrap_or_default()
-                                name=card.name.clone().unwrap_or_default()
+                                asset_id=asset_id
+                                name=name
                                 flipped=is_flipped
                                 matched=is_matched
                                 matched_by=matched_by_signal

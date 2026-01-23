@@ -43,19 +43,25 @@
         opacity: 0.7;
     }
 
-    // Modifier: matched
+    // Modifier: matched (class-based for cursor)
     &--matched {
         cursor: default;
     }
 
-    // Modifier: flipped
-    &--flipped &__inner {
+    // Data attribute: flipped - applies 3D rotation to inner container
+    // Using data attributes for more reliable reactivity with Leptos
+    &[data-flipped="true"] &__inner {
         transform: rotateY(180deg);
     }
 
-    &--matched &__inner {
+    // Data attribute: matched - glow effect
+    &[data-matched="true"] &__inner {
         box-shadow: 0 0 8px v.$accent-gold;
         animation: memory-card-glow 2s ease-in-out infinite;
+    }
+
+    &[data-matched="true"] {
+        cursor: default;
     }
 
     // Element: inner (3D transform container)

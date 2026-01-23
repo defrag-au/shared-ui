@@ -66,17 +66,27 @@ pub fn MemoryCard(
 ) -> impl IntoView {
     let size_class = format!("memory-card--{}", size.class_suffix());
 
+    // Use data attributes for flip state (more reliable with Leptos reactivity)
+    let data_flipped = move || {
+        let is_flipped = flipped.get();
+        let is_matched = matched.get();
+        if is_flipped || is_matched {
+            "true"
+        } else {
+            "false"
+        }
+    };
+
+    let data_matched = move || if matched.get() { "true" } else { "false" };
+
     let card_class = move || {
+        let is_disabled = disabled.get();
+
         let mut classes = vec!["memory-card".to_string(), size_class.clone()];
-        if flipped.get() || matched.get() {
-            classes.push("memory-card--flipped".to_string());
-        }
-        if matched.get() {
-            classes.push("memory-card--matched".to_string());
-        }
-        if disabled.get() {
+        if is_disabled {
             classes.push("memory-card--disabled".to_string());
         }
+
         classes.join(" ")
     };
 
@@ -93,7 +103,7 @@ pub fn MemoryCard(
         create_memo(move |_| matched_by.as_ref().map(|m| m.get()));
 
     view! {
-        <div class=card_class on:click=handle_click>
+        <div class=card_class data-flipped=data_flipped data-matched=data_matched on:click=handle_click>
             <div class="memory-card__inner">
                 // Front (card back - shown when face-down)
                 <div class="memory-card__front">
