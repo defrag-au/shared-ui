@@ -118,7 +118,13 @@ pub struct MemoryGameState {
 pub struct CardFace {
     pub asset_id: String,
     pub name: String,
-    pub image_url: String,
+}
+
+/// Hidden card data - just the structure, no revealed info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HiddenCard {
+    pub matched: bool,
+    pub matched_by: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,8 +149,9 @@ pub enum MemoryDelta {
     },
     GameStarted {
         turn_order: Vec<String>,
-        card_count: usize,
-        shuffle_seed: u64,
+    },
+    CardsDealt {
+        cards: Vec<HiddenCard>,
     },
     CardFlipped {
         index: usize,
@@ -730,20 +737,31 @@ fn apply_delta(
             });
         }
 
-        MemoryDelta::GameStarted {
-            turn_order,
-            card_count,
-            shuffle_seed,
-        } => {
+        MemoryDelta::GameStarted { turn_order } => {
             set_game_state.update(|s| {
                 s.turn_order = turn_order;
                 s.current_turn = 0;
                 s.phase = GamePhase::Playing;
-                s.config.shuffle_seed = shuffle_seed;
-                // Cards will be sent in snapshot or subsequent deltas
             });
             set_revealed_faces.set(HashMap::new());
             set_local_flipped.set(Vec::new());
+        }
+
+        MemoryDelta::CardsDealt { cards } => {
+            // Convert hidden cards to full Card structs (face data hidden)
+            set_game_state.update(|s| {
+                s.cards = cards
+                    .into_iter()
+                    .map(|hidden| Card {
+                        asset_id: String::new(), // Hidden until flipped
+                        name: String::new(),     // Hidden until flipped
+                        image_url: String::new(),
+                        matched: hidden.matched,
+                        matched_by: hidden.matched_by,
+                        pair_id: 0, // Not needed on client
+                    })
+                    .collect();
+            });
         }
 
         MemoryDelta::CardFlipped { index, by: _, face } => {

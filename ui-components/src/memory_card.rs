@@ -115,20 +115,29 @@ impl MemoryCard {
 
     /// Setup click handler after rendering
     fn setup_click_handler(&self, element: &HtmlElement) {
-        // Always set up click handler - disabled/matched state is checked via attributes
-        // when the event would be dispatched
-        if let Some(shadow) = element.shadow_root() {
-            if let Ok(Some(card)) = shadow.query_selector(".memory-card") {
-                let host = element.clone();
-                on_click(&card, move |_| {
-                    // Check disabled/matched state at click time via attributes
-                    let is_disabled = host.has_attribute("disabled");
-                    let is_matched = host.has_attribute("matched");
-                    if !is_disabled && !is_matched {
-                        dispatch_event(&host, "card-click");
-                    }
-                });
-            }
+        tracing::debug!("memory-card: setup_click_handler called");
+
+        let (shadow, host) = primitives::get_shadow_and_host(element);
+
+        if let Ok(Some(card)) = shadow.query_selector(".memory-card") {
+            tracing::debug!("memory-card: found .memory-card element, attaching click handler");
+            on_click(&card, move |_| {
+                tracing::debug!("memory-card: click detected!");
+                // Check disabled/matched state at click time via attributes
+                let is_disabled = host.has_attribute("disabled");
+                let is_matched = host.has_attribute("matched");
+                tracing::debug!(
+                    is_disabled,
+                    is_matched,
+                    "memory-card: checking state at click time"
+                );
+                if !is_disabled && !is_matched {
+                    tracing::debug!("memory-card: dispatching card-click event");
+                    dispatch_event(&host, "card-click");
+                }
+            });
+        } else {
+            tracing::warn!("memory-card: .memory-card element NOT found in shadow DOM");
         }
     }
 }
@@ -176,7 +185,17 @@ impl CustomElement for MemoryCard {
     }
 
     fn inject_children(&mut self, this: &HtmlElement) {
+        let shadow_exists_before = this.shadow_root().is_some();
+        tracing::debug!(
+            shadow_exists = shadow_exists_before,
+            "memory-card: inject_children called"
+        );
         render_to_shadow(this, &self.render_html());
+        let shadow_exists_after = this.shadow_root().is_some();
+        tracing::debug!(
+            shadow_exists = shadow_exists_after,
+            "memory-card: after render_to_shadow"
+        );
         // Only set up click handler once during initial render
         self.setup_click_handler(this);
     }

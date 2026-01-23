@@ -46,7 +46,7 @@
 //! ></asset-card>
 //! ```
 
-use crate::image_card::{CardSize, parse_card_size};
+use crate::image_card::{parse_card_size, CardSize};
 use crate::render_to_shadow;
 use custom_elements::CustomElement;
 use scss_macros::scss_inline;
@@ -184,24 +184,18 @@ impl AssetCard {
             return;
         }
 
-        if let Some(shadow) = element.shadow_root() {
-            if let Ok(Some(image_card)) = shadow.query_selector("image-card") {
-                let host = element.clone();
-                let asset_id = self.asset_id.clone();
+        let (shadow, host) = primitives::get_shadow_and_host(element);
+        if let Ok(Some(image_card)) = shadow.query_selector("image-card") {
+            let asset_id = self.asset_id.clone();
 
-                let closure =
-                    wasm_bindgen::closure::Closure::wrap(Box::new(move |_: web_sys::Event| {
-                        dispatch_event_with_detail(&host, "card-click", &asset_id);
-                    }) as Box<dyn Fn(_)>);
+            let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_: web_sys::Event| {
+                dispatch_event_with_detail(&host, "card-click", &asset_id);
+            }) as Box<dyn Fn(_)>);
 
-                image_card
-                    .add_event_listener_with_callback(
-                        "card-click",
-                        closure.as_ref().unchecked_ref(),
-                    )
-                    .ok();
-                closure.forget();
-            }
+            image_card
+                .add_event_listener_with_callback("card-click", closure.as_ref().unchecked_ref())
+                .ok();
+            closure.forget();
         }
     }
 }

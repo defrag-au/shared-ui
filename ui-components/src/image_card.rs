@@ -185,13 +185,11 @@ impl ImageCard {
             return;
         }
 
-        if let Some(shadow) = element.shadow_root() {
-            if let Ok(Some(card)) = shadow.query_selector(".image-card") {
-                let host = element.clone();
-                on_click(&card, move |_| {
-                    dispatch_event(&host, "card-click");
-                });
-            }
+        let (shadow, host) = primitives::get_shadow_and_host(element);
+        if let Ok(Some(card)) = shadow.query_selector(".image-card") {
+            on_click(&card, move |_| {
+                dispatch_event(&host, "card-click");
+            });
         }
     }
 }

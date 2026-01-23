@@ -44,10 +44,12 @@ use wasm_bindgen::prelude::*;
 use web_sys::HtmlElement;
 
 /// Render HTML content into an element's shadow root.
+///
+/// Handles the custom-elements JS shim quirk where `element` may be either
+/// the host element or the shadow root itself. See `primitives::get_shadow_and_host`.
 pub fn render_to_shadow(element: &HtmlElement, html: &str) {
-    if let Some(shadow) = element.shadow_root() {
-        shadow.set_inner_html(html);
-    }
+    let (shadow, _host) = primitives::get_shadow_and_host(element);
+    shadow.set_inner_html(html);
 }
 
 static INIT: Once = Once::new();

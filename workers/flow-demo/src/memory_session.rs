@@ -166,6 +166,12 @@ impl MemoryGameSessionDO {
             .map(|(_, v)| v.to_string())
             .unwrap_or_else(|| format!("User {}", &user_id[..8.min(user_id.len())]));
 
+        tracing::info!(
+            "WebSocket upgrade for user_id={}, user_name={}",
+            user_id,
+            user_name
+        );
+
         let WebSocketPair { client, server } = WebSocketPair::new()?;
 
         let conn_info = ConnectionInfo {
@@ -181,14 +187,27 @@ impl MemoryGameSessionDO {
         let connected_msg: MemoryServerMsg =
             ServerMessage::connected(1, self.state.id().to_string());
         if let Ok(bytes) = encode(&connected_msg) {
+            tracing::debug!("Sending Connected message ({} bytes)", bytes.len());
             let _ = server.send_with_bytes(&bytes);
         }
 
         // Send current state snapshot
         let game_state = self.get_game_state().await;
         let seq = self.get_seq().await;
+        tracing::info!(
+            "Sending initial snapshot: phase={:?}, cards={}, seq={}",
+            match &game_state.phase {
+                GamePhase::Lobby { .. } => "Lobby",
+                GamePhase::Starting { .. } => "Starting",
+                GamePhase::Playing => "Playing",
+                GamePhase::Finished { .. } => "Finished",
+            },
+            game_state.cards.len(),
+            seq
+        );
         let snapshot_msg: MemoryServerMsg = ServerMessage::snapshot(game_state, seq, now());
         if let Ok(bytes) = encode(&snapshot_msg) {
+            tracing::debug!("Sending Snapshot message ({} bytes)", bytes.len());
             let _ = server.send_with_bytes(&bytes);
         }
 
@@ -477,12 +496,23 @@ impl MemoryGameSessionDO {
 
         self.save_game_state(&state).await;
 
-        let delta = MemoryDelta::GameStarted {
+        // Broadcast game started (turn order, phase change)
+        let started_delta = MemoryDelta::GameStarted {
             turn_order: state.turn_order.clone(),
-            card_count: state.cards.len(),
-            shuffle_seed: seed,
         };
-        self.broadcast_delta(delta).await;
+        self.broadcast_delta(started_delta).await;
+
+        // Broadcast cards dealt (hidden card structure - no face data revealed)
+        let hidden_cards: Vec<HiddenCard> = state.cards.iter().map(HiddenCard::from).collect();
+        tracing::info!(
+            "Game started - broadcasting {} hidden cards via CardsDealt delta",
+            hidden_cards.len()
+        );
+        let cards_delta = MemoryDelta::CardsDealt {
+            cards: hidden_cards,
+        };
+        self.broadcast_delta(cards_delta).await;
+
         self.send_action_ok(ws, op_id).await;
 
         Ok(())

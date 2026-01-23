@@ -129,13 +129,11 @@ impl ConnectionStatus {
             return;
         }
 
-        if let Some(shadow) = element.shadow_root() {
-            if let Ok(Some(container)) = shadow.query_selector(".connection-status") {
-                let host = element.clone();
-                on_click(&container, move |_| {
-                    dispatch_event(&host, "reconnect");
-                });
-            }
+        let (shadow, host) = primitives::get_shadow_and_host(element);
+        if let Ok(Some(container)) = shadow.query_selector(".connection-status") {
+            on_click(&container, move |_| {
+                dispatch_event(&host, "reconnect");
+            });
         }
     }
 }

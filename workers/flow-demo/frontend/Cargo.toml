@@ -18,6 +18,9 @@ ui-flow-protocol = { path = "../../../ui-flow-protocol" }
 # Shared UI components
 ui-components = { path = "../../../ui-components" }
 
+# Core runtime (tracing setup)
+ui-core = { path = "../../../ui-core" }
+
 # WebSocket + WASM
 web-sys = { version = "0.3", features = [
     "WebSocket",

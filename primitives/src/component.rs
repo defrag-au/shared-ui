@@ -45,6 +45,37 @@ pub fn get_or_create_shadow(element: &HtmlElement) -> ShadowRoot {
         .unwrap_or_else(|| create_shadow_root(element))
 }
 
+/// Normalize the element passed to custom element callbacks.
+///
+/// The `custom-elements` crate's JS shim has a quirk: when shadow mode is enabled,
+/// it passes `this.shadowRoot` (a ShadowRoot) to `_injectChildren` instead of `this`
+/// (the host element). Due to JS's loose typing, Rust receives this as an HtmlElement.
+///
+/// This helper detects which case we're in and returns both the shadow root and
+/// the actual host element, regardless of what was passed.
+///
+/// # Usage
+/// ```ignore
+/// fn inject_children(&mut self, this: &HtmlElement) {
+///     let (shadow, host) = get_shadow_and_host(this);
+///     shadow.set_inner_html(&self.render());
+///     // Use `host` to dispatch events, read attributes, etc.
+/// }
+/// ```
+pub fn get_shadow_and_host(element: &HtmlElement) -> (ShadowRoot, HtmlElement) {
+    use wasm_bindgen::JsCast;
+
+    if let Some(shadow) = element.shadow_root() {
+        // element is the host - normal case
+        (shadow, element.clone())
+    } else {
+        // element is actually a ShadowRoot (custom-elements JS shim quirk)
+        let shadow: &ShadowRoot = element.unchecked_ref();
+        let host: HtmlElement = shadow.host().unchecked_into();
+        (shadow.clone(), host)
+    }
+}
+
 /// Dispatch a custom event from an element
 pub fn dispatch_event(element: &Element, event_name: &str) {
     let event = web_sys::Event::new(event_name).unwrap();

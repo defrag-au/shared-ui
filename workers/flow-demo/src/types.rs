@@ -220,7 +220,6 @@ pub struct MemoryGameState {
 pub struct CardFace {
     pub asset_id: String,
     pub name: String,
-    pub image_url: String,
 }
 
 impl From<&Card> for CardFace {
@@ -228,7 +227,25 @@ impl From<&Card> for CardFace {
         Self {
             asset_id: card.asset_id.clone(),
             name: card.name.clone(),
-            image_url: card.image_url.clone(),
+        }
+    }
+}
+
+/// Hidden card data - just the structure, no revealed info
+/// Sent when cards are dealt so clients know board layout
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HiddenCard {
+    /// Whether this card has been matched
+    pub matched: bool,
+    /// Who matched this card (if matched)
+    pub matched_by: Option<String>,
+}
+
+impl From<&Card> for HiddenCard {
+    fn from(card: &Card) -> Self {
+        Self {
+            matched: card.matched,
+            matched_by: card.matched_by.clone(),
         }
     }
 }
@@ -254,14 +271,15 @@ pub enum MemoryDelta {
     // === Starting Phase ===
     /// Countdown tick
     CountdownTick { seconds: u8 },
-    /// Game started - cards are dealt
+    /// Game started - announces turn order and game beginning
     GameStarted {
         /// Turn order (turn-taking mode)
         turn_order: Vec<String>,
-        /// Number of cards on the board
-        card_count: usize,
-        /// Shuffle seed for client-side determinism
-        shuffle_seed: u64,
+    },
+    /// Cards have been dealt - contains hidden card structure
+    CardsDealt {
+        /// Hidden cards (no face data - just matched state)
+        cards: Vec<HiddenCard>,
     },
 
     // === Turn-Taking Mode ===

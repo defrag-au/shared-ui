@@ -154,8 +154,8 @@ pub enum AppMode {
 /// Main application entry point
 #[wasm_bindgen(start)]
 pub fn main() {
-    // Initialize logging
-    tracing_wasm::set_as_global_default();
+    // Initialize tracing (panic hooks + browser console logging)
+    ui_core::runtime::init_widget_with_level(tracing::Level::DEBUG);
 
     // Register shared UI web components
     ::ui_components::define_all();
