@@ -9,10 +9,14 @@
 //! - Asset ID format: `{policy_id}{asset_name_hex}` (56+ chars)
 //! - Generated URL: `https://iiif.hodlcroft.com/iiif/3/{policy_id}:{asset_name}/full/{size},/0/default.jpg`
 //!
+//! The IIIF image size is automatically selected based on card size:
+//! - xs, sm, md, lg (≤400px): uses 400px IIIF image (cached, fast)
+//! - xl (>400px): uses 1686px IIIF image (high resolution)
+//!
 //! ## Attributes
 //!
 //! - `asset-id` - Cardano asset ID (policy_id + asset_name hex)
-//! - `size` - Image size: "thumb" (400px, default) or "large" (1686px)
+//! - `size` - Card size: "xs" (80px), "sm" (120px), "md" (240px), "lg" (400px), "xl" (800px)
 //! - `name` - Display name of the asset (shown in overlay)
 //! - `accent-color` - Optional accent/tier color for top bar
 //! - `static` - If present, card is non-interactive (no hover effect)
@@ -25,24 +29,25 @@
 //! ## Usage
 //!
 //! ```html
-//! <!-- Thumbnail (400px, default) -->
+//! <!-- Small card (120px, uses 400px IIIF image) -->
 //! <asset-card
 //!     asset-id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839"
 //!     name="Pirate #189"
+//!     size="sm"
 //!     show-name
 //! ></asset-card>
 //!
-//! <!-- Large image (1686px) -->
+//! <!-- Extra large card (800px, uses 1686px IIIF image) -->
 //! <asset-card
 //!     asset-id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839"
-//!     size="large"
+//!     size="xl"
 //!     name="Pirate #189"
 //! ></asset-card>
 //! ```
 
+use crate::image_card::{parse_card_size, CardSize};
 use crate::render_to_shadow;
 use custom_elements::CustomElement;
-use phf::phf_map;
 use scss_macros::scss_inline;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
@@ -50,9 +55,9 @@ use web_sys::HtmlElement;
 /// IIIF base URL for image lookups
 const IIIF_BASE_URL: &str = "https://iiif.hodlcroft.com/iiif/3";
 
-/// Image size variants for IIIF requests
+/// IIIF image size variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ImageSize {
+pub enum IiifSize {
     /// 400px width - fast, cached thumbnails
     #[default]
     Thumb,
@@ -60,33 +65,24 @@ pub enum ImageSize {
     Large,
 }
 
-impl ImageSize {
+impl IiifSize {
     /// Get the IIIF size parameter value
-    pub fn iiif_size(&self) -> u16 {
+    pub fn pixels(&self) -> u16 {
         match self {
-            ImageSize::Thumb => 400,
-            ImageSize::Large => 1686,
+            IiifSize::Thumb => 400,
+            IiifSize::Large => 1686,
         }
     }
-}
 
-/// Map from attribute string to ImageSize variant
-static SIZE_MAP: phf::Map<&'static str, ImageSize> = phf_map! {
-    "thumb" => ImageSize::Thumb,
-    "thumbnail" => ImageSize::Thumb,
-    "sm" => ImageSize::Thumb,
-    "small" => ImageSize::Thumb,
-    "large" => ImageSize::Large,
-    "lg" => ImageSize::Large,
-    "full" => ImageSize::Large,
-};
-
-/// Parse size attribute string to ImageSize
-fn parse_size(s: &str) -> ImageSize {
-    SIZE_MAP
-        .get(s.to_lowercase().as_str())
-        .copied()
-        .unwrap_or_default()
+    /// Select appropriate IIIF size for a given card size
+    /// Uses thumb (400px) for cards up to 400px, large for bigger cards
+    pub fn for_card_size(card_size: CardSize) -> Self {
+        if card_size.pixels() > 400 {
+            IiifSize::Large
+        } else {
+            IiifSize::Thumb
+        }
+    }
 }
 
 /// Generate IIIF URL from asset ID and size
@@ -95,7 +91,7 @@ fn parse_size(s: &str) -> ImageSize {
 /// Policy ID is always 56 hex chars, asset name is the remainder.
 ///
 /// Returns None if asset_id is too short to contain a valid policy ID.
-pub fn generate_iiif_url(asset_id: &str, size: ImageSize) -> Option<String> {
+pub fn generate_iiif_url(asset_id: &str, size: IiifSize) -> Option<String> {
     // Policy ID is 56 hex characters (28 bytes)
     if asset_id.len() < 56 {
         return None;
@@ -111,7 +107,7 @@ pub fn generate_iiif_url(asset_id: &str, size: ImageSize) -> Option<String> {
     // IIIF format: {policy_id}:{asset_name_hex}
     Some(format!(
         "{IIIF_BASE_URL}/{policy_id}:{asset_name}/full/{},/0/default.jpg",
-        size.iiif_size()
+        size.pixels()
     ))
 }
 
@@ -119,7 +115,7 @@ pub fn generate_iiif_url(asset_id: &str, size: ImageSize) -> Option<String> {
 #[derive(Default)]
 pub struct AssetCard {
     asset_id: String,
-    size: ImageSize,
+    size: CardSize,
     name: String,
     accent_color: Option<String>,
     is_static: bool,
@@ -137,13 +133,17 @@ impl AssetCard {
         if self.asset_id.is_empty() {
             return None;
         }
-        generate_iiif_url(&self.asset_id, self.size)
+        let iiif_size = IiifSize::for_card_size(self.size);
+        generate_iiif_url(&self.asset_id, iiif_size)
     }
 
     /// Render HTML string for the component
     fn render_html(&self) -> String {
         let image_url = self.image_url().unwrap_or_default();
-        let mut attrs = vec![format!(r#"image-url="{}""#, html_escape(&image_url))];
+        let mut attrs = vec![
+            format!(r#"image-url="{}""#, html_escape(&image_url)),
+            format!(r#"size="{}""#, self.size.class_suffix()),
+        ];
 
         if !self.name.is_empty() {
             attrs.push(format!(r#"name="{}""#, html_escape(&self.name)));
@@ -212,7 +212,7 @@ impl CustomElement for AssetCard {
         self.asset_id = this.get_attribute("asset-id").unwrap_or_default();
         self.size = this
             .get_attribute("size")
-            .map(|s| parse_size(&s))
+            .map(|s| parse_card_size(&s))
             .unwrap_or_default();
         self.name = this.get_attribute("name").unwrap_or_default();
         self.accent_color = this.get_attribute("accent-color");
@@ -229,7 +229,7 @@ impl CustomElement for AssetCard {
     ) {
         match name.as_str() {
             "asset-id" => self.asset_id = new_value.unwrap_or_default(),
-            "size" => self.size = new_value.map(|s| parse_size(&s)).unwrap_or_default(),
+            "size" => self.size = new_value.map(|s| parse_card_size(&s)).unwrap_or_default(),
             "name" => self.name = new_value.unwrap_or_default(),
             "accent-color" => self.accent_color = new_value,
             "static" => self.is_static = new_value.is_some(),
@@ -276,13 +276,11 @@ const COMPONENT_STYLES: &str = scss_inline!(
     :host {
         display: block;
         width: 100%;
-        max-width: 160px;
     }
 
     image-card {
         display: block;
         width: 100%;
-        max-width: inherit;
     }
 "#
 );
@@ -295,38 +293,35 @@ mod tests {
     fn test_generate_iiif_url() {
         let asset_id = "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839";
 
-        let thumb_url = generate_iiif_url(asset_id, ImageSize::Thumb).unwrap();
+        let thumb_url = generate_iiif_url(asset_id, IiifSize::Thumb).unwrap();
         assert!(thumb_url.contains("/400,/"));
         assert!(thumb_url.contains(
             "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6:506972617465313839"
         ));
 
-        let large_url = generate_iiif_url(asset_id, ImageSize::Large).unwrap();
+        let large_url = generate_iiif_url(asset_id, IiifSize::Large).unwrap();
         assert!(large_url.contains("/1686,/"));
     }
 
     #[test]
     fn test_generate_iiif_url_short_id() {
         let short_id = "abc123";
-        assert!(generate_iiif_url(short_id, ImageSize::Thumb).is_none());
+        assert!(generate_iiif_url(short_id, IiifSize::Thumb).is_none());
     }
 
     #[test]
     fn test_generate_iiif_url_policy_only() {
         // 56 chars but no asset name
         let policy_only = "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6";
-        assert!(generate_iiif_url(policy_only, ImageSize::Thumb).is_none());
+        assert!(generate_iiif_url(policy_only, IiifSize::Thumb).is_none());
     }
 
     #[test]
-    fn test_parse_size() {
-        assert_eq!(parse_size("thumb"), ImageSize::Thumb);
-        assert_eq!(parse_size("THUMB"), ImageSize::Thumb);
-        assert_eq!(parse_size("thumbnail"), ImageSize::Thumb);
-        assert_eq!(parse_size("sm"), ImageSize::Thumb);
-        assert_eq!(parse_size("large"), ImageSize::Large);
-        assert_eq!(parse_size("lg"), ImageSize::Large);
-        assert_eq!(parse_size("full"), ImageSize::Large);
-        assert_eq!(parse_size("unknown"), ImageSize::Thumb); // default
+    fn test_iiif_size_for_card_size() {
+        assert_eq!(IiifSize::for_card_size(CardSize::Xs), IiifSize::Thumb);
+        assert_eq!(IiifSize::for_card_size(CardSize::Sm), IiifSize::Thumb);
+        assert_eq!(IiifSize::for_card_size(CardSize::Md), IiifSize::Thumb);
+        assert_eq!(IiifSize::for_card_size(CardSize::Lg), IiifSize::Thumb);
+        assert_eq!(IiifSize::for_card_size(CardSize::Xl), IiifSize::Large);
     }
 }

@@ -741,6 +741,68 @@ fn render_image_card_story() -> Element {
     section.append(&canvas);
     container.append(&section);
 
+    // Size Variants section
+    let size_section = create_element("div", &["story-section"]);
+    let size_h3 = create_element("h3", &[]);
+    size_h3.set_text_content(Some("Size Variants"));
+    size_section.append(&size_h3);
+
+    let size_canvas = create_element("div", &["story-canvas"]);
+    let size_row = create_element("div", &[]);
+    size_row
+        .set_attribute(
+            "style",
+            "display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap;",
+        )
+        .unwrap();
+
+    // xs (80px)
+    let xs_card = document().create_element("image-card").unwrap();
+    xs_card.set_attribute("image-url", "https://iiif.hodlcroft.com/iiif/3/b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6:506972617465313839/full/400,/0/default.jpg").unwrap();
+    xs_card.set_attribute("name", "xs (80px)").unwrap();
+    xs_card.set_attribute("size", "xs").unwrap();
+    xs_card.set_attribute("show-name", "").unwrap();
+    size_row.append_child(&xs_card).unwrap();
+
+    // sm (120px)
+    let sm_card = document().create_element("image-card").unwrap();
+    sm_card.set_attribute("image-url", "https://iiif.hodlcroft.com/iiif/3/b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6:506972617465323030/full/400,/0/default.jpg").unwrap();
+    sm_card.set_attribute("name", "sm (120px)").unwrap();
+    sm_card.set_attribute("size", "sm").unwrap();
+    sm_card.set_attribute("show-name", "").unwrap();
+    size_row.append_child(&sm_card).unwrap();
+
+    // md (240px)
+    let md_card = document().create_element("image-card").unwrap();
+    md_card.set_attribute("image-url", "https://iiif.hodlcroft.com/iiif/3/b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6:506972617465333333/full/400,/0/default.jpg").unwrap();
+    md_card.set_attribute("name", "md (240px)").unwrap();
+    md_card.set_attribute("size", "md").unwrap();
+    md_card.set_attribute("show-name", "").unwrap();
+    size_row.append_child(&md_card).unwrap();
+
+    size_canvas.append(&size_row);
+
+    // Second row for larger sizes
+    let size_row2 = create_element("div", &[]);
+    size_row2
+        .set_attribute(
+            "style",
+            "display: flex; align-items: flex-end; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;",
+        )
+        .unwrap();
+
+    // lg (400px)
+    let lg_card = document().create_element("image-card").unwrap();
+    lg_card.set_attribute("image-url", "https://iiif.hodlcroft.com/iiif/3/b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6:506972617465343434/full/400,/0/default.jpg").unwrap();
+    lg_card.set_attribute("name", "lg (400px)").unwrap();
+    lg_card.set_attribute("size", "lg").unwrap();
+    lg_card.set_attribute("show-name", "").unwrap();
+    size_row2.append_child(&lg_card).unwrap();
+
+    size_canvas.append(&size_row2);
+    size_section.append(&size_canvas);
+    container.append(&size_section);
+
     // Attributes section
     let section2 = create_element("div", &["story-section"]);
     let h3_2 = create_element("h3", &[]);
@@ -756,22 +818,29 @@ fn render_image_card_story() -> Element {
     let attr2 = render_attribute_card("name", "string", "Name shown in overlay and as tooltip");
     grid2.append(&attr2);
 
-    let attr3 = render_attribute_card("show-name", "boolean", "If present, shows the name overlay");
+    let attr3 = render_attribute_card(
+        "size",
+        "xs | sm | md | lg | xl",
+        "Card size: 80px, 120px (default), 240px, 400px, 800px",
+    );
     grid2.append(&attr3);
 
-    let attr4 = render_attribute_card(
+    let attr4 = render_attribute_card("show-name", "boolean", "If present, shows the name overlay");
+    grid2.append(&attr4);
+
+    let attr5 = render_attribute_card(
         "accent-color",
         "CSS color",
         "Color for the accent bar at top",
     );
-    grid2.append(&attr4);
+    grid2.append(&attr5);
 
-    let attr5 = render_attribute_card(
+    let attr6 = render_attribute_card(
         "static",
         "boolean",
         "If present, disables hover effects and clicks",
     );
-    grid2.append(&attr5);
+    grid2.append(&attr6);
 
     canvas2.append(&grid2);
     section2.append(&canvas2);
@@ -788,16 +857,25 @@ fn render_image_card_story() -> Element {
         r##"// Register components at app startup
 components::define_all();
 
-// Basic image card
+// Basic image card (default sm size)
 <image-card
     image-url="https://example.com/image.png"
     name="My Image"
 ></image-card>
 
-// With name overlay and accent color
+// Medium size with name overlay
 <image-card
     image-url="https://..."
     name="Featured"
+    size="md"
+    show-name
+></image-card>
+
+// Large card with accent color
+<image-card
+    image-url="https://..."
+    name="Hero"
+    size="lg"
     show-name
     accent-color="#FFD700"
 ></image-card>
@@ -806,15 +884,9 @@ components::define_all();
 <image-card
     attr:image-url=url
     attr:name=name
+    attr:size="md"
     on:card-click=move |_| { handle_click(); }
-/>
-
-// Static (non-interactive)
-<image-card
-    image-url="https://..."
-    name="Display Only"
-    static
-></image-card>"##,
+/>"##,
     ));
     code_section.append(&code);
     container.append(&code_section);
@@ -839,78 +911,121 @@ fn render_asset_card_story() -> Element {
 
     let desc = create_element("p", &[]);
     desc.set_text_content(Some(
-        "Cardano NFT asset card with automatic IIIF URL generation. Wraps <image-card> and derives image URLs from asset IDs.",
+        "Cardano NFT asset card with automatic IIIF URL generation. Wraps <image-card> and derives image URLs from asset IDs. IIIF image resolution is automatically selected based on card size.",
     ));
     header.append(&desc);
     container.append(&header);
 
-    // Examples section
+    // Size Variants section
     let section = create_element("div", &["story-section"]);
     let h3 = create_element("h3", &[]);
-    h3.set_text_content(Some("Examples"));
+    h3.set_text_content(Some("Size Variants"));
     section.append(&h3);
 
     let canvas = create_element("div", &["story-canvas"]);
-    let grid = create_element("div", &[]);
-    grid.set_attribute(
-        "style",
-        "display: grid; grid-template-columns: repeat(4, 120px); gap: 1rem;",
-    )
-    .unwrap();
+    let size_row = create_element("div", &[]);
+    size_row
+        .set_attribute(
+            "style",
+            "display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap;",
+        )
+        .unwrap();
 
-    // Thumbnail (default size)
-    let card1 = document().create_element("asset-card").unwrap();
-    card1
+    // xs (80px) - uses 400px IIIF
+    let xs_card = document().create_element("asset-card").unwrap();
+    xs_card
         .set_attribute(
             "asset-id",
             "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839",
         )
         .unwrap();
-    card1.set_attribute("name", "Pirate #189").unwrap();
-    card1.set_attribute("show-name", "").unwrap();
-    grid.append_child(&card1).unwrap();
+    xs_card.set_attribute("name", "xs (80px)").unwrap();
+    xs_card.set_attribute("size", "xs").unwrap();
+    xs_card.set_attribute("show-name", "").unwrap();
+    size_row.append_child(&xs_card).unwrap();
 
-    // Another thumbnail
-    let card2 = document().create_element("asset-card").unwrap();
-    card2
+    // sm (120px) - uses 400px IIIF
+    let sm_card = document().create_element("asset-card").unwrap();
+    sm_card
         .set_attribute(
             "asset-id",
             "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465323030",
         )
         .unwrap();
-    card2.set_attribute("name", "Pirate #200").unwrap();
-    card2.set_attribute("show-name", "").unwrap();
-    grid.append_child(&card2).unwrap();
+    sm_card.set_attribute("name", "sm (120px)").unwrap();
+    sm_card.set_attribute("size", "sm").unwrap();
+    sm_card.set_attribute("show-name", "").unwrap();
+    size_row.append_child(&sm_card).unwrap();
 
-    // Large size
-    let card3 = document().create_element("asset-card").unwrap();
-    card3
+    // md (240px) - uses 400px IIIF
+    let md_card = document().create_element("asset-card").unwrap();
+    md_card
         .set_attribute(
             "asset-id",
             "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465333333",
         )
         .unwrap();
-    card3.set_attribute("size", "large").unwrap();
-    card3.set_attribute("name", "Large (1686px)").unwrap();
-    card3.set_attribute("show-name", "").unwrap();
-    grid.append_child(&card3).unwrap();
+    md_card.set_attribute("name", "md (240px)").unwrap();
+    md_card.set_attribute("size", "md").unwrap();
+    md_card.set_attribute("show-name", "").unwrap();
+    size_row.append_child(&md_card).unwrap();
 
-    // With accent color
-    let card4 = document().create_element("asset-card").unwrap();
-    card4
+    canvas.append(&size_row);
+
+    // Second row for larger sizes
+    let size_row2 = create_element("div", &[]);
+    size_row2
+        .set_attribute(
+            "style",
+            "display: flex; align-items: flex-end; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;",
+        )
+        .unwrap();
+
+    // lg (400px) - uses 400px IIIF
+    let lg_card = document().create_element("asset-card").unwrap();
+    lg_card
         .set_attribute(
             "asset-id",
             "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465343434",
         )
         .unwrap();
-    card4.set_attribute("name", "Gold Tier").unwrap();
-    card4.set_attribute("show-name", "").unwrap();
-    card4.set_attribute("accent-color", "#FFD700").unwrap();
-    grid.append_child(&card4).unwrap();
+    lg_card
+        .set_attribute("name", "lg (400px) - 400px IIIF")
+        .unwrap();
+    lg_card.set_attribute("size", "lg").unwrap();
+    lg_card.set_attribute("show-name", "").unwrap();
+    size_row2.append_child(&lg_card).unwrap();
 
-    canvas.append(&grid);
+    canvas.append(&size_row2);
     section.append(&canvas);
     container.append(&section);
+
+    // IIIF Info section
+    let iiif_section = create_element("div", &["story-section"]);
+    let iiif_h3 = create_element("h3", &[]);
+    iiif_h3.set_text_content(Some("IIIF Image Selection"));
+    iiif_section.append(&iiif_h3);
+
+    let iiif_canvas = create_element("div", &["story-canvas"]);
+    let iiif_grid = create_element("div", &["story-grid"]);
+
+    let iiif1 = render_attribute_card(
+        "xs, sm, md, lg",
+        "400px IIIF",
+        "Card sizes up to 400px use the cached 400px IIIF image for fast loading",
+    );
+    iiif_grid.append(&iiif1);
+
+    let iiif2 = render_attribute_card(
+        "xl",
+        "1686px IIIF",
+        "Card sizes above 400px use the high-resolution 1686px IIIF image",
+    );
+    iiif_grid.append(&iiif2);
+
+    iiif_canvas.append(&iiif_grid);
+    iiif_section.append(&iiif_canvas);
+    container.append(&iiif_section);
 
     // Interactive Demo section
     let section2 = create_element("div", &["story-section"]);
@@ -1015,17 +1130,10 @@ fn render_asset_card_story() -> Element {
 
     let attr2 = render_attribute_card(
         "size",
-        "thumb | large",
-        "IIIF image size: thumb (400px, default) or large (1686px)",
+        "xs | sm | md | lg | xl",
+        "Card size: 80px, 120px (default), 240px, 400px, 800px. IIIF resolution auto-selected.",
     );
     grid3.append(&attr2);
-
-    let attr3 = render_attribute_card(
-        "image-url",
-        "URL string",
-        "Direct image URL (overrides IIIF lookup if both specified)",
-    );
-    grid3.append(&attr3);
 
     let attr4 = render_attribute_card(
         "name",
@@ -1070,30 +1178,33 @@ fn render_asset_card_story() -> Element {
         r##"// Register components at app startup
 components::define_all();
 
-// IIIF lookup (recommended) - auto-generates URL from asset ID
+// Small card (default) - uses 400px IIIF image
 <asset-card
     asset-id="{policy_id}{asset_name_hex}"
     name="Pirate #189"
     show-name
 ></asset-card>
 
-// IIIF with large size (1686px instead of default 400px)
+// Medium card - still uses 400px IIIF (cached, fast)
 <asset-card
     asset-id="{policy_id}{asset_name_hex}"
-    size="large"
-    name="High Resolution"
+    size="md"
+    name="Featured Pirate"
+    show-name
 ></asset-card>
 
-// Direct URL (overrides IIIF lookup)
+// Extra large card - auto-selects 1686px IIIF
 <asset-card
-    image-url="https://example.com/custom-image.png"
-    name="Custom Image"
+    asset-id="{policy_id}{asset_name_hex}"
+    size="xl"
+    name="Hero Display"
     show-name
 ></asset-card>
 
 // With accent color for tier indication
 <asset-card
     asset-id="{asset_id}"
+    size="lg"
     name="Gold Tier Asset"
     show-name
     accent-color="#FFD700"
@@ -1103,19 +1214,13 @@ components::define_all();
 <asset-card
     attr:asset-id=asset_id
     attr:name=name
+    attr:size="md"
     on:card-click=move |e: web_sys::CustomEvent| {
         if let Some(id) = e.detail().as_string() {
             handle_asset_click(id);
         }
     }
-/>
-
-// Static display (no interaction)
-<asset-card
-    asset-id="{asset_id}"
-    name="Display Only"
-    static
-></asset-card>"##,
+/>"##,
     ));
     code_section.append(&code);
     container.append(&code_section);

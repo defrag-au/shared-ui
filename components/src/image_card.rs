@@ -10,6 +10,7 @@
 //!
 //! - `image-url` - URL for the image
 //! - `name` - Display name (shown in overlay and as title tooltip)
+//! - `size` - Card size: "xs" (80px), "sm" (120px), "md" (240px), "lg" (400px), "xl" (800px)
 //! - `accent-color` - Optional accent/tier color for top bar
 //! - `static` - If present, card is non-interactive (no hover effect)
 //! - `show-name` - If present, show name overlay (default: hidden)
@@ -24,21 +25,86 @@
 //! <image-card
 //!     image-url="https://example.com/image.png"
 //!     name="My Image"
+//!     size="md"
 //!     show-name
 //! ></image-card>
 //! ```
 
 use crate::render_to_shadow;
 use custom_elements::CustomElement;
+use phf::phf_map;
 use primitives::{dispatch_event, on_click};
 use scss_macros::scss_inline;
 use web_sys::HtmlElement;
+
+/// Card size variants
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CardSize {
+    /// 80px - Extra small, for dense grids
+    Xs,
+    /// 120px - Small, default size
+    #[default]
+    Sm,
+    /// 240px - Medium, good for featured items
+    Md,
+    /// 400px - Large, detailed view
+    Lg,
+    /// 800px - Extra large, hero/spotlight
+    Xl,
+}
+
+impl CardSize {
+    /// Get the pixel width for this size
+    pub fn pixels(&self) -> u16 {
+        match self {
+            CardSize::Xs => 80,
+            CardSize::Sm => 120,
+            CardSize::Md => 240,
+            CardSize::Lg => 400,
+            CardSize::Xl => 800,
+        }
+    }
+
+    /// Get the CSS class suffix for this size
+    pub fn class_suffix(&self) -> &'static str {
+        match self {
+            CardSize::Xs => "xs",
+            CardSize::Sm => "sm",
+            CardSize::Md => "md",
+            CardSize::Lg => "lg",
+            CardSize::Xl => "xl",
+        }
+    }
+}
+
+/// Map from attribute string to CardSize variant
+static CARD_SIZE_MAP: phf::Map<&'static str, CardSize> = phf_map! {
+    "xs" => CardSize::Xs,
+    "extra-small" => CardSize::Xs,
+    "sm" => CardSize::Sm,
+    "small" => CardSize::Sm,
+    "md" => CardSize::Md,
+    "medium" => CardSize::Md,
+    "lg" => CardSize::Lg,
+    "large" => CardSize::Lg,
+    "xl" => CardSize::Xl,
+    "extra-large" => CardSize::Xl,
+};
+
+/// Parse size attribute string to CardSize
+pub fn parse_card_size(s: &str) -> CardSize {
+    CARD_SIZE_MAP
+        .get(s.to_lowercase().as_str())
+        .copied()
+        .unwrap_or_default()
+}
 
 /// Image card custom element
 #[derive(Default)]
 pub struct ImageCard {
     image_url: String,
     name: String,
+    size: CardSize,
     accent_color: Option<String>,
     is_static: bool,
     show_name: bool,
@@ -71,7 +137,8 @@ impl ImageCard {
     }
 
     fn build_card_classes(&self) -> String {
-        let mut classes = vec!["image-card"];
+        let size_class = format!("image-card--{}", self.size.class_suffix());
+        let mut classes = vec!["image-card", &size_class];
         if self.is_static {
             classes.push("image-card--static");
         }
@@ -131,12 +198,23 @@ impl ImageCard {
 
 impl CustomElement for ImageCard {
     fn observed_attributes() -> &'static [&'static str] {
-        &["image-url", "name", "accent-color", "static", "show-name"]
+        &[
+            "image-url",
+            "name",
+            "size",
+            "accent-color",
+            "static",
+            "show-name",
+        ]
     }
 
     fn constructor(&mut self, this: &HtmlElement) {
         self.image_url = this.get_attribute("image-url").unwrap_or_default();
         self.name = this.get_attribute("name").unwrap_or_default();
+        self.size = this
+            .get_attribute("size")
+            .map(|s| parse_card_size(&s))
+            .unwrap_or_default();
         self.accent_color = this.get_attribute("accent-color");
         self.is_static = this.has_attribute("static");
         self.show_name = this.has_attribute("show-name");
@@ -152,6 +230,7 @@ impl CustomElement for ImageCard {
         match name.as_str() {
             "image-url" => self.image_url = new_value.unwrap_or_default(),
             "name" => self.name = new_value.unwrap_or_default(),
+            "size" => self.size = new_value.map(|s| parse_card_size(&s)).unwrap_or_default(),
             "accent-color" => self.accent_color = new_value,
             "static" => self.is_static = new_value.is_some(),
             "show-name" => self.show_name = new_value.is_some(),
@@ -177,11 +256,10 @@ fn html_escape(s: &str) -> String {
 }
 
 const COMPONENT_STYLES: &str = scss_inline!(
-    r#"
+    r##"
     :host {
         display: block;
         width: 100%;
-        max-width: 160px;
     }
 
     .image-card {
@@ -192,6 +270,76 @@ const COMPONENT_STYLES: &str = scss_inline!(
         cursor: pointer;
         transition: transform 0.15s ease, box-shadow 0.15s ease;
         width: 100%;
+
+        // Size variants
+        &--xs {
+            max-width: 80px;
+            border-radius: 4px;
+
+            .image-card__name {
+                font-size: 0.6rem;
+                padding: 0.2rem 0.3rem;
+            }
+
+            .image-card__accent {
+                height: 2px;
+            }
+        }
+
+        &--sm {
+            max-width: 120px;
+            border-radius: 6px;
+
+            .image-card__name {
+                font-size: 0.7rem;
+                padding: 0.25rem 0.4rem;
+            }
+
+            .image-card__accent {
+                height: 3px;
+            }
+        }
+
+        &--md {
+            max-width: 240px;
+
+            .image-card__name {
+                font-size: 0.85rem;
+                padding: 0.4rem 0.6rem;
+            }
+
+            .image-card__accent {
+                height: 4px;
+            }
+        }
+
+        &--lg {
+            max-width: 400px;
+            border-radius: 10px;
+
+            .image-card__name {
+                font-size: 1rem;
+                padding: 0.5rem 0.75rem;
+            }
+
+            .image-card__accent {
+                height: 5px;
+            }
+        }
+
+        &--xl {
+            max-width: 800px;
+            border-radius: 12px;
+
+            .image-card__name {
+                font-size: 1.1rem;
+                padding: 0.6rem 1rem;
+            }
+
+            .image-card__accent {
+                height: 6px;
+            }
+        }
 
         &:hover {
             transform: translateY(-2px);
@@ -262,5 +410,5 @@ const COMPONENT_STYLES: &str = scss_inline!(
             text-align: center;
         }
     }
-"#
+"##
 );

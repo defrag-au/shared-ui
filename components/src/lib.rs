@@ -34,9 +34,9 @@ mod connection_status;
 mod image_card;
 mod memory_card;
 
-pub use asset_card::{AssetCard, ImageSize};
+pub use asset_card::{AssetCard, IiifSize};
 pub use connection_status::{ConnectionState, ConnectionStatus};
-pub use image_card::ImageCard;
+pub use image_card::{CardSize, ImageCard};
 pub use memory_card::MemoryCard;
 
 use std::sync::Once;
