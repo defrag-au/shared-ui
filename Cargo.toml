@@ -78,6 +78,10 @@ cardano-assets = { git = "https://github.com/defrag-au/shared-crates", package =
 # Error handling
 thiserror = "1"
 
+# RNG (wasm-compatible)
+rand = { version = "0.9", features = ["small_rng", "std"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
 # Static maps
 phf = { version = "0.11", features = ["macros"] }
 

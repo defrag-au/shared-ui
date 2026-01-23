@@ -608,130 +608,185 @@ pub fn MemoryApp() -> impl IntoView {
                 }
             />
 
-            {move || {
-                let state = game_state.get();
+            // Use Show components to keep GameBoard mounted during Playing phase
+            // This preserves DOM elements so CSS transitions can animate
 
-                match state.phase {
-                    GamePhase::Lobby { .. } => {
-                        let send = send_action.clone();
-                        let send_mode = send_action.clone();
-                        let send_grid = send_action.clone();
-                        let send_start = send_action.clone();
+            // Derive phase signals for Show conditions
+            {
+                let is_lobby = Signal::derive(move || matches!(game_state.get().phase, GamePhase::Lobby { .. }));
+                let is_starting = Signal::derive(move || matches!(game_state.get().phase, GamePhase::Starting { .. }));
+                let is_loading = Signal::derive(move || matches!(game_state.get().phase, GamePhase::Loading { .. }));
+                let is_playing = Signal::derive(move || matches!(game_state.get().phase, GamePhase::Playing));
+                let is_finished = Signal::derive(move || matches!(game_state.get().phase, GamePhase::Finished { .. }));
 
-                        view! {
-                            <Lobby
-                                players=players_for_lobby
-                                current_user_id=current_user_id
-                                game_mode=game_mode
-                                grid_size=grid_size
-                                on_mode_change=move |mode: GameMode| {
-                                    send_mode(MemoryAction::SetConfig {
+                let send_mode = send_action.clone();
+                let send_grid = send_action.clone();
+                let send_start = send_action.clone();
+                let send_flip = send_action.clone();
+                let send_ack = send_action.clone();
+                let send_rematch = send_action.clone();
+
+                // Derived signals for phase-specific data
+                let countdown = Signal::derive(move || {
+                    match game_state.get().phase {
+                        GamePhase::Starting { countdown } => countdown,
+                        _ => 0,
+                    }
+                });
+
+                let loading_info = Signal::derive(move || {
+                    let state = game_state.get();
+                    match &state.phase {
+                        GamePhase::Loading { ready_players, total_players } => {
+                            let ready_with_names: Vec<String> = ready_players.iter()
+                                .map(|id| state.players.get(id)
+                                    .map(|p| p.user_name.clone())
+                                    .unwrap_or_else(|| id.clone()))
+                                .collect();
+                            (ready_with_names, *total_players)
+                        }
+                        _ => (vec![], 0),
+                    }
+                });
+
+                let finished_info = Signal::derive(move || {
+                    match game_state.get().phase {
+                        GamePhase::Finished { winner, rankings } => (winner, rankings),
+                        _ => (None, vec![]),
+                    }
+                });
+
+                view! {
+                    // Lobby phase
+                    <Show when=move || is_lobby.get() fallback=|| ()>
+                        <Lobby
+                            players=players_for_lobby
+                            current_user_id=current_user_id
+                            game_mode=game_mode
+                            grid_size=grid_size
+                            on_mode_change={
+                                let send = send_mode.clone();
+                                move |mode: GameMode| {
+                                    send(MemoryAction::SetConfig {
                                         mode: Some(mode.into()),
                                         grid_size: None,
                                     });
                                 }
-                                on_grid_change=move |size: (u8, u8)| {
-                                    send_grid(MemoryAction::SetConfig {
+                            }
+                            on_grid_change={
+                                let send = send_grid.clone();
+                                move |size: (u8, u8)| {
+                                    send(MemoryAction::SetConfig {
                                         mode: None,
                                         grid_size: Some(size),
                                     });
                                 }
-                                on_start=move || {
-                                    send_start(MemoryAction::StartGame);
+                            }
+                            on_start={
+                                let send = send_start.clone();
+                                move || {
+                                    send(MemoryAction::StartGame);
                                 }
-                            />
-                        }.into_view()
-                    }
+                            }
+                        />
+                    </Show>
 
-                    GamePhase::Starting { countdown } => {
-                        view! {
-                            <div class="countdown">
-                                <h2>"Game starting in..."</h2>
-                                <div class="countdown-number">{countdown}</div>
-                            </div>
-                        }.into_view()
-                    }
+                    // Starting countdown phase
+                    <Show when=move || is_starting.get() fallback=|| ()>
+                        <div class="countdown">
+                            <h2>"Game starting in..."</h2>
+                            <div class="countdown-number">{move || countdown.get()}</div>
+                        </div>
+                    </Show>
 
-                    GamePhase::Loading { ready_players, total_players } => {
-                        let ready_count = ready_players.len();
-                        view! {
-                            <div class="loading-phase">
-                                <h2>"Loading assets..."</h2>
-                                <div class="loading-progress">
-                                    <div class="loading-spinner"></div>
-                                    <p>{format!("Waiting for players: {}/{}", ready_count, total_players)}</p>
+                    // Loading phase
+                    <Show when=move || is_loading.get() fallback=|| ()>
+                        {move || {
+                            let (ready_names, total) = loading_info.get();
+                            view! {
+                                <div class="loading-phase">
+                                    <h2>"Loading assets..."</h2>
+                                    <div class="loading-progress">
+                                        <div class="loading-spinner"></div>
+                                        <p>{format!("Waiting for players: {}/{}", ready_names.len(), total)}</p>
+                                    </div>
+                                    <div class="ready-players">
+                                        {ready_names.into_iter().map(|name| {
+                                            view! {
+                                                <span class="ready-player">{name}" ✓"</span>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
                                 </div>
-                                <div class="ready-players">
-                                    {ready_players.iter().map(|id| {
-                                        let player_name = state.players.get(id)
-                                            .map(|p| p.user_name.clone())
-                                            .unwrap_or_else(|| id.clone());
-                                        view! {
-                                            <span class="ready-player">{player_name}" ✓"</span>
-                                        }
-                                    }).collect::<Vec<_>>()}
-                                </div>
-                            </div>
-                        }.into_view()
-                    }
+                            }
+                        }}
+                    </Show>
 
-                    GamePhase::Playing => {
-                        let send_flip = send_action.clone();
-                        let send_ack = send_action.clone();
-
-                        view! {
-                            <div class="game-playing">
-                                <div class="game-main">
-                                    <GameBoard
-                                        grid_size=grid_size
-                                        cards=cards_view
-                                        flipped_card_ids=flipped_card_ids
-                                        is_my_turn=is_my_turn
-                                        on_flip=move |card_id: CardId| {
+                    // Playing phase - GameBoard stays mounted!
+                    <Show when=move || is_playing.get() fallback=|| ()>
+                        <div class="game-playing">
+                            <div class="game-main">
+                                <GameBoard
+                                    grid_size=grid_size
+                                    cards=cards_view
+                                    flipped_card_ids=flipped_card_ids
+                                    is_my_turn=is_my_turn
+                                    on_flip={
+                                        let send = send_flip.clone();
+                                        move |card_id: CardId| {
                                             // Optimistically add to local flipped
                                             set_local_flipped.update(|v| {
                                                 if !v.contains(&card_id) && v.len() < 2 {
                                                     v.push(card_id.clone());
                                                 }
                                             });
-                                            send_flip(MemoryAction::FlipCard { card_id });
+                                            send(MemoryAction::FlipCard { card_id: card_id.clone() });
                                         }
-                                        on_card_loaded=move |card_id: CardId| {
+                                    }
+                                    on_card_loaded={
+                                        let send = send_ack.clone();
+                                        move |card_id: CardId| {
                                             // ACK that card image has loaded - starts flip-back timer
-                                            send_ack(MemoryAction::AckCardLoaded { card_id });
+                                            send(MemoryAction::AckCardLoaded { card_id });
                                         }
-                                        disabled=Signal::derive(move || status.get() != ConnectionState::Connected)
-                                    />
-                                </div>
-                                <div class="game-sidebar">
-                                    <PlayerList
-                                        players=players_for_list
-                                        current_turn=current_turn_user
-                                        current_user_id=current_user_id
-                                    />
-                                </div>
+                                    }
+                                    disabled=Signal::derive(move || status.get() != ConnectionState::Connected)
+                                />
                             </div>
-                        }.into_view()
-                    }
+                            <div class="game-sidebar">
+                                <PlayerList
+                                    players=players_for_list
+                                    current_turn=current_turn_user
+                                    current_user_id=current_user_id
+                                />
+                            </div>
+                        </div>
+                    </Show>
 
-                    GamePhase::Finished { winner, rankings } => {
-                        let send_rematch = send_action.clone();
-                        let (winner_sig, _) = create_signal(winner);
-                        let (rankings_sig, _) = create_signal(rankings);
-
-                        view! {
-                            <GameResults
-                                winner=winner_sig
-                                rankings=rankings_sig
-                                current_user_id=current_user_id
-                                on_rematch=move || {
-                                    send_rematch(MemoryAction::RequestRematch);
+                    // Finished phase
+                    <Show when=move || is_finished.get() fallback=|| ()>
+                        {
+                            let send = send_rematch.clone();
+                            move || {
+                                let (winner, rankings) = finished_info.get();
+                                let (winner_sig, _) = create_signal(winner);
+                                let (rankings_sig, _) = create_signal(rankings);
+                                let send = send.clone();
+                                view! {
+                                    <GameResults
+                                        winner=winner_sig
+                                        rankings=rankings_sig
+                                        current_user_id=current_user_id
+                                        on_rematch=move || {
+                                            send(MemoryAction::RequestRematch);
+                                        }
+                                    />
                                 }
-                            />
-                        }.into_view()
-                    }
+                            }
+                        }
+                    </Show>
                 }
-            }}
+            }
 
             // Admin panel
             {
