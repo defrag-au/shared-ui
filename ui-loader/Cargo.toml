@@ -1,0 +1,36 @@
+[package]
+name = "ui-loader"
+version = "0.1.0"
+edition = "2021"
+description = "Framework-agnostic loading orchestrator for WASM widgets"
+license = "MIT"
+
+[features]
+default = []
+# Enable dev mode features
+dev = ["ui-core/dev"]
+
+[dependencies]
+# Core UI utilities
+ui-core = { workspace = true }
+
+# HTML templating for loading/error screens
+maud = { workspace = true }
+
+# Async/timing utilities
+gloo-timers = { version = "0.3", features = ["futures"] }
+futures = { workspace = true }
+
+# WASM bindings
+wasm-bindgen = { workspace = true }
+web-sys = { version = "0.3", features = [
+    "CssStyleDeclaration",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "Window",
+] }
+js-sys = { workspace = true }
+
+# Logging
+tracing = "0.1"

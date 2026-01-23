@@ -1,0 +1,377 @@
+// Shared UI Storybook Styles
+
+// Variables
+$bg-primary: #1a1a2e;
+$bg-secondary: #16213e;
+$bg-tertiary: #0f1424;
+$text-light: #e8e8e8;
+$text-muted: #888;
+$border-color: #2a2a4a;
+$primary: #4a9eff;
+$primary-hover: #3a8eef;
+$success: #4caf50;
+$warning: #ff9800;
+$danger: #f44336;
+
+$spacing-xs: 0.25rem;
+$spacing-sm: 0.5rem;
+$spacing-md: 1rem;
+$spacing-lg: 1.5rem;
+$spacing-xl: 2rem;
+
+$radius: 4px;
+$radius-lg: 8px;
+
+$family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+$family-mono: "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+
+// Reset
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    background-color: $bg-primary;
+    color: $text-light;
+    font-family: $family-sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#app {
+    min-height: 100vh;
+}
+
+// Storybook layout
+.storybook {
+    display: flex;
+    min-height: 100vh;
+}
+
+.storybook-sidebar {
+    width: 220px;
+    background: $bg-secondary;
+    border-right: 1px solid $border-color;
+    padding: $spacing-md;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+
+    h1 {
+        font-size: 1.25rem;
+        margin: 0 0 $spacing-lg;
+        padding-bottom: $spacing-sm;
+        border-bottom: 1px solid $border-color;
+    }
+}
+
+.nav-section {
+    margin-bottom: $spacing-lg;
+
+    h2 {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        color: $text-muted;
+        margin: 0 0 $spacing-sm;
+        letter-spacing: 0.05em;
+    }
+
+    ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    li {
+        margin-bottom: $spacing-xs;
+    }
+
+    a {
+        display: block;
+        padding: $spacing-xs $spacing-sm;
+        color: $text-light;
+        text-decoration: none;
+        border-radius: $radius;
+        cursor: pointer;
+        transition: background-color 0.2s;
+
+        &:hover {
+            background: $bg-tertiary;
+        }
+
+        &.active {
+            background: $primary;
+            color: white;
+        }
+    }
+}
+
+.storybook-main {
+    flex: 1;
+    margin-left: 220px;
+    padding: $spacing-xl;
+    overflow-y: auto;
+    height: 100vh;
+}
+
+// Story components
+.story-header {
+    margin-bottom: $spacing-xl;
+    padding-bottom: $spacing-md;
+    border-bottom: 1px solid $border-color;
+
+    h2 {
+        margin: 0 0 $spacing-xs;
+        font-size: 1.5rem;
+    }
+
+    p {
+        margin: 0;
+        color: $text-muted;
+    }
+}
+
+.story-section {
+    margin-bottom: $spacing-xl;
+
+    h3 {
+        font-size: 1rem;
+        margin: 0 0 $spacing-md;
+        color: $text-muted;
+    }
+}
+
+.story-canvas {
+    background: $bg-secondary;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    padding: $spacing-lg;
+}
+
+.story-inline {
+    display: flex;
+    gap: $spacing-md;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.story-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: $spacing-md;
+}
+
+// Code display
+.code-block {
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: $radius;
+    padding: $spacing-md;
+    font-family: $family-mono;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    white-space: pre;
+    color: $text-muted;
+}
+
+// Demo buttons
+.demo-btn {
+    padding: $spacing-sm $spacing-md;
+    border: none;
+    border-radius: $radius;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+
+    &:hover {
+        transform: translateY(-1px);
+    }
+
+    &:active {
+        transform: translateY(0);
+    }
+
+    &--primary {
+        background: $primary;
+        color: white;
+
+        &:hover {
+            background: $primary-hover;
+        }
+    }
+
+    &--success {
+        background: $success;
+        color: white;
+    }
+
+    &--warning {
+        background: $warning;
+        color: black;
+    }
+
+    &--danger {
+        background: $danger;
+        color: white;
+    }
+}
+
+// Demo inputs
+.demo-input {
+    padding: $spacing-sm $spacing-md;
+    border: 1px solid $border-color;
+    border-radius: $radius;
+    background: $bg-tertiary;
+    color: $text-light;
+    font-size: 0.9rem;
+    width: 200px;
+
+    &:focus {
+        outline: none;
+        border-color: $primary;
+    }
+}
+
+// Demo select
+.demo-select {
+    padding: $spacing-sm $spacing-md;
+    border: 1px solid $border-color;
+    border-radius: $radius;
+    background: $bg-tertiary;
+    color: $text-light;
+    font-size: 0.9rem;
+    min-width: 150px;
+
+    &:focus {
+        outline: none;
+        border-color: $primary;
+    }
+}
+
+// Status indicators
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: $spacing-xs;
+    padding: $spacing-xs $spacing-sm;
+    border-radius: $radius;
+    font-size: 0.85rem;
+
+    &--connected {
+        background: rgba($success, 0.2);
+        color: $success;
+    }
+
+    &--disconnected {
+        background: rgba($danger, 0.2);
+        color: $danger;
+    }
+
+    &--connecting {
+        background: rgba($warning, 0.2);
+        color: $warning;
+    }
+}
+
+// Wallet card
+.wallet-card {
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    padding: $spacing-md;
+    min-width: 280px;
+
+    &__header {
+        display: flex;
+        align-items: center;
+        gap: $spacing-sm;
+        margin-bottom: $spacing-md;
+        padding-bottom: $spacing-sm;
+        border-bottom: 1px solid $border-color;
+    }
+
+    &__icon {
+        width: 32px;
+        height: 32px;
+        background: $bg-secondary;
+        border-radius: $radius;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    &__name {
+        font-weight: 600;
+    }
+
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: $spacing-sm;
+    }
+
+    &__row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    &__label {
+        color: $text-muted;
+        font-size: 0.85rem;
+    }
+
+    &__value {
+        font-family: $family-mono;
+        font-size: 0.85rem;
+    }
+}
+
+// Signal demo
+.signal-demo {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-md;
+    min-width: 300px;
+
+    &__output {
+        padding: $spacing-md;
+        background: $bg-tertiary;
+        border-radius: $radius;
+        font-family: $family-mono;
+        min-height: 40px;
+    }
+}
+
+// Event log
+.event-log {
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: $radius;
+    padding: $spacing-sm;
+    font-family: $family-mono;
+    font-size: 0.8rem;
+    max-height: 200px;
+    overflow-y: auto;
+
+    &__entry {
+        padding: $spacing-xs 0;
+        border-bottom: 1px solid $border-color;
+        color: $text-muted;
+
+        &:last-child {
+            border-bottom: none;
+        }
+    }
+
+    &__time {
+        color: $primary;
+        margin-right: $spacing-sm;
+    }
+}
