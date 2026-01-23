@@ -9,7 +9,7 @@ members = [
     "ui-toast",
     "wallet-core",
     "primitives",
-    "components",
+    "ui-components",
     "_storybook",
     "workers/flow-demo",
     "workers/flow-demo/frontend",
@@ -89,4 +89,4 @@ ui-loader = { path = "ui-loader" }
 ui-toast = { path = "ui-toast" }
 wallet-core = { path = "wallet-core" }
 primitives = { path = "primitives" }
-components = { path = "components" }
+ui-components = { path = "ui-components" }

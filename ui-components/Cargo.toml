@@ -1,7 +1,8 @@
 [package]
-name = "components"
+name = "ui-components"
 version.workspace = true
 edition.workspace = true
+description = "Reusable web components for Cardano applications"
 
 [dependencies]
 primitives = { workspace = true }

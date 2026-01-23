@@ -678,7 +678,7 @@ on_change(&select, |event: Event| {
 
 fn render_image_card_story() -> Element {
     // Register components
-    components::define_all();
+    ui_components::define_all();
 
     let container = create_element("div", &[]);
 
@@ -855,7 +855,7 @@ fn render_image_card_story() -> Element {
     let code = create_element("pre", &["code-block"]);
     code.set_text_content(Some(
         r##"// Register components at app startup
-components::define_all();
+ui_components::define_all();
 
 // Basic image card (default sm size)
 <image-card
@@ -900,7 +900,7 @@ components::define_all();
 
 fn render_asset_card_story() -> Element {
     // Register components
-    components::define_all();
+    ui_components::define_all();
 
     let container = create_element("div", &[]);
 
@@ -1176,7 +1176,7 @@ fn render_asset_card_story() -> Element {
     let code = create_element("pre", &["code-block"]);
     code.set_text_content(Some(
         r##"// Register components at app startup
-components::define_all();
+ui_components::define_all();
 
 // Small card (default) - uses 400px IIIF image
 <asset-card
@@ -1234,7 +1234,7 @@ components::define_all();
 
 fn render_connection_status_story() -> Element {
     // Register components
-    components::define_all();
+    ui_components::define_all();
 
     let container = create_element("div", &[]);
 
@@ -1416,7 +1416,7 @@ fn render_connection_status_story() -> Element {
     let code = create_element("pre", &["code-block"]);
     code.set_text_content(Some(
         r#"// Register components at app startup
-components::define_all();
+ui_components::define_all();
 
 // Use in HTML
 <connection-status status="connected"></connection-status>
@@ -1479,7 +1479,7 @@ fn render_attribute_card(name: &str, values: &str, description: &str) -> Element
 
 fn render_memory_card_story() -> Element {
     // Register components
-    components::define_all();
+    ui_components::define_all();
 
     let container = create_element("div", &[]);
 
@@ -1681,7 +1681,7 @@ fn render_memory_card_story() -> Element {
     let code = create_element("pre", &["code-block"]);
     code.set_text_content(Some(
         r#"// Register components at app startup
-components::define_all();
+ui_components::define_all();
 
 // Basic card (face down)
 <memory-card

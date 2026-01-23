@@ -15,7 +15,8 @@
 //!
 //! ## Attributes
 //!
-//! - `asset-id` - Cardano asset ID (policy_id + asset_name hex)
+//! - `asset-id` - Cardano asset ID (policy_id + asset_name hex) - generates IIIF URL
+//! - `image-url` - Direct image URL (fallback when asset-id not available)
 //! - `size` - Card size: "xs" (80px), "sm" (120px), "md" (240px), "lg" (400px), "xl" (800px)
 //! - `name` - Display name of the asset (shown in overlay)
 //! - `accent-color` - Optional accent/tier color for top bar
@@ -45,7 +46,7 @@
 //! ></asset-card>
 //! ```
 
-use crate::image_card::{parse_card_size, CardSize};
+use crate::image_card::{CardSize, parse_card_size};
 use crate::render_to_shadow;
 use custom_elements::CustomElement;
 use scss_macros::scss_inline;
@@ -115,6 +116,7 @@ pub fn generate_iiif_url(asset_id: &str, size: IiifSize) -> Option<String> {
 #[derive(Default)]
 pub struct AssetCard {
     asset_id: String,
+    image_url: Option<String>,
     size: CardSize,
     name: String,
     accent_color: Option<String>,
@@ -128,8 +130,16 @@ impl AssetCard {
         <Self as CustomElement>::define("asset-card");
     }
 
-    /// Get the IIIF image URL for this asset
-    fn image_url(&self) -> Option<String> {
+    /// Get the image URL - uses direct image-url if provided, otherwise generates IIIF URL
+    fn resolved_image_url(&self) -> Option<String> {
+        // Direct image URL takes precedence
+        if let Some(url) = &self.image_url {
+            if !url.is_empty() {
+                return Some(url.clone());
+            }
+        }
+
+        // Fall back to IIIF URL generation from asset-id
         if self.asset_id.is_empty() {
             return None;
         }
@@ -139,7 +149,7 @@ impl AssetCard {
 
     /// Render HTML string for the component
     fn render_html(&self) -> String {
-        let image_url = self.image_url().unwrap_or_default();
+        let image_url = self.resolved_image_url().unwrap_or_default();
         let mut attrs = vec![
             format!(r#"image-url="{}""#, html_escape(&image_url)),
             format!(r#"size="{}""#, self.size.class_suffix()),
@@ -200,6 +210,7 @@ impl CustomElement for AssetCard {
     fn observed_attributes() -> &'static [&'static str] {
         &[
             "asset-id",
+            "image-url",
             "size",
             "name",
             "accent-color",
@@ -210,6 +221,7 @@ impl CustomElement for AssetCard {
 
     fn constructor(&mut self, this: &HtmlElement) {
         self.asset_id = this.get_attribute("asset-id").unwrap_or_default();
+        self.image_url = this.get_attribute("image-url").filter(|s| !s.is_empty());
         self.size = this
             .get_attribute("size")
             .map(|s| parse_card_size(&s))
@@ -229,6 +241,7 @@ impl CustomElement for AssetCard {
     ) {
         match name.as_str() {
             "asset-id" => self.asset_id = new_value.unwrap_or_default(),
+            "image-url" => self.image_url = new_value.filter(|s| !s.is_empty()),
             "size" => self.size = new_value.map(|s| parse_card_size(&s)).unwrap_or_default(),
             "name" => self.name = new_value.unwrap_or_default(),
             "accent-color" => self.accent_color = new_value,
