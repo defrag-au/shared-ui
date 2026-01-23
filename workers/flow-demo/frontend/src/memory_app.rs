@@ -5,16 +5,17 @@
 use crate::components::{
     AdminPanel, CardView, GameBoard, GameMode, GameResults, Lobby, PlayerInfo, PlayerList,
 };
-use crate::{get_or_create_user_id, ConnectionStatus};
+use crate::get_or_create_user_id;
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use ui_components::{AssetCache, ConnectionState, ConnectionStatus, PreloadAsset};
 use ui_flow_protocol::{ClientMessage, OpId, PresenceInfo, ServerMessage};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{CustomEvent, MessageEvent, WebSocket};
+use web_sys::{MessageEvent, WebSocket};
 
 // =============================================================================
 // Types mirroring the server types
@@ -303,7 +304,7 @@ pub fn MemoryApp() -> impl IntoView {
     let user_id_for_ws = user_id.clone();
 
     let (room_id, _set_room_id) = create_signal("default".to_string());
-    let (status, set_status) = create_signal(ConnectionStatus::Disconnected);
+    let (status, set_status) = create_signal(ConnectionState::Disconnected);
     let (game_state, set_game_state) = create_signal(MemoryGameState::default());
     let (presence, set_presence) = create_signal(Vec::<PresenceInfo>::new());
     let (current_user_id, _) = create_signal(user_id);
@@ -323,7 +324,7 @@ pub fn MemoryApp() -> impl IntoView {
         if let Some(socket) = ws_disconnect.borrow_mut().take() {
             let _ = socket.close();
         }
-        set_status.set(ConnectionStatus::Disconnected);
+        set_status.set(ConnectionState::Disconnected);
     });
 
     // Connect to WebSocket
@@ -333,7 +334,7 @@ pub fn MemoryApp() -> impl IntoView {
         let room = room_id.get();
         let ws_url = get_memory_ws_url(&room, &user_id_ws);
 
-        set_status.set(ConnectionStatus::Connecting);
+        set_status.set(ConnectionState::Connecting);
 
         match WebSocket::new(&ws_url) {
             Ok(socket) => {
@@ -341,7 +342,7 @@ pub fn MemoryApp() -> impl IntoView {
 
                 let set_status_clone = set_status;
                 let on_open = Closure::wrap(Box::new(move |_: JsValue| {
-                    set_status_clone.set(ConnectionStatus::Connected);
+                    set_status_clone.set(ConnectionState::Connected);
                     tracing::info!("Memory game WebSocket connected");
                 }) as Box<dyn FnMut(JsValue)>);
                 socket.set_onopen(Some(on_open.as_ref().unchecked_ref()));
@@ -349,7 +350,7 @@ pub fn MemoryApp() -> impl IntoView {
 
                 let set_status_clone = set_status;
                 let on_close = Closure::wrap(Box::new(move |_: JsValue| {
-                    set_status_clone.set(ConnectionStatus::Disconnected);
+                    set_status_clone.set(ConnectionState::Disconnected);
                     tracing::info!("Memory game WebSocket disconnected");
                 }) as Box<dyn FnMut(JsValue)>);
                 socket.set_onclose(Some(on_close.as_ref().unchecked_ref()));
@@ -395,7 +396,7 @@ pub fn MemoryApp() -> impl IntoView {
             }
             Err(e) => {
                 tracing::error!("Failed to create WebSocket: {:?}", e);
-                set_status.set(ConnectionStatus::Disconnected);
+                set_status.set(ConnectionState::Disconnected);
             }
         }
     });
@@ -423,10 +424,9 @@ pub fn MemoryApp() -> impl IntoView {
     // Auto-join game when connected
     let send_join = send_action.clone();
     let user_id_join = current_user_id.get();
-    create_effect(move |prev_status: Option<ConnectionStatus>| {
+    create_effect(move |prev_status: Option<ConnectionState>| {
         let current = status.get();
-        if prev_status != Some(ConnectionStatus::Connected)
-            && current == ConnectionStatus::Connected
+        if prev_status != Some(ConnectionState::Connected) && current == ConnectionState::Connected
         {
             // Send join action
             let display_name = format!("User {}", &user_id_join[..8.min(user_id_join.len())]);
@@ -556,20 +556,16 @@ pub fn MemoryApp() -> impl IntoView {
     // Clone for view handlers
     let connect_reconnect = connect.clone();
 
-    let status_str = move || match status.get() {
-        ConnectionStatus::Connected => "connected",
-        ConnectionStatus::Connecting => "connecting",
-        ConnectionStatus::Disconnected => "disconnected",
-    };
-
-    // Create derived signal for preload assets JSON
-    let preload_assets_json = Signal::derive(move || {
-        let assets = preload_assets.get();
-        if assets.is_empty() {
-            String::new()
-        } else {
-            serde_json::to_string(&assets).unwrap_or_default()
-        }
+    // Convert preload_assets to PreloadAsset structs for the Leptos component
+    let preload_assets_signal = Signal::derive(move || {
+        preload_assets
+            .get()
+            .into_iter()
+            .map(|asset| PreloadAsset {
+                policy_id: asset.policy_id,
+                asset_name_hex: asset.asset_name_hex,
+            })
+            .collect::<Vec<_>>()
     });
 
     // Clone send_action for the cache-ready handler
@@ -579,32 +575,24 @@ pub fn MemoryApp() -> impl IntoView {
         <div class="memory-app">
             <div class="header">
                 <h1>"Black Flag Memory"</h1>
-                <connection-status
-                    attr:status=status_str
-                    on:reconnect=move |_: CustomEvent| {
+                <ConnectionStatus
+                    status=status
+                    on_reconnect=move |()| {
                         connect_reconnect();
                     }
                 />
             </div>
 
             // Asset cache for preloading card images - sends Ready when loaded
-            <asset-cache
-                attr:assets=preload_assets_json
-                on:cache-ready=move |e: CustomEvent| {
-                    let detail = e.detail();
-                    if detail.is_object() {
-                        let loaded = js_sys::Reflect::get(&detail, &"loaded".into())
-                            .ok()
-                            .and_then(|v| v.as_f64())
-                            .unwrap_or(0.0) as u32;
-                        let failed = js_sys::Reflect::get(&detail, &"failed".into())
-                            .ok()
-                            .and_then(|v| v.as_f64())
-                            .unwrap_or(0.0) as u32;
-                        tracing::info!("Asset cache ready: {} loaded, {} failed - signaling ready", loaded, failed);
-                        // Signal to server that we're ready to play
-                        send_ready(MemoryAction::Ready);
-                    }
+            <AssetCache
+                assets=preload_assets_signal
+                on_progress=move |(_loaded, _total)| {
+                    // Optional progress tracking
+                }
+                on_ready=move |(loaded, failed)| {
+                    tracing::info!("Asset cache ready: {} loaded, {} failed - signaling ready", loaded, failed);
+                    // Signal to server that we're ready to play
+                    send_ready(MemoryAction::Ready);
                 }
             />
 
@@ -700,7 +688,7 @@ pub fn MemoryApp() -> impl IntoView {
                                             // ACK that card image has loaded - starts flip-back timer
                                             send_ack(MemoryAction::AckCardLoaded { index: idx });
                                         }
-                                        disabled=Signal::derive(move || status.get() != ConnectionStatus::Connected)
+                                        disabled=Signal::derive(move || status.get() != ConnectionState::Connected)
                                     />
                                 </div>
                                 <div class="game-sidebar">

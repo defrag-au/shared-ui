@@ -1,26 +1,19 @@
 //! Shared UI Storybook
 //!
-//! Development-only showcase for shared-ui components and primitives.
+//! Development-only showcase for shared-ui components using Leptos.
 
 mod stories;
 
-use futures_signals::signal::{Mutable, SignalExt};
+use leptos::*;
 use wasm_bindgen::prelude::*;
-
-use primitives::{bind_class, create_element, document, on_click, AppendChild, ClearChildren};
 
 // ============================================================================
 // Story Enum
 // ============================================================================
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Story {
+pub enum Story {
     Welcome,
-    // Primitives
-    ReactiveText,
-    ReactiveBindings,
-    DomHelpers,
-    EventHandlers,
     // Components
     ImageCardComponent,
     AssetCardComponent,
@@ -46,10 +39,6 @@ impl Story {
     fn all() -> &'static [Story] {
         &[
             Story::Welcome,
-            Story::ReactiveText,
-            Story::ReactiveBindings,
-            Story::DomHelpers,
-            Story::EventHandlers,
             Story::ImageCardComponent,
             Story::AssetCardComponent,
             Story::AssetCacheComponent,
@@ -70,10 +59,6 @@ impl Story {
     fn label(&self) -> &'static str {
         match self {
             Story::Welcome => "Welcome",
-            Story::ReactiveText => "Reactive Text",
-            Story::ReactiveBindings => "Reactive Bindings",
-            Story::DomHelpers => "DOM Helpers",
-            Story::EventHandlers => "Event Handlers",
             Story::ImageCardComponent => "Image Card",
             Story::AssetCardComponent => "Asset Card",
             Story::AssetCacheComponent => "Asset Cache",
@@ -94,10 +79,6 @@ impl Story {
     fn category(&self) -> &'static str {
         match self {
             Story::Welcome => "Getting Started",
-            Story::ReactiveText
-            | Story::ReactiveBindings
-            | Story::DomHelpers
-            | Story::EventHandlers => "Primitives",
             Story::ImageCardComponent
             | Story::AssetCardComponent
             | Story::AssetCacheComponent
@@ -112,135 +93,94 @@ impl Story {
 }
 
 // ============================================================================
-// App State
-// ============================================================================
-
-struct App {
-    current_story: Mutable<Story>,
-}
-
-impl App {
-    fn new() -> Self {
-        Self {
-            current_story: Mutable::new(Story::Welcome),
-        }
-    }
-}
-
-// ============================================================================
 // Main Entry
 // ============================================================================
 
 #[wasm_bindgen(start)]
 pub fn main() {
     console_error_panic_hook::set_once();
-
-    let app = App::new();
-    render_app(&app);
+    mount_to_body(App);
 }
 
-fn render_app(app: &App) {
-    let root = document().get_element_by_id("app").unwrap();
-    root.clear_children();
+#[component]
+fn App() -> impl IntoView {
+    let (current_story, set_current_story) = create_signal(Story::Welcome);
 
-    let container = create_element("div", &["storybook"]);
-
-    // Sidebar
-    let sidebar = render_sidebar(app);
-    container.append(&sidebar);
-
-    // Main content area
-    let main = create_element("main", &["storybook-main"]);
-    main.set_attribute("id", "story-content").unwrap();
-    container.append(&main);
-
-    root.append(&container);
-
-    // Initial render
-    render_story(app.current_story.get());
-}
-
-fn render_sidebar(app: &App) -> web_sys::Element {
-    let sidebar = create_element("aside", &["storybook-sidebar"]);
-
-    let title = create_element("h1", &[]);
-    title.set_text_content(Some("Shared UI"));
-    sidebar.append(&title);
-
-    // Group stories by category
-    let mut current_category = "";
-
-    for story in Story::all() {
-        if story.category() != current_category {
-            current_category = story.category();
-
-            let section = create_element("div", &["nav-section"]);
-            let heading = create_element("h2", &[]);
-            heading.set_text_content(Some(current_category));
-            section.append(&heading);
-
-            let list = create_element("ul", &[]);
-            section.append(&list);
-            sidebar.append(&section);
-        }
-
-        // Find the last ul in sidebar
-        let lists = sidebar.query_selector_all("ul").unwrap();
-        if let Some(list) = lists.item(lists.length() - 1) {
-            let li = create_element("li", &[]);
-            let link = create_element("a", &[]);
-            link.set_text_content(Some(story.label()));
-
-            // Highlight active story
-            let story_value = *story;
-            bind_class(
-                &link,
-                "active",
-                app.current_story
-                    .signal()
-                    .map(move |current| current == story_value),
-            );
-
-            // Click handler
-            let current_story = app.current_story.clone();
-            on_click(&link, move |_| {
-                current_story.set(story_value);
-                render_story(story_value);
-            });
-
-            li.append(&link);
-            list.append_child(&li).unwrap();
-        }
+    view! {
+        <div class="storybook">
+            <Sidebar current_story=current_story set_current_story=set_current_story />
+            <main class="storybook-main">
+                <StoryContent story=current_story />
+            </main>
+        </div>
     }
-
-    sidebar
 }
 
-fn render_story(story: Story) {
-    let main = document().get_element_by_id("story-content").unwrap();
-    main.clear_children();
-
-    let content = match story {
-        Story::Welcome => stories::render_welcome(),
-        Story::ReactiveText => stories::render_reactive_text_story(),
-        Story::ReactiveBindings => stories::render_reactive_bindings_story(),
-        Story::DomHelpers => stories::render_dom_helpers_story(),
-        Story::EventHandlers => stories::render_event_handlers_story(),
-        Story::ImageCardComponent => stories::render_image_card_story(),
-        Story::AssetCardComponent => stories::render_asset_card_story(),
-        Story::AssetCacheComponent => stories::render_asset_cache_story(),
-        Story::ConnectionStatusComponent => stories::render_connection_status_story(),
-        Story::MemoryCardComponent => stories::render_memory_card_story(),
-        Story::WalletProviders => stories::render_wallet_providers_story(),
-        Story::ConnectionStates => stories::render_connection_states_story(),
-        Story::FlowOverview => stories::render_flow_overview_story(),
-        Story::FlowState => stories::render_flow_state_story(),
-        Story::FlowOperations => stories::render_flow_operations_story(),
-        Story::LoadingStates => stories::render_loading_states_story(),
-        Story::LoaderConfig => stories::render_loader_config_story(),
-        Story::ToastTypes => stories::render_toast_types_story(),
-        Story::ToastUsage => stories::render_toast_usage_story(),
+#[component]
+fn Sidebar(
+    current_story: ReadSignal<Story>,
+    set_current_story: WriteSignal<Story>,
+) -> impl IntoView {
+    // Group stories by category
+    let categories: Vec<(&'static str, Vec<Story>)> = {
+        let mut cats: Vec<(&str, Vec<Story>)> = Vec::new();
+        for story in Story::all() {
+            let cat = story.category();
+            if let Some((_, stories)) = cats.iter_mut().find(|(c, _)| *c == cat) {
+                stories.push(*story);
+            } else {
+                cats.push((cat, vec![*story]));
+            }
+        }
+        cats
     };
 
-    main.append(&content);
+    view! {
+        <aside class="storybook-sidebar">
+            <h1>"Shared UI"</h1>
+            {categories.into_iter().map(|(category, stories)| {
+                view! {
+                    <div class="nav-section">
+                        <h2>{category}</h2>
+                        <ul>
+                            {stories.into_iter().map(|story| {
+                                let is_active = move || current_story.get() == story;
+                                view! {
+                                    <li>
+                                        <a
+                                            class:active=is_active
+                                            on:click=move |_| set_current_story.set(story)
+                                        >
+                                            {story.label()}
+                                        </a>
+                                    </li>
+                                }
+                            }).collect_view()}
+                        </ul>
+                    </div>
+                }
+            }).collect_view()}
+        </aside>
+    }
+}
+
+#[component]
+fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
+    move || match story.get() {
+        Story::Welcome => stories::WelcomeStory().into_view(),
+        Story::ImageCardComponent => stories::ImageCardStory().into_view(),
+        Story::AssetCardComponent => stories::AssetCardStory().into_view(),
+        Story::AssetCacheComponent => stories::AssetCacheStory().into_view(),
+        Story::ConnectionStatusComponent => stories::ConnectionStatusStory().into_view(),
+        Story::MemoryCardComponent => stories::MemoryCardStory().into_view(),
+        Story::WalletProviders => stories::WalletProvidersStory().into_view(),
+        Story::ConnectionStates => stories::ConnectionStatesStory().into_view(),
+        Story::FlowOverview => stories::FlowOverviewStory().into_view(),
+        Story::FlowState => stories::FlowStateStory().into_view(),
+        Story::FlowOperations => stories::FlowOperationsStory().into_view(),
+        Story::LoadingStates => stories::LoadingStatesStory().into_view(),
+        Story::LoaderConfig => stories::LoaderConfigStory().into_view(),
+        Story::ToastTypes => stories::ToastTypesStory().into_view(),
+        Story::ToastUsage => stories::ToastUsageStory().into_view(),
+    }
 }

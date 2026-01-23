@@ -1,376 +1,262 @@
-//! Memory Card Web Component
+//! Memory Card Leptos Component
 //!
 //! A flippable card for the memory matching game. Shows a card back when
-//! face-down and wraps an `<asset-card>` when face-up. The asset-card handles
-//! IIIF URL generation from the asset ID automatically.
+//! face-down and an asset image when face-up.
 //!
-//! ## Attributes
+//! ## Props
 //!
-//! - `asset-id` - Cardano asset ID (policy_id + asset_name hex) for IIIF image
-//! - `name` - Name shown in overlay when flipped
-//! - `flipped` - Whether the card is face-up (present = face-up)
+//! - `asset_id` - Cardano asset ID (policy_id + asset_name hex) for IIIF image
+//! - `name` - Name shown when flipped
+//! - `flipped` - Whether the card is face-up
 //! - `matched` - Whether the card has been matched (stays revealed, shows glow)
-//! - `matched-by` - Name of player who matched this card
+//! - `matched_by` - Name of player who matched this card
 //! - `disabled` - Whether the card can be clicked
-//!
-//! ## Events
-//!
-//! - `card-click` - Dispatched when card is clicked (if not disabled)
-//! - `card-loaded` - Dispatched when the card's image has finished loading
+//! - `on_click` - Callback when card is clicked
+//! - `on_load` - Callback when card image has loaded
 //!
 //! ## Usage
 //!
-//! ```html
-//! <memory-card asset-id="b3dab69f...506972617465313839" name="Captain Jack"></memory-card>
-//! <memory-card asset-id="b3dab69f..." flipped matched matched-by="Player1"></memory-card>
+//! ```ignore
+//! <MemoryCard
+//!     asset_id="b3dab69f...506972617465313839"
+//!     name="Captain Jack"
+//!     flipped=is_flipped
+//!     matched=is_matched
+//!     on_click=move |_| { flip_card(); }
+//!     on_load=move |_| { card_loaded(); }
+//! />
 //! ```
 
-use crate::render_to_shadow;
-use custom_elements::CustomElement;
-use primitives::dispatch_event;
-use scss_macros::scss_inline;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
+use crate::asset_card::AssetCard;
+use crate::image_card::CardSize;
+use leptos::*;
 
-/// Memory card custom element - a flippable wrapper around asset-card
-#[derive(Default)]
-pub struct MemoryCard {
-    asset_id: String,
-    name: String,
-    flipped: bool,
-    matched: bool,
-    matched_by: Option<String>,
-    disabled: bool,
-}
-
-impl MemoryCard {
-    /// Register the custom element. Call once at app startup.
-    pub fn define() {
-        <Self as CustomElement>::define("memory-card");
-    }
-
-    /// Render HTML string for the component
-    fn render_html(&self) -> String {
-        let card_classes = self.build_card_classes();
-        let asset_card = self.build_asset_card();
-        let matched_overlay = self.build_matched_overlay();
-
-        format!(
-            r#"<style>{COMPONENT_STYLES}</style>
-<div class="{card_classes}">
-    <div class="memory-card__inner">
-        <div class="memory-card__front">
-            <div class="memory-card__back-design">
-                <div class="memory-card__skull"></div>
-            </div>
-        </div>
-        <div class="memory-card__back">
-            {asset_card}
-            {matched_overlay}
-        </div>
-    </div>
-</div>"#
-        )
-    }
-
-    fn build_card_classes(&self) -> String {
+/// Memory card component - a flippable wrapper around AssetCard
+#[component]
+pub fn MemoryCard(
+    /// Cardano asset ID for IIIF image generation
+    #[prop(into, optional)]
+    asset_id: Option<MaybeSignal<String>>,
+    /// Asset name (shown when flipped)
+    #[prop(into, optional)]
+    name: Option<MaybeSignal<String>>,
+    /// Whether card is face-up
+    #[prop(into)]
+    flipped: MaybeSignal<bool>,
+    /// Whether card has been matched
+    #[prop(into, optional, default = false.into())]
+    matched: MaybeSignal<bool>,
+    /// Name of player who matched this card
+    #[prop(into, optional)]
+    matched_by: Option<MaybeSignal<String>>,
+    /// Whether card is disabled (can't be clicked)
+    #[prop(into, optional, default = false.into())]
+    disabled: MaybeSignal<bool>,
+    /// Click callback
+    #[prop(into, optional)]
+    on_click: Option<Callback<()>>,
+    /// Image loaded callback
+    #[prop(into, optional)]
+    on_load: Option<Callback<()>>,
+) -> impl IntoView {
+    let card_class = move || {
         let mut classes = vec!["memory-card"];
-
-        if self.flipped || self.matched {
+        if flipped.get() || matched.get() {
             classes.push("memory-card--flipped");
         }
-        if self.matched {
+        if matched.get() {
             classes.push("memory-card--matched");
         }
-        if self.disabled {
+        if disabled.get() {
             classes.push("memory-card--disabled");
         }
-
         classes.join(" ")
-    }
+    };
 
-    fn build_asset_card(&self) -> String {
-        let mut attrs = vec![
-            format!(r#"asset-id="{}""#, html_escape(&self.asset_id)),
-            "size=\"md\"".to_string(), // Medium size for game cards
-            "static".to_string(),      // Memory card handles its own click events
-        ];
-
-        if !self.name.is_empty() {
-            attrs.push(format!(r#"name="{}""#, html_escape(&self.name)));
+    let handle_click = move |_| {
+        if !disabled.get() && !matched.get() {
+            if let Some(cb) = on_click {
+                cb.call(());
+            }
         }
+    };
 
-        format!("<asset-card {}></asset-card>", attrs.join(" "))
-    }
+    // Convert matched_by to memo for reactive access
+    let matched_by_value: Memo<Option<String>> =
+        create_memo(move |_| matched_by.as_ref().map(|m| m.get()));
 
-    fn build_matched_overlay(&self) -> String {
-        if let Some(by) = &self.matched_by {
-            format!(
-                r#"<div class="memory-card__matched-by">{}</div>"#,
-                html_escape(by)
-            )
-        } else {
-            String::new()
-        }
-    }
+    view! {
+        <style>{COMPONENT_STYLES}</style>
+        <div class=card_class on:click=handle_click>
+            <div class="memory-card__inner">
+                // Front (card back - shown when face-down)
+                <div class="memory-card__front">
+                    <div class="memory-card__back-design">
+                        <div class="memory-card__skull"></div>
+                    </div>
+                </div>
 
-    /// Setup click handler once on the shadow root using event delegation.
-    /// The handler checks current state at click time, avoiding listener accumulation.
-    fn setup_click_handler(&self, element: &HtmlElement) {
-        let (shadow, host) = primitives::get_shadow_and_host(element);
-
-        // Use event delegation on shadow root - survives DOM re-renders
-        let closure = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
-            if let Some(target) = e.target() {
-                if let Some(el) = target.dyn_ref::<web_sys::Element>() {
-                    // Check if click was inside the card
-                    if el.closest(".memory-card").ok().flatten().is_some() {
-                        // Check disabled/matched state at click time via attributes
-                        let is_disabled = host.has_attribute("disabled");
-                        let is_matched = host.has_attribute("matched");
-                        if !is_disabled && !is_matched {
-                            dispatch_event(&host, "card-click");
+                // Back (card face - shown when flipped)
+                <div class="memory-card__back">
+                    <AssetCard
+                        asset_id=Signal::derive({
+                            let asset_id = asset_id.clone();
+                            move || asset_id.as_ref().map(|a| a.get()).unwrap_or_default()
+                        })
+                        name=Signal::derive({
+                            let name = name.clone();
+                            move || name.as_ref().map(|n| n.get()).unwrap_or_default()
+                        })
+                        size=CardSize::Md
+                        is_static=true
+                        on_load=move |()| {
+                            if let Some(cb) = on_load {
+                                cb.call(());
+                            }
                         }
-                    }
-                }
-            }
-        }) as Box<dyn Fn(_)>);
+                    />
 
-        let _ = shadow.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
-        closure.forget();
-    }
-
-    /// Setup image load handler once on the shadow root using event delegation.
-    /// Listens for image-loaded events bubbling from nested asset-card.
-    fn setup_image_load_handler(&self, element: &HtmlElement) {
-        let (shadow, host) = primitives::get_shadow_and_host(element);
-
-        // Listen for image-loaded events bubbling up from asset-card
-        let closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
-            dispatch_event(&host, "card-loaded");
-        }) as Box<dyn Fn(_)>);
-
-        let _ = shadow
-            .add_event_listener_with_callback("image-loaded", closure.as_ref().unchecked_ref());
-        closure.forget();
+                    {move || matched_by_value.get().map(|by| view! {
+                        <div class="memory-card__matched-by">{by}</div>
+                    })}
+                </div>
+            </div>
+        </div>
     }
 }
 
-impl CustomElement for MemoryCard {
-    fn observed_attributes() -> &'static [&'static str] {
-        &[
-            "asset-id",
-            "name",
-            "flipped",
-            "matched",
-            "matched-by",
-            "disabled",
-        ]
-    }
-
-    fn constructor(&mut self, this: &HtmlElement) {
-        self.asset_id = this.get_attribute("asset-id").unwrap_or_default();
-        self.name = this.get_attribute("name").unwrap_or_default();
-        self.flipped = this.has_attribute("flipped");
-        self.matched = this.has_attribute("matched");
-        self.matched_by = this.get_attribute("matched-by");
-        self.disabled = this.has_attribute("disabled");
-    }
-
-    fn attribute_changed_callback(
-        &mut self,
-        this: &HtmlElement,
-        name: String,
-        _old_value: Option<String>,
-        new_value: Option<String>,
-    ) {
-        match name.as_str() {
-            "asset-id" => self.asset_id = new_value.unwrap_or_default(),
-            "name" => self.name = new_value.unwrap_or_default(),
-            "flipped" => self.flipped = new_value.is_some(),
-            "matched" => self.matched = new_value.is_some(),
-            "matched-by" => self.matched_by = new_value,
-            "disabled" => self.disabled = new_value.is_some(),
-            _ => {}
-        }
-
-        // Only re-render HTML - event handlers use delegation and don't need re-attaching
-        render_to_shadow(this, &self.render_html());
-    }
-
-    fn inject_children(&mut self, this: &HtmlElement) {
-        render_to_shadow(this, &self.render_html());
-        // Set up handlers once - they use event delegation on shadow root
-        self.setup_click_handler(this);
-        self.setup_image_load_handler(this);
-    }
+const COMPONENT_STYLES: &str = r##"
+.memory-card {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    cursor: pointer;
+    perspective: 1000px;
+    transition: transform 0.1s ease;
 }
 
-/// Simple HTML escaping
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
+.memory-card:hover:not(.memory-card--disabled):not(.memory-card--matched) {
+    transform: scale(1.02);
 }
 
-const COMPONENT_STYLES: &str = scss_inline!(
-    r#"
-    :host {
-        display: block;
-        perspective: 1000px;
+.memory-card:active:not(.memory-card--disabled):not(.memory-card--matched) {
+    transform: scale(0.98);
+}
+
+.memory-card--disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.memory-card--matched {
+    cursor: default;
+}
+
+.memory-card--matched .memory-card__inner {
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+    animation: matched-glow 2s ease-in-out infinite;
+}
+
+.memory-card__inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.5s ease;
+    border-radius: 8px;
+}
+
+.memory-card--flipped .memory-card__inner {
+    transform: rotateY(180deg);
+}
+
+.memory-card__front,
+.memory-card__back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.memory-card__front {
+    background: #1a1a2e;
+    border: 2px solid #2a2a4e;
+}
+
+.memory-card__back {
+    background: #1a1a2e;
+    border: 2px solid #2a2a4e;
+    transform: rotateY(180deg);
+    position: relative;
+}
+
+.memory-card__back-design {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, #0d0d1a 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.memory-card__back-design::before {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    border-radius: 4px;
+}
+
+.memory-card__back-design::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    background:
+        linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%),
+        linear-gradient(225deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%),
+        linear-gradient(315deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%),
+        linear-gradient(45deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%);
+}
+
+.memory-card__skull {
+    width: 40%;
+    height: 40%;
+    background: rgba(255, 255, 255, 0.1);
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12c0 3.31 1.61 6.24 4.09 8.05L6 22l2-2h8l2 2-.09-1.95C20.39 18.24 22 15.31 22 12c0-5.52-4.48-10-10-10zm-2 14H8v-2h2v2zm0-4H8V8h2v4zm6 4h-2v-2h2v2zm0-4h-2V8h2v4z'/%3E%3C/svg%3E");
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12c0 3.31 1.61 6.24 4.09 8.05L6 22l2-2h8l2 2-.09-1.95C20.39 18.24 22 15.31 22 12c0-5.52-4.48-10-10-10zm-2 14H8v-2h2v2zm0-4H8V8h2v4zm6 4h-2v-2h2v2zm0-4h-2V8h2v4z'/%3E%3C/svg%3E");
+    mask-size: contain;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-position: center;
+    z-index: 1;
+}
+
+.memory-card__matched-by {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    padding: 0.15rem 0.4rem;
+    background: rgba(255, 215, 0, 0.9);
+    color: #000;
+    font-size: 0.6rem;
+    font-weight: 600;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 10;
+}
+
+@keyframes matched-glow {
+    0%, 100% {
+        box-shadow: 0 0 6px rgba(255, 215, 0, 0.2);
     }
-
-    .memory-card {
-        position: relative;
-        width: 100%;
-        aspect-ratio: 1;
-        cursor: pointer;
-        transform-style: preserve-3d;
-        transition: transform 0.1s ease;
-
-        &:hover:not(.memory-card--disabled):not(.memory-card--matched) {
-            transform: scale(1.02);
-        }
-
-        &:active:not(.memory-card--disabled):not(.memory-card--matched) {
-            transform: scale(0.98);
-        }
-
-        &--disabled {
-            cursor: not-allowed;
-            opacity: 0.7;
-        }
-
-        &--matched {
-            cursor: default;
-        }
-
-        &--matched &__inner {
-            box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
-        }
-
-        &__inner {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            transform-style: preserve-3d;
-            transition: transform 0.5s ease;
-            border-radius: 8px;
-        }
-
-        &--flipped &__inner {
-            transform: rotateY(180deg);
-        }
-
-        &__front,
-        &__back {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            backface-visibility: hidden;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        &__front {
-            background: #1a1a2e;
-            border: 2px solid #2a2a4e;
-        }
-
-        &__back {
-            background: #1a1a2e;
-            border: 2px solid #2a2a4e;
-            transform: rotateY(180deg);
-            position: relative;
-        }
-
-        // Card back design - Black Flag themed
-        &__back-design {
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, #0d0d1a 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-
-            // Border pattern
-            &::before {
-                content: "";
-                position: absolute;
-                inset: 8px;
-                border: 2px solid rgba(255, 215, 0, 0.3);
-                border-radius: 4px;
-            }
-
-            // Corner accents
-            &::after {
-                content: "";
-                position: absolute;
-                inset: 4px;
-                background:
-                    linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%),
-                    linear-gradient(225deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%),
-                    linear-gradient(315deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%),
-                    linear-gradient(45deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%);
-            }
-        }
-
-        // Skull placeholder for card back
-        &__skull {
-            width: 40%;
-            height: 40%;
-            background: rgba(255, 255, 255, 0.1);
-            mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12c0 3.31 1.61 6.24 4.09 8.05L6 22l2-2h8l2 2-.09-1.95C20.39 18.24 22 15.31 22 12c0-5.52-4.48-10-10-10zm-2 14H8v-2h2v2zm0-4H8V8h2v4zm6 4h-2v-2h2v2zm0-4h-2V8h2v4z'/%3E%3C/svg%3E");
-            -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12c0 3.31 1.61 6.24 4.09 8.05L6 22l2-2h8l2 2-.09-1.95C20.39 18.24 22 15.31 22 12c0-5.52-4.48-10-10-10zm-2 14H8v-2h2v2zm0-4H8V8h2v4zm6 4h-2v-2h2v2zm0-4h-2V8h2v4z'/%3E%3C/svg%3E");
-            mask-size: contain;
-            -webkit-mask-size: contain;
-            mask-repeat: no-repeat;
-            -webkit-mask-repeat: no-repeat;
-            mask-position: center;
-            -webkit-mask-position: center;
-            z-index: 1;
-        }
-
-        // Nested asset-card styling
-        &__back asset-card {
-            display: block;
-            width: 100%;
-            height: 100%;
-            max-width: none;
-        }
-
-        // Matched by overlay
-        &__matched-by {
-            position: absolute;
-            top: 0.25rem;
-            right: 0.25rem;
-            padding: 0.15rem 0.4rem;
-            background: rgba(255, 215, 0, 0.9);
-            color: #000;
-            font-size: 0.6rem;
-            font-weight: 600;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            border-radius: 4px;
-            white-space: nowrap;
-            z-index: 10;
-        }
+    50% {
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
     }
-
-    // Matched card glow animation - subtle pulse
-    @keyframes matched-glow {
-        0%, 100% {
-            box-shadow: 0 0 6px rgba(255, 215, 0, 0.2);
-        }
-        50% {
-            box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
-        }
-    }
-
-    .memory-card--matched .memory-card__inner {
-        animation: matched-glow 2s ease-in-out infinite;
-    }
-"#
-);
+}
+"##;

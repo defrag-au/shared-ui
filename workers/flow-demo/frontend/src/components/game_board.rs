@@ -3,6 +3,7 @@
 //! Displays the grid of cards and handles card flip interactions.
 
 use leptos::*;
+use ui_components::MemoryCard;
 
 /// Card view data for the frontend
 #[derive(Debug, Clone)]
@@ -82,25 +83,20 @@ pub fn GameBoard(
                             );
                         }
 
-                        // For boolean attributes, use Option<&str> - None removes the attribute
-                        let flipped_attr = is_flipped.then_some("");
-                        let matched_attr = card.matched.then_some("");
-                        let disabled_attr = (!can_click).then_some("");
-
                         view! {
-                            <memory-card
-                                attr:asset-id=card.asset_id.clone().unwrap_or_default()
-                                attr:name=card.name.clone().unwrap_or_default()
-                                attr:flipped=flipped_attr
-                                attr:matched=matched_attr
-                                attr:matched-by=card.matched_by.clone().unwrap_or_default()
-                                attr:disabled=disabled_attr
-                                on:card-click=move |_: web_sys::CustomEvent| {
+                            <MemoryCard
+                                asset_id=card.asset_id.clone().unwrap_or_default()
+                                name=card.name.clone().unwrap_or_default()
+                                flipped=is_flipped
+                                matched=card.matched
+                                matched_by=card.matched_by.clone().unwrap_or_default()
+                                disabled=!can_click
+                                on_click=move |()| {
                                     if can_click {
                                         on_flip(idx);
                                     }
                                 }
-                                on:card-loaded=move |_: web_sys::CustomEvent| {
+                                on_load=move |()| {
                                     // Notify server that card image has loaded
                                     on_card_loaded(idx);
                                 }

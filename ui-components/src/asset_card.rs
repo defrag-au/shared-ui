@@ -1,6 +1,6 @@
-//! Asset Card Web Component
+//! Asset Card Leptos Component
 //!
-//! A card for displaying Cardano NFT assets. Wraps `<image-card>` and adds
+//! A card for displaying Cardano NFT assets. Wraps `ImageCard` and adds
 //! automatic IIIF URL generation from asset IDs.
 //!
 //! ## Image URL Resolution
@@ -13,46 +13,32 @@
 //! - xs, sm, md, lg (≤400px): uses 400px IIIF image (cached, fast)
 //! - xl (>400px): uses 1686px IIIF image (high resolution)
 //!
-//! ## Attributes
+//! ## Props
 //!
-//! - `asset-id` - Cardano asset ID (policy_id + asset_name hex) - generates IIIF URL
-//! - `image-url` - Direct image URL (fallback when asset-id not available)
-//! - `size` - Card size: "xs" (80px), "sm" (120px), "md" (240px), "lg" (400px), "xl" (800px)
-//! - `name` - Display name of the asset (shown in overlay)
-//! - `accent-color` - Optional accent/tier color for top bar
-//! - `static` - If present, card is non-interactive (no hover effect)
-//! - `show-name` - If present, show name overlay (default: hidden)
-//!
-//! ## Events
-//!
-//! - `card-click` - Dispatched when card is clicked (if not static), includes asset-id in detail
-//! - `image-loaded` - Dispatched when the image has finished loading (forwarded from image-card)
+//! - `asset_id` - Cardano asset ID (policy_id + asset_name hex) - generates IIIF URL
+//! - `image_url` - Direct image URL (fallback when asset_id not available)
+//! - `size` - Card size: Xs, Sm, Md, Lg, Xl
+//! - `name` - Display name of the asset
+//! - `accent_color` - Optional accent/tier color for top bar
+//! - `is_static` - If true, card is non-interactive
+//! - `show_name` - If true, show name overlay
+//! - `on_click` - Callback when card is clicked, receives asset_id
+//! - `on_load` - Callback when image has loaded
 //!
 //! ## Usage
 //!
-//! ```html
-//! <!-- Small card (120px, uses 400px IIIF image) -->
-//! <asset-card
-//!     asset-id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839"
+//! ```ignore
+//! <AssetCard
+//!     asset_id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839"
 //!     name="Pirate #189"
-//!     size="sm"
-//!     show-name
-//! ></asset-card>
-//!
-//! <!-- Extra large card (800px, uses 1686px IIIF image) -->
-//! <asset-card
-//!     asset-id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839"
-//!     size="xl"
-//!     name="Pirate #189"
-//! ></asset-card>
+//!     size=CardSize::Md
+//!     show_name=true
+//!     on_click=move |id| { log!("clicked: {}", id); }
+//! />
 //! ```
 
-use crate::image_card::{parse_card_size, CardSize};
-use crate::render_to_shadow;
-use custom_elements::CustomElement;
-use scss_macros::scss_inline;
-use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
+use crate::image_card::{CardSize, ImageCard};
+use leptos::*;
 
 /// IIIF base URL for image lookups
 const IIIF_BASE_URL: &str = "https://iiif.hodlcroft.com/iiif/3";
@@ -113,200 +99,101 @@ pub fn generate_iiif_url(asset_id: &str, size: IiifSize) -> Option<String> {
     ))
 }
 
-/// Asset card custom element - wraps image-card with IIIF URL generation
-#[derive(Default)]
-pub struct AssetCard {
-    asset_id: String,
-    image_url: Option<String>,
+/// Asset card component - wraps ImageCard with IIIF URL generation
+#[component]
+pub fn AssetCard(
+    /// Cardano asset ID (policy_id + asset_name hex)
+    #[prop(into, optional)]
+    asset_id: Option<MaybeSignal<String>>,
+    /// Direct image URL (fallback when asset_id not available)
+    #[prop(into, optional)]
+    image_url: Option<MaybeSignal<String>>,
+    /// Card size
+    #[prop(optional, default = CardSize::Sm)]
     size: CardSize,
-    name: String,
-    accent_color: Option<String>,
+    /// Display name
+    #[prop(into, optional)]
+    name: Option<MaybeSignal<String>>,
+    /// Accent color for top bar
+    #[prop(into, optional)]
+    accent_color: Option<MaybeSignal<String>>,
+    /// If true, card is non-interactive
+    #[prop(optional)]
     is_static: bool,
+    /// If true, show name overlay
+    #[prop(optional)]
     show_name: bool,
-}
+    /// Click callback - receives asset_id
+    #[prop(into, optional)]
+    on_click: Option<Callback<String>>,
+    /// Image loaded callback
+    #[prop(into, optional)]
+    on_load: Option<Callback<()>>,
+) -> impl IntoView {
+    // Clone for use in closures
+    let asset_id_for_url = asset_id.clone();
+    let asset_id_for_click = asset_id.clone();
 
-impl AssetCard {
-    /// Register the custom element. Call once at app startup.
-    pub fn define() {
-        <Self as CustomElement>::define("asset-card");
-    }
-
-    /// Get the image URL - uses direct image-url if provided, otherwise generates IIIF URL
-    fn resolved_image_url(&self) -> Option<String> {
+    // Resolve image URL - prefer direct URL, fall back to IIIF generation
+    let resolved_url: Memo<String> = create_memo(move |_| {
         // Direct image URL takes precedence
-        if let Some(url) = &self.image_url {
+        if let Some(ref url_signal) = image_url {
+            let url = url_signal.get();
             if !url.is_empty() {
-                return Some(url.clone());
+                return url;
             }
         }
 
         // Fall back to IIIF URL generation from asset-id
-        if self.asset_id.is_empty() {
-            return None;
-        }
-        let iiif_size = IiifSize::for_card_size(self.size);
-        generate_iiif_url(&self.asset_id, iiif_size)
-    }
-
-    /// Render HTML string for the component
-    fn render_html(&self) -> String {
-        let image_url = self.resolved_image_url().unwrap_or_default();
-        let mut attrs = vec![
-            format!(r#"image-url="{}""#, html_escape(&image_url)),
-            format!(r#"size="{}""#, self.size.class_suffix()),
-        ];
-
-        if !self.name.is_empty() {
-            attrs.push(format!(r#"name="{}""#, html_escape(&self.name)));
-        }
-
-        if let Some(color) = &self.accent_color {
-            attrs.push(format!(r#"accent-color="{}""#, html_escape(color)));
-        }
-
-        if self.is_static {
-            attrs.push("static".to_string());
-        }
-
-        if self.show_name {
-            attrs.push("show-name".to_string());
-        }
-
-        format!(
-            r#"<style>{COMPONENT_STYLES}</style>
-<image-card {}></image-card>"#,
-            attrs.join(" ")
-        )
-    }
-
-    /// Setup click handler once on the shadow root using event delegation.
-    /// Gets asset-id from host attribute at click time, avoiding listener accumulation.
-    fn setup_click_handler(&self, element: &HtmlElement) {
-        let (shadow, host) = primitives::get_shadow_and_host(element);
-
-        // Use event delegation - listen on shadow root for card-click bubbling from image-card
-        let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_: web_sys::Event| {
-            // Check is_static at event time
-            if !host.has_attribute("static") {
-                // Get current asset-id at event time
-                let asset_id = host.get_attribute("asset-id").unwrap_or_default();
-                dispatch_event_with_detail(&host, "card-click", &asset_id);
+        if let Some(ref id_signal) = asset_id_for_url {
+            let id = id_signal.get();
+            if !id.is_empty() {
+                let iiif_size = IiifSize::for_card_size(size);
+                if let Some(url) = generate_iiif_url(&id, iiif_size) {
+                    return url;
+                }
             }
-        }) as Box<dyn Fn(_)>);
-
-        let _ =
-            shadow.add_event_listener_with_callback("card-click", closure.as_ref().unchecked_ref());
-        closure.forget();
-    }
-
-    /// Setup image load handler once on the shadow root using event delegation.
-    fn setup_image_load_handler(&self, element: &HtmlElement) {
-        let (shadow, host) = primitives::get_shadow_and_host(element);
-
-        // Listen for image-loaded bubbling from image-card
-        let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_: web_sys::Event| {
-            primitives::dispatch_event(&host, "image-loaded");
-        }) as Box<dyn Fn(_)>);
-
-        let _ = shadow
-            .add_event_listener_with_callback("image-loaded", closure.as_ref().unchecked_ref());
-        closure.forget();
-    }
-}
-
-impl CustomElement for AssetCard {
-    fn observed_attributes() -> &'static [&'static str] {
-        &[
-            "asset-id",
-            "image-url",
-            "size",
-            "name",
-            "accent-color",
-            "static",
-            "show-name",
-        ]
-    }
-
-    fn constructor(&mut self, this: &HtmlElement) {
-        self.asset_id = this.get_attribute("asset-id").unwrap_or_default();
-        self.image_url = this.get_attribute("image-url").filter(|s| !s.is_empty());
-        self.size = this
-            .get_attribute("size")
-            .map(|s| parse_card_size(&s))
-            .unwrap_or_default();
-        self.name = this.get_attribute("name").unwrap_or_default();
-        self.accent_color = this.get_attribute("accent-color");
-        self.is_static = this.has_attribute("static");
-        self.show_name = this.has_attribute("show-name");
-    }
-
-    fn attribute_changed_callback(
-        &mut self,
-        this: &HtmlElement,
-        name: String,
-        _old_value: Option<String>,
-        new_value: Option<String>,
-    ) {
-        match name.as_str() {
-            "asset-id" => self.asset_id = new_value.unwrap_or_default(),
-            "image-url" => self.image_url = new_value.filter(|s| !s.is_empty()),
-            "size" => self.size = new_value.map(|s| parse_card_size(&s)).unwrap_or_default(),
-            "name" => self.name = new_value.unwrap_or_default(),
-            "accent-color" => self.accent_color = new_value,
-            "static" => self.is_static = new_value.is_some(),
-            "show-name" => self.show_name = new_value.is_some(),
-            _ => {}
         }
 
-        // Only re-render HTML - event handlers use delegation and don't need re-attaching
-        render_to_shadow(this, &self.render_html());
-    }
+        String::new()
+    });
+    let handle_click = move |()| {
+        if let Some(cb) = on_click {
+            let id = asset_id_for_click
+                .as_ref()
+                .map(|s| s.get())
+                .unwrap_or_default();
+            cb.call(id);
+        }
+    };
 
-    fn inject_children(&mut self, this: &HtmlElement) {
-        render_to_shadow(this, &self.render_html());
-        // Set up handlers once - they use event delegation on shadow root
-        self.setup_click_handler(this);
-        self.setup_image_load_handler(this);
+    // Convert optional signals to memos for ImageCard
+    let name_memo: Memo<String> =
+        create_memo(move |_| name.as_ref().map(|n| n.get()).unwrap_or_default());
+
+    let accent_memo: Memo<String> =
+        create_memo(move |_| accent_color.as_ref().map(|c| c.get()).unwrap_or_default());
+
+    // Wrap the on_load callback to forward through
+    let handle_load = move |()| {
+        if let Some(cb) = on_load {
+            cb.call(());
+        }
+    };
+
+    view! {
+        <ImageCard
+            image_url=Signal::derive(move || resolved_url.get())
+            name=Signal::derive(move || name_memo.get())
+            size=size
+            accent_color=Signal::derive(move || accent_memo.get())
+            is_static=is_static
+            show_name=show_name
+            on_click=handle_click
+            on_load=handle_load
+        />
     }
 }
-
-/// Dispatch a custom event with a string detail
-fn dispatch_event_with_detail(element: &HtmlElement, event_name: &str, detail: &str) {
-    use wasm_bindgen::JsValue;
-    use web_sys::CustomEventInit;
-
-    let init = CustomEventInit::new();
-    init.set_bubbles(true);
-    init.set_composed(true);
-    init.set_detail(&JsValue::from_str(detail));
-
-    if let Ok(event) = web_sys::CustomEvent::new_with_event_init_dict(event_name, &init) {
-        let _ = element.dispatch_event(&event);
-    }
-}
-
-/// Simple HTML escaping
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
-
-// Minimal styles - image-card handles the display
-const COMPONENT_STYLES: &str = scss_inline!(
-    r#"
-    :host {
-        display: block;
-        width: 100%;
-    }
-
-    image-card {
-        display: block;
-        width: 100%;
-    }
-"#
-);
 
 #[cfg(test)]
 mod tests {

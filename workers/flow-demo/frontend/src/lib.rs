@@ -18,10 +18,11 @@ pub use memory_app::MemoryApp;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
+use ui_components::{ConnectionState, ConnectionStatus};
 use ui_flow_protocol::{ClientMessage, OpId, PresenceInfo, ServerMessage};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{CustomEvent, MessageEvent, WebSocket};
+use web_sys::{MessageEvent, WebSocket};
 
 /// Generate or retrieve the user's ULID from localStorage
 pub fn get_or_create_user_id() -> String {
@@ -131,15 +132,6 @@ pub enum DemoAction {
     StartTyping,
 }
 
-/// Connection status
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum ConnectionStatus {
-    Disconnected,
-    Connecting,
-    Connected,
-}
-
 /// Type aliases for protocol messages
 type ServerMsg = ServerMessage<DemoState, DemoDelta, DemoEvent>;
 type ClientMsg = ClientMessage<DemoAction>;
@@ -156,9 +148,6 @@ pub enum AppMode {
 pub fn main() {
     // Initialize tracing (panic hooks + browser console logging)
     ui_core::runtime::init_widget_with_level(tracing::Level::DEBUG);
-
-    // Register shared UI web components
-    ::ui_components::define_all();
 
     // Mount the app
     mount_to_body(RootApp);
@@ -227,7 +216,7 @@ fn App() -> impl IntoView {
     let (room_id, set_room_id) = create_signal("default".to_string());
 
     // Connection status
-    let (status, set_status) = create_signal(ConnectionStatus::Disconnected);
+    let (status, set_status) = create_signal(ConnectionState::Disconnected);
 
     // Application state
     let (state, set_state) = create_signal(DemoState::default());
@@ -247,7 +236,7 @@ fn App() -> impl IntoView {
         if let Some(socket) = ws_disconnect.borrow_mut().take() {
             let _ = socket.close();
         }
-        set_status.set(ConnectionStatus::Disconnected);
+        set_status.set(ConnectionState::Disconnected);
     });
 
     // Connect to WebSocket
@@ -257,7 +246,7 @@ fn App() -> impl IntoView {
         let room = room_id.get();
         let ws_url = get_ws_url(&room, &user_id_ws);
 
-        set_status.set(ConnectionStatus::Connecting);
+        set_status.set(ConnectionState::Connecting);
 
         match WebSocket::new(&ws_url) {
             Ok(socket) => {
@@ -266,7 +255,7 @@ fn App() -> impl IntoView {
                 // Handle open
                 let set_status_clone = set_status;
                 let on_open = Closure::wrap(Box::new(move |_: JsValue| {
-                    set_status_clone.set(ConnectionStatus::Connected);
+                    set_status_clone.set(ConnectionState::Connected);
                     tracing::info!("WebSocket connected");
                 }) as Box<dyn FnMut(JsValue)>);
                 socket.set_onopen(Some(on_open.as_ref().unchecked_ref()));
@@ -275,7 +264,7 @@ fn App() -> impl IntoView {
                 // Handle close
                 let set_status_clone = set_status;
                 let on_close = Closure::wrap(Box::new(move |_: JsValue| {
-                    set_status_clone.set(ConnectionStatus::Disconnected);
+                    set_status_clone.set(ConnectionState::Disconnected);
                     tracing::info!("WebSocket disconnected");
                 }) as Box<dyn FnMut(JsValue)>);
                 socket.set_onclose(Some(on_close.as_ref().unchecked_ref()));
@@ -313,7 +302,7 @@ fn App() -> impl IntoView {
             }
             Err(e) => {
                 tracing::error!("Failed to create WebSocket: {:?}", e);
-                set_status.set(ConnectionStatus::Disconnected);
+                set_status.set(ConnectionState::Disconnected);
             }
         }
     });
@@ -342,13 +331,6 @@ fn App() -> impl IntoView {
     let disconnect_view = disconnect.clone();
     let connect_reconnect = connect.clone();
 
-    // Convert status to string for web component
-    let status_str = move || match status.get() {
-        ConnectionStatus::Connected => "connected",
-        ConnectionStatus::Connecting => "connecting",
-        ConnectionStatus::Disconnected => "disconnected",
-    };
-
     view! {
         <div class="header">
             <h1>"Flow Demo"</h1>
@@ -367,9 +349,9 @@ fn App() -> impl IntoView {
                     connect_view();
                 }
             />
-            <connection-status
-                attr:status=status_str
-                on:reconnect=move |_: CustomEvent| {
+            <ConnectionStatus
+                status=status
+                on_reconnect=move |()| {
                     connect_reconnect();
                 }
             />
@@ -387,7 +369,7 @@ fn App() -> impl IntoView {
                         let send = send_action.clone();
                         move || send(DemoAction::Decrement)
                     }
-                    disabled=Signal::derive(move || status.get() != ConnectionStatus::Connected)
+                    disabled=Signal::derive(move || status.get() != ConnectionState::Connected)
                 />
 
                 <Chat
@@ -397,7 +379,7 @@ fn App() -> impl IntoView {
                         let send = send_action.clone();
                         move |text: String| send(DemoAction::SendMessage { text })
                     }
-                    disabled=Signal::derive(move || status.get() != ConnectionStatus::Connected)
+                    disabled=Signal::derive(move || status.get() != ConnectionState::Connected)
                 />
             </div>
 
