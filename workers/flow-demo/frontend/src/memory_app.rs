@@ -21,6 +21,16 @@ use web_sys::{MessageEvent, WebSocket};
 // Types mirroring the server types
 // =============================================================================
 
+/// Unique stable identifier for a card (mirrors server's CardId)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CardId(pub String);
+
+impl std::fmt::Display for CardId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ServerGameMode {
@@ -88,6 +98,7 @@ impl Default for GamePhase {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Card {
+    pub card_id: CardId,
     pub asset_id: String,
     pub name: String,
     pub image_url: String,
@@ -101,7 +112,7 @@ pub struct PlayerState {
     pub user_id: String,
     pub user_name: String,
     pub score: u32,
-    pub flipped: Vec<usize>,
+    pub flipped: Vec<CardId>,
     pub spectating: bool,
     pub joined_at: u64,
 }
@@ -113,31 +124,31 @@ pub enum TurnState {
     #[default]
     AwaitingFirst,
     FirstFlipped {
-        index: usize,
+        card_id: CardId,
         acked: bool,
     },
     SecondFlipped {
-        first: usize,
-        second: usize,
+        first: CardId,
+        second: CardId,
         first_acked: bool,
         second_acked: bool,
     },
     BothReady {
-        first: usize,
-        second: usize,
+        first: CardId,
+        second: CardId,
         is_match: bool,
         ready_at: u64,
     },
 }
 
 impl TurnState {
-    /// Get the flipped card indices for display
-    pub fn flipped_indices(&self) -> Vec<usize> {
+    /// Get the flipped card IDs for display
+    pub fn flipped_card_ids(&self) -> Vec<CardId> {
         match self {
             TurnState::AwaitingFirst => vec![],
-            TurnState::FirstFlipped { index, .. } => vec![*index],
-            TurnState::SecondFlipped { first, second, .. } => vec![*first, *second],
-            TurnState::BothReady { first, second, .. } => vec![*first, *second],
+            TurnState::FirstFlipped { card_id, .. } => vec![card_id.clone()],
+            TurnState::SecondFlipped { first, second, .. } => vec![first.clone(), second.clone()],
+            TurnState::BothReady { first, second, .. } => vec![first.clone(), second.clone()],
         }
     }
 }
@@ -155,9 +166,9 @@ pub struct MemoryGameState {
 }
 
 impl MemoryGameState {
-    /// Get currently flipped card indices (convenience method)
-    pub fn flipped_indices(&self) -> Vec<usize> {
-        self.turn_state.flipped_indices()
+    /// Get currently flipped card IDs (convenience method)
+    pub fn flipped_card_ids(&self) -> Vec<CardId> {
+        self.turn_state.flipped_card_ids()
     }
 }
 
@@ -170,6 +181,7 @@ pub struct CardFace {
 /// Hidden card data - just the structure, no revealed info
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HiddenCard {
+    pub card_id: CardId,
     pub matched: bool,
     pub matched_by: Option<String>,
 }
@@ -212,7 +224,7 @@ pub enum MemoryDelta {
         turn_order: Vec<String>,
     },
     CardFlipped {
-        index: usize,
+        card_id: CardId,
         by: String,
         face: CardFace,
     },
@@ -220,18 +232,18 @@ pub enum MemoryDelta {
         user_id: String,
     },
     OwnCardFlipped {
-        index: usize,
+        card_id: CardId,
         face: CardFace,
     },
     PairMatched {
-        indices: [usize; 2],
+        card_ids: [CardId; 2],
         by: String,
         by_name: String,
         new_score: u32,
         face: CardFace,
     },
     CardsReset {
-        indices: [usize; 2],
+        card_ids: [CardId; 2],
         for_player: Option<String>,
     },
     ScoreChanged {
@@ -280,10 +292,10 @@ pub enum MemoryAction {
     },
     StartGame,
     FlipCard {
-        index: usize,
+        card_id: CardId,
     },
     AckCardLoaded {
-        index: usize,
+        card_id: CardId,
     },
     Ready,
     RequestRematch,
@@ -310,9 +322,9 @@ pub fn MemoryApp() -> impl IntoView {
     let (current_user_id, _) = create_signal(user_id);
 
     // Local UI state for flipped cards (before server confirms)
-    let (local_flipped, set_local_flipped) = create_signal(Vec::<usize>::new());
-    // Revealed card faces (from server)
-    let (revealed_faces, set_revealed_faces) = create_signal(HashMap::<usize, CardFace>::new());
+    let (local_flipped, set_local_flipped) = create_signal(Vec::<CardId>::new());
+    // Revealed card faces (from server) - keyed by CardId
+    let (revealed_faces, set_revealed_faces) = create_signal(HashMap::<CardId, CardFace>::new());
     // Asset IDs for preloading images
     let (preload_assets, set_preload_assets) = create_signal(Vec::<AssetId>::new());
 
@@ -500,24 +512,24 @@ pub fn MemoryApp() -> impl IntoView {
             state
                 .cards
                 .iter()
-                .enumerate()
-                .map(|(idx, card)| {
+                .map(|card| {
+                    let card_id = &card.card_id;
                     // Card is visible if:
                     // 1. It's matched
                     // 2. It's in revealed_faces (server confirmed flip)
                     // 3. In turn-taking mode and it's in turn_state flipped
                     let is_matched = card.matched;
-                    let is_revealed = revealed.contains_key(&idx);
+                    let is_revealed = revealed.contains_key(card_id);
                     let is_shared_flipped = state.config.mode == ServerGameMode::TurnTaking
-                        && state.flipped_indices().contains(&idx);
-                    let is_local_flipped = local.contains(&idx);
+                        && state.flipped_card_ids().contains(card_id);
+                    let is_local_flipped = local.contains(card_id);
 
                     let visible =
                         is_matched || is_revealed || is_shared_flipped || is_local_flipped;
 
                     // Get face data if visible - use asset_id for IIIF URL generation
                     let (asset_id, name) = if visible {
-                        if let Some(face) = revealed.get(&idx) {
+                        if let Some(face) = revealed.get(card_id) {
                             (Some(face.asset_id.clone()), Some(face.name.clone()))
                         } else if is_matched {
                             (Some(card.asset_id.clone()), Some(card.name.clone()))
@@ -529,7 +541,7 @@ pub fn MemoryApp() -> impl IntoView {
                     };
 
                     CardView {
-                        index: idx,
+                        card_id: card_id.clone(),
                         visible,
                         asset_id,
                         name,
@@ -541,16 +553,16 @@ pub fn MemoryApp() -> impl IntoView {
         })
     };
 
-    let flipped_indices = Signal::derive(move || {
+    let flipped_card_ids = Signal::derive(move || {
         let state = game_state.get();
         let local = local_flipped.get();
-        let mut indices = state.flipped_indices();
-        for idx in local {
-            if !indices.contains(&idx) {
-                indices.push(idx);
+        let mut ids = state.flipped_card_ids();
+        for id in local {
+            if !ids.contains(&id) {
+                ids.push(id);
             }
         }
-        indices
+        ids
     });
 
     // Clone for view handlers
@@ -673,20 +685,20 @@ pub fn MemoryApp() -> impl IntoView {
                                     <GameBoard
                                         grid_size=grid_size
                                         cards=cards_view
-                                        flipped_indices=flipped_indices
+                                        flipped_card_ids=flipped_card_ids
                                         is_my_turn=is_my_turn
-                                        on_flip=move |idx: usize| {
+                                        on_flip=move |card_id: CardId| {
                                             // Optimistically add to local flipped
                                             set_local_flipped.update(|v| {
-                                                if !v.contains(&idx) && v.len() < 2 {
-                                                    v.push(idx);
+                                                if !v.contains(&card_id) && v.len() < 2 {
+                                                    v.push(card_id.clone());
                                                 }
                                             });
-                                            send_flip(MemoryAction::FlipCard { index: idx });
+                                            send_flip(MemoryAction::FlipCard { card_id });
                                         }
-                                        on_card_loaded=move |idx: usize| {
+                                        on_card_loaded=move |card_id: CardId| {
                                             // ACK that card image has loaded - starts flip-back timer
-                                            send_ack(MemoryAction::AckCardLoaded { index: idx });
+                                            send_ack(MemoryAction::AckCardLoaded { card_id });
                                         }
                                         disabled=Signal::derive(move || status.get() != ConnectionState::Connected)
                                     />
@@ -738,8 +750,8 @@ fn handle_server_message(
     msg: ServerMsg,
     set_game_state: WriteSignal<MemoryGameState>,
     set_presence: WriteSignal<Vec<PresenceInfo>>,
-    set_revealed_faces: WriteSignal<HashMap<usize, CardFace>>,
-    set_local_flipped: WriteSignal<Vec<usize>>,
+    set_revealed_faces: WriteSignal<HashMap<CardId, CardFace>>,
+    set_local_flipped: WriteSignal<Vec<CardId>>,
     set_preload_assets: WriteSignal<Vec<AssetId>>,
 ) {
     match msg {
@@ -817,8 +829,8 @@ fn handle_server_message(
 fn apply_delta(
     delta: MemoryDelta,
     set_game_state: WriteSignal<MemoryGameState>,
-    set_revealed_faces: WriteSignal<HashMap<usize, CardFace>>,
-    set_local_flipped: WriteSignal<Vec<usize>>,
+    set_revealed_faces: WriteSignal<HashMap<CardId, CardFace>>,
+    set_local_flipped: WriteSignal<Vec<CardId>>,
     set_preload_assets: WriteSignal<Vec<AssetId>>,
 ) {
     match delta {
@@ -887,6 +899,7 @@ fn apply_delta(
                 s.cards = cards
                     .into_iter()
                     .map(|hidden| Card {
+                        card_id: hidden.card_id,
                         asset_id: String::new(), // Hidden until flipped
                         name: String::new(),     // Hidden until flipped
                         image_url: String::new(),
@@ -927,26 +940,30 @@ fn apply_delta(
             tracing::info!("Player ready: {}/{}", ready_count, total_players);
         }
 
-        MemoryDelta::CardFlipped { index, by: _, face } => {
+        MemoryDelta::CardFlipped {
+            card_id,
+            by: _,
+            face,
+        } => {
             // Add to revealed faces
             set_revealed_faces.update(|m| {
-                m.insert(index, face);
+                m.insert(card_id.clone(), face);
             });
             // Update turn_state to reflect the flip
             set_game_state.update(|s| match &s.turn_state {
                 TurnState::AwaitingFirst => {
                     s.turn_state = TurnState::FirstFlipped {
-                        index,
+                        card_id: card_id.clone(),
                         acked: false,
                     };
                 }
                 TurnState::FirstFlipped {
-                    index: first,
+                    card_id: first,
                     acked,
                 } => {
                     s.turn_state = TurnState::SecondFlipped {
-                        first: *first,
-                        second: index,
+                        first: first.clone(),
+                        second: card_id.clone(),
                         first_acked: *acked,
                         second_acked: false,
                     };
@@ -955,7 +972,7 @@ fn apply_delta(
             });
             // Clear from local flipped (server confirmed)
             set_local_flipped.update(|v| {
-                v.retain(|&i| i != index);
+                v.retain(|i| *i != card_id);
             });
         }
 
@@ -967,18 +984,18 @@ fn apply_delta(
             });
         }
 
-        MemoryDelta::OwnCardFlipped { index, face } => {
+        MemoryDelta::OwnCardFlipped { card_id, face } => {
             // Race mode: only we see this
             set_revealed_faces.update(|m| {
-                m.insert(index, face);
+                m.insert(card_id.clone(), face);
             });
             set_local_flipped.update(|v| {
-                v.retain(|&i| i != index);
+                v.retain(|i| *i != card_id);
             });
         }
 
         MemoryDelta::PairMatched {
-            indices,
+            card_ids,
             by,
             by_name: _,
             new_score,
@@ -986,8 +1003,8 @@ fn apply_delta(
         } => {
             set_game_state.update(|s| {
                 // Mark cards as matched
-                for &idx in &indices {
-                    if let Some(card) = s.cards.get_mut(idx) {
+                for card_id in &card_ids {
+                    if let Some(card) = s.cards.iter_mut().find(|c| &c.card_id == card_id) {
                         card.matched = true;
                         card.matched_by = Some(by.clone());
                     }
@@ -1001,21 +1018,21 @@ fn apply_delta(
             });
             // Clear revealed faces for these cards (they stay visible as matched)
             set_revealed_faces.update(|m| {
-                for &idx in &indices {
-                    m.remove(&idx);
+                for card_id in &card_ids {
+                    m.remove(card_id);
                 }
             });
             set_local_flipped.set(Vec::new());
         }
 
         MemoryDelta::CardsReset {
-            indices,
+            card_ids,
             for_player: _,
         } => {
             // Clear revealed faces
             set_revealed_faces.update(|m| {
-                for &idx in &indices {
-                    m.remove(&idx);
+                for card_id in &card_ids {
+                    m.remove(card_id);
                 }
             });
             // Reset turn state (next player's turn)

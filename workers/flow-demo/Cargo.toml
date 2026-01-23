@@ -26,6 +26,9 @@ rmp-serde = "1.3"
 getrandom = { version = "0.2", features = ["js"] }
 rand = { version = "0.8", features = ["small_rng"] }
 
+# Unique IDs
+ulid = "1.1"
+
 # Logging
 tracing = "0.1"
 worker_utils = { workspace = true }
