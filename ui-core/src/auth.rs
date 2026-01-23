@@ -13,7 +13,7 @@ pub enum AuthState {
     /// Authentication in progress (e.g., OAuth redirect, token refresh)
     Authenticating,
     /// Authenticated with token and decoded claims
-    Authenticated(AuthContext),
+    Authenticated(Box<AuthContext>),
     /// Token has expired - user needs to get a fresh link
     TokenExpired,
     /// Token was invalid (malformed or unverifiable)
@@ -111,7 +111,7 @@ impl AuthState {
                     if ctx.is_expired() {
                         Self::TokenExpired
                     } else {
-                        Self::Authenticated(ctx)
+                        Self::Authenticated(Box::new(ctx))
                     }
                 }
                 None => Self::AuthError("Could not decode token".to_string()),
@@ -192,7 +192,7 @@ impl AuthState {
     /// Use for local development without real tokens.
     #[cfg(feature = "dev")]
     pub fn mock_authenticated(user_id: impl Into<String>, guild_id: impl Into<String>) -> Self {
-        Self::Authenticated(AuthContext::mock(user_id, guild_id))
+        Self::Authenticated(Box::new(AuthContext::mock(user_id, guild_id)))
     }
 }
 

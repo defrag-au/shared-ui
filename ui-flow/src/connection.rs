@@ -13,12 +13,16 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CloseEvent, MessageEvent, WebSocket};
 
-// Use legacy messages module (this module uses JSON, not the new binary protocol)
-#[allow(deprecated)]
-use crate::messages::{ClientMessage, ServerMessage};
-use crate::operation::{ActionError, ActionProgress};
 use crate::status::{CloseInfo, ConnectionStatus};
-use ui_flow_protocol::OpId;
+use ui_flow_protocol::{
+    decode, encode, ClientMessage, OpId, PresenceInfo, ProtocolError, ServerMessage,
+};
+
+// Type aliases to reduce complexity warnings
+type DeltasCallback<Delta> = Option<Rc<dyn Fn(Vec<Delta>, u64)>>;
+type NotifyCallback<Event> = Option<Rc<dyn Fn(String, Event, Option<OpId>)>>;
+type ProgressCallback = Option<Rc<dyn Fn(OpId, Option<u8>, Option<String>)>>;
+type ActionErrorCallback = Option<Rc<dyn Fn(OpId, Option<String>, String)>>;
 
 /// Configuration for reconnection behavior
 #[derive(Debug, Clone)]
@@ -46,33 +50,46 @@ impl Default for ReconnectConfig {
 
 /// Builder for creating a Flow connection
 ///
+/// # Type Parameters
+///
+/// - `State`: Full state type for snapshots
+/// - `Delta`: Incremental state change type
+/// - `Event`: Application-specific notification event type
+/// - `Action`: Client action type
+///
 /// # Example
 ///
 /// ```ignore
-/// let connection = FlowConnection::<GameState, GameAction>::builder()
+/// let connection = FlowConnection::<GameState, GameDelta, GameEvent, GameAction>::builder()
 ///     .url(&ws_url)
-///     .on_snapshot(|state| { /* update UI */ })
-///     .on_delta(|delta| { /* apply change */ })
+///     .on_snapshot(|state, seq| { /* update UI */ })
+///     .on_delta(|delta, seq| { /* apply change */ })
+///     .on_notify(|domain, event| { /* handle notification */ })
 ///     .on_status(|status| { /* update status indicator */ })
 ///     .connect();
 /// ```
-pub struct FlowConnectionBuilder<State, Delta, Action> {
+pub struct FlowConnectionBuilder<State, Delta, Event, Action> {
     url: String,
     reconnect_config: ReconnectConfig,
+    on_connected: Option<Rc<dyn Fn(String)>>,
     on_snapshot: Option<Rc<dyn Fn(State, u64)>>,
     on_delta: Option<Rc<dyn Fn(Delta, u64)>>,
+    on_deltas: DeltasCallback<Delta>,
+    on_presence: Option<Rc<dyn Fn(Vec<PresenceInfo>)>>,
+    on_notify: NotifyCallback<Event>,
     on_status: Option<Rc<dyn Fn(ConnectionStatus)>>,
-    on_progress: Option<Rc<dyn Fn(ActionProgress)>>,
+    on_progress: ProgressCallback,
     on_action_complete: Option<Rc<dyn Fn(OpId)>>,
-    on_action_error: Option<Rc<dyn Fn(ActionError)>>,
-    on_error: Option<Rc<dyn Fn(String)>>,
+    on_action_error: ActionErrorCallback,
+    on_error: Option<Rc<dyn Fn(String, bool)>>,
     _action: std::marker::PhantomData<Action>,
 }
 
-impl<State, Delta, Action> FlowConnectionBuilder<State, Delta, Action>
+impl<State, Delta, Event, Action> FlowConnectionBuilder<State, Delta, Event, Action>
 where
     State: DeserializeOwned + 'static,
     Delta: DeserializeOwned + 'static,
+    Event: DeserializeOwned + 'static,
     Action: Serialize + 'static,
 {
     /// Create a new builder
@@ -80,8 +97,12 @@ where
         Self {
             url: String::new(),
             reconnect_config: ReconnectConfig::default(),
+            on_connected: None,
             on_snapshot: None,
             on_delta: None,
+            on_deltas: None,
+            on_presence: None,
+            on_notify: None,
             on_status: None,
             on_progress: None,
             on_action_complete: None,
@@ -103,6 +124,15 @@ where
         self
     }
 
+    /// Callback when connection is established (receives connection_id)
+    pub fn on_connected<F>(mut self, f: F) -> Self
+    where
+        F: Fn(String) + 'static,
+    {
+        self.on_connected = Some(Rc::new(f));
+        self
+    }
+
     /// Callback when a full snapshot is received
     pub fn on_snapshot<F>(mut self, f: F) -> Self
     where
@@ -121,6 +151,33 @@ where
         self
     }
 
+    /// Callback when batched deltas are received
+    pub fn on_deltas<F>(mut self, f: F) -> Self
+    where
+        F: Fn(Vec<Delta>, u64) + 'static,
+    {
+        self.on_deltas = Some(Rc::new(f));
+        self
+    }
+
+    /// Callback when presence update is received
+    pub fn on_presence<F>(mut self, f: F) -> Self
+    where
+        F: Fn(Vec<PresenceInfo>) + 'static,
+    {
+        self.on_presence = Some(Rc::new(f));
+        self
+    }
+
+    /// Callback when a notification event is received
+    pub fn on_notify<F>(mut self, f: F) -> Self
+    where
+        F: Fn(String, Event, Option<OpId>) + 'static,
+    {
+        self.on_notify = Some(Rc::new(f));
+        self
+    }
+
     /// Callback when connection status changes
     pub fn on_status<F>(mut self, f: F) -> Self
     where
@@ -133,7 +190,7 @@ where
     /// Callback for action progress updates
     pub fn on_progress<F>(mut self, f: F) -> Self
     where
-        F: Fn(ActionProgress) + 'static,
+        F: Fn(OpId, Option<u8>, Option<String>) + 'static,
     {
         self.on_progress = Some(Rc::new(f));
         self
@@ -148,19 +205,19 @@ where
         self
     }
 
-    /// Callback when an action fails
+    /// Callback when an action fails (op_id, error_code, message)
     pub fn on_action_error<F>(mut self, f: F) -> Self
     where
-        F: Fn(ActionError) + 'static,
+        F: Fn(OpId, Option<String>, String) + 'static,
     {
         self.on_action_error = Some(Rc::new(f));
         self
     }
 
-    /// Callback for connection errors
+    /// Callback for connection/protocol errors (message, is_fatal)
     pub fn on_error<F>(mut self, f: F) -> Self
     where
-        F: Fn(String) + 'static,
+        F: Fn(String, bool) + 'static,
     {
         self.on_error = Some(Rc::new(f));
         self
@@ -175,8 +232,12 @@ where
         FlowConnection::connect_internal(
             self.url,
             self.reconnect_config,
+            self.on_connected,
             self.on_snapshot,
             self.on_delta,
+            self.on_deltas,
+            self.on_presence,
+            self.on_notify,
             self.on_status,
             self.on_progress,
             self.on_action_complete,
@@ -186,10 +247,11 @@ where
     }
 }
 
-impl<State, Delta, Action> Default for FlowConnectionBuilder<State, Delta, Action>
+impl<State, Delta, Event, Action> Default for FlowConnectionBuilder<State, Delta, Event, Action>
 where
     State: DeserializeOwned + 'static,
     Delta: DeserializeOwned + 'static,
+    Event: DeserializeOwned + 'static,
     Action: Serialize + 'static,
 {
     fn default() -> Self {
@@ -220,33 +282,40 @@ where
     Action: Serialize + 'static,
 {
     /// Create a builder for configuring a connection
-    pub fn builder<State, Delta>() -> FlowConnectionBuilder<State, Delta, Action>
+    pub fn builder<State, Delta, Event>() -> FlowConnectionBuilder<State, Delta, Event, Action>
     where
         State: DeserializeOwned + 'static,
         Delta: DeserializeOwned + 'static,
+        Event: DeserializeOwned + 'static,
     {
         FlowConnectionBuilder::new()
     }
 
-    fn connect_internal<State, Delta>(
+    #[allow(clippy::too_many_arguments)]
+    fn connect_internal<State, Delta, Event>(
         url: String,
         reconnect_config: ReconnectConfig,
+        on_connected: Option<Rc<dyn Fn(String)>>,
         on_snapshot: Option<Rc<dyn Fn(State, u64)>>,
         on_delta: Option<Rc<dyn Fn(Delta, u64)>>,
+        on_deltas: DeltasCallback<Delta>,
+        on_presence: Option<Rc<dyn Fn(Vec<PresenceInfo>)>>,
+        on_notify: NotifyCallback<Event>,
         on_status: Option<Rc<dyn Fn(ConnectionStatus)>>,
-        on_progress: Option<Rc<dyn Fn(ActionProgress)>>,
+        on_progress: ProgressCallback,
         on_action_complete: Option<Rc<dyn Fn(OpId)>>,
-        on_action_error: Option<Rc<dyn Fn(ActionError)>>,
-        on_error: Option<Rc<dyn Fn(String)>>,
+        on_action_error: ActionErrorCallback,
+        on_error: Option<Rc<dyn Fn(String, bool)>>,
     ) -> Result<Self, FlowError>
     where
         State: DeserializeOwned + 'static,
         Delta: DeserializeOwned + 'static,
+        Event: DeserializeOwned + 'static,
     {
         let ws = WebSocket::new(&url)
             .map_err(|e| FlowError::Connection(format!("Failed to create WebSocket: {:?}", e)))?;
 
-        // Use text mode for JSON messages
+        // Use binary mode for MessagePack
         ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
 
         let inner = Rc::new(RefCell::new(ConnectionInner {
@@ -297,10 +366,14 @@ where
             closures.push(onopen);
         }
 
-        // onmessage
+        // onmessage - handles binary MessagePack frames
         {
+            let on_connected = on_connected.clone();
             let on_snapshot = on_snapshot.clone();
             let on_delta = on_delta.clone();
+            let on_deltas = on_deltas.clone();
+            let on_presence = on_presence.clone();
+            let on_notify = on_notify.clone();
             let on_progress = on_progress.clone();
             let on_action_complete = on_action_complete.clone();
             let on_action_error = on_action_error.clone();
@@ -309,31 +382,43 @@ where
 
             let onmessage = Closure::wrap(Box::new(move |event: JsValue| {
                 let event: MessageEvent = event.unchecked_into();
+                let data = event.data();
 
-                let text = match event.data().as_string() {
-                    Some(t) => t,
-                    None => {
-                        tracing::warn!("Received non-text WebSocket message");
+                // Handle binary data (ArrayBuffer)
+                let bytes: Vec<u8> =
+                    if let Some(array_buffer) = data.dyn_ref::<js_sys::ArrayBuffer>() {
+                        let uint8_array = js_sys::Uint8Array::new(array_buffer);
+                        uint8_array.to_vec()
+                    } else if let Some(text) = data.as_string() {
+                        // Fallback for text messages (shouldn't happen with new protocol)
+                        tracing::warn!("Received text WebSocket message, expected binary");
+                        text.into_bytes()
+                    } else {
+                        tracing::warn!("Received unknown WebSocket message type");
                         return;
-                    }
-                };
+                    };
 
-                match serde_json::from_str::<ServerMessage<State, Delta>>(&text) {
+                match decode::<ServerMessage<State, Delta, Event>>(&bytes) {
                     Ok(msg) => {
                         handle_server_message(
                             msg,
                             &inner,
+                            &on_connected,
                             &on_snapshot,
                             &on_delta,
+                            &on_deltas,
+                            &on_presence,
+                            &on_notify,
                             &on_progress,
                             &on_action_complete,
                             &on_action_error,
+                            &on_error,
                         );
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to parse server message: {} - {}", e, text);
+                        tracing::warn!("Failed to decode server message: {}", e);
                         if let Some(ref cb) = on_error {
-                            cb(format!("Parse error: {e}"));
+                            cb(format!("Decode error: {e}"), false);
                         }
                     }
                 }
@@ -427,7 +512,7 @@ where
             let onerror = Closure::wrap(Box::new(move |_event: JsValue| {
                 tracing::error!("WebSocket error");
                 if let Some(ref cb) = on_error {
-                    cb("WebSocket error".into());
+                    cb("WebSocket error".into(), false);
                 }
             }) as Box<dyn FnMut(JsValue)>);
 
@@ -458,35 +543,32 @@ where
 
     /// Send an action to the server
     pub fn send_action(&self, op_id: OpId, action: Action) -> Result<(), FlowError> {
-        let msg = ClientMessage::Action { op_id, action };
+        let msg = ClientMessage::action(op_id, action);
         self.send_message(&msg)
     }
 
-    /// Request state synchronization
-    pub fn sync_state(&self, from_seq: Option<u64>) -> Result<(), FlowError> {
-        let msg: ClientMessage<Action> = ClientMessage::SyncState { from_seq };
+    /// Request state resynchronization
+    pub fn resync(&self, last_seq: Option<u64>) -> Result<(), FlowError> {
+        let msg: ClientMessage<Action> = ClientMessage::resync(last_seq);
         self.send_message(&msg)
     }
 
-    /// Subscribe to a topic
-    pub fn subscribe(&self, topic: &str) -> Result<(), FlowError> {
-        let msg: ClientMessage<Action> = ClientMessage::Subscribe {
-            topic: topic.to_string(),
-        };
+    /// Subscribe to notification domains
+    pub fn subscribe(&self, domains: Vec<String>) -> Result<(), FlowError> {
+        let msg: ClientMessage<Action> = ClientMessage::subscribe(domains);
         self.send_message(&msg)
     }
 
-    /// Unsubscribe from a topic
-    pub fn unsubscribe(&self, topic: &str) -> Result<(), FlowError> {
-        let msg: ClientMessage<Action> = ClientMessage::Unsubscribe {
-            topic: topic.to_string(),
-        };
+    /// Unsubscribe from notification domains
+    pub fn unsubscribe(&self, domains: Vec<String>) -> Result<(), FlowError> {
+        let msg: ClientMessage<Action> = ClientMessage::unsubscribe(domains);
         self.send_message(&msg)
     }
 
-    /// Send a ping
+    /// Send a ping with timestamp for latency measurement
     pub fn send_ping(&self) -> Result<(), FlowError> {
-        let msg: ClientMessage<Action> = ClientMessage::Ping;
+        let ts = js_sys::Date::now() as u64;
+        let msg: ClientMessage<Action> = ClientMessage::ping(ts);
         self.send_message(&msg)
     }
 
@@ -505,59 +587,102 @@ where
         let inner = self.inner.borrow();
         let ws = inner.ws.as_ref().ok_or(FlowError::NotConnected)?;
 
-        let json =
-            serde_json::to_string(msg).map_err(|e| FlowError::Serialization(e.to_string()))?;
+        let bytes = encode(msg).map_err(|e| FlowError::Serialization(e.to_string()))?;
 
-        ws.send_with_str(&json)
+        ws.send_with_u8_array(&bytes)
             .map_err(|e| FlowError::Send(format!("{:?}", e)))
     }
 }
 
-fn handle_server_message<State, Delta, Action>(
-    msg: ServerMessage<State, Delta>,
+#[allow(clippy::too_many_arguments)]
+fn handle_server_message<State, Delta, Event, Action>(
+    msg: ServerMessage<State, Delta, Event>,
     inner: &Rc<RefCell<ConnectionInner<Action>>>,
+    on_connected: &Option<Rc<dyn Fn(String)>>,
     on_snapshot: &Option<Rc<dyn Fn(State, u64)>>,
     on_delta: &Option<Rc<dyn Fn(Delta, u64)>>,
-    on_progress: &Option<Rc<dyn Fn(ActionProgress)>>,
+    on_deltas: &DeltasCallback<Delta>,
+    on_presence: &Option<Rc<dyn Fn(Vec<PresenceInfo>)>>,
+    on_notify: &NotifyCallback<Event>,
+    on_progress: &ProgressCallback,
     on_action_complete: &Option<Rc<dyn Fn(OpId)>>,
-    on_action_error: &Option<Rc<dyn Fn(ActionError)>>,
+    on_action_error: &ActionErrorCallback,
+    on_error: &Option<Rc<dyn Fn(String, bool)>>,
 ) {
     match msg {
-        ServerMessage::Connected => {
-            tracing::debug!("Server acknowledged connection");
+        ServerMessage::Connected { connection_id, .. } => {
+            tracing::debug!("Server acknowledged connection: {}", connection_id);
+            if let Some(ref cb) = on_connected {
+                cb(connection_id);
+            }
         }
-        ServerMessage::Pong => {
+        ServerMessage::Pong { .. } => {
             tracing::trace!("Received pong");
         }
-        ServerMessage::Snapshot { state, seq } => {
+        ServerMessage::Error { message, fatal, .. } => {
+            tracing::error!("Server error (fatal={}): {}", fatal, message);
+            if let Some(ref cb) = on_error {
+                cb(message, fatal);
+            }
+        }
+        ServerMessage::Snapshot { state, seq, .. } => {
             inner.borrow_mut().current_seq = seq;
             if let Some(ref cb) = on_snapshot {
                 cb(state, seq);
             }
         }
-        ServerMessage::Delta { delta, seq } => {
+        ServerMessage::Delta { delta, seq, .. } => {
             inner.borrow_mut().current_seq = seq;
             if let Some(ref cb) = on_delta {
                 cb(delta, seq);
             }
         }
-        ServerMessage::Progress(progress) => {
-            if let Some(ref cb) = on_progress {
-                cb(progress);
+        ServerMessage::Deltas { deltas, seq, .. } => {
+            inner.borrow_mut().current_seq = seq;
+            if let Some(ref cb) = on_deltas {
+                cb(deltas, seq);
             }
         }
-        ServerMessage::ActionComplete { op_id } => {
+        ServerMessage::Presence { users } => {
+            if let Some(ref cb) = on_presence {
+                cb(users);
+            }
+        }
+        ServerMessage::Signal { .. } => {
+            // WebRTC signalling - not yet implemented in callbacks
+            tracing::debug!("Received WebRTC signal (not handled)");
+        }
+        ServerMessage::Notify {
+            domain,
+            event,
+            correlation_id,
+        } => {
+            if let Some(ref cb) = on_notify {
+                cb(domain, event, correlation_id);
+            }
+        }
+        ServerMessage::Progress {
+            op_id,
+            percent,
+            message,
+        } => {
+            if let Some(ref cb) = on_progress {
+                cb(op_id, percent, message);
+            }
+        }
+        ServerMessage::ActionOk { op_id, .. } => {
             if let Some(ref cb) = on_action_complete {
                 cb(op_id);
             }
         }
-        ServerMessage::ActionError(error) => {
+        ServerMessage::ActionErr {
+            op_id,
+            code,
+            message,
+        } => {
             if let Some(ref cb) = on_action_error {
-                cb(error);
+                cb(op_id, code, message);
             }
-        }
-        ServerMessage::Error { message } => {
-            tracing::error!("Server error: {}", message);
         }
     }
 }
@@ -572,12 +697,15 @@ fn reconnect<Action>(
     inner: &Rc<RefCell<ConnectionInner<Action>>>,
     url: &str,
     on_status: &Option<Rc<dyn Fn(ConnectionStatus)>>,
-    _on_error: &Option<Rc<dyn Fn(String)>>,
+    _on_error: &Option<Rc<dyn Fn(String, bool)>>,
 ) -> Result<(), FlowError> {
     tracing::info!("Attempting reconnection to {}", url);
 
     let ws = WebSocket::new(url)
         .map_err(|e| FlowError::Connection(format!("Failed to create WebSocket: {:?}", e)))?;
+
+    // Use binary mode for MessagePack
+    ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
 
     // Note: In a full implementation, we'd need to re-attach all the handlers
     // For now, this is a simplified version
@@ -607,10 +735,11 @@ fn start_ping_timer<Action: 'static>(
                 let result = {
                     let inner = inner.borrow();
                     if let Some(ref ws) = inner.ws {
-                        let msg: ClientMessage<()> = ClientMessage::Ping;
-                        serde_json::to_string(&msg)
+                        let ts = js_sys::Date::now() as u64;
+                        let msg: ClientMessage<()> = ClientMessage::ping(ts);
+                        encode(&msg)
                             .ok()
-                            .and_then(|json| ws.send_with_str(&json).ok())
+                            .and_then(|bytes| ws.send_with_u8_array(&bytes).ok())
                     } else {
                         None
                     }
@@ -639,4 +768,6 @@ pub enum FlowError {
     Serialization(String),
     #[error("Send error: {0}")]
     Send(String),
+    #[error("Protocol error: {0}")]
+    Protocol(#[from] ProtocolError),
 }

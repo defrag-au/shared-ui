@@ -2,7 +2,7 @@
 //!
 //! Displays the pre-game lobby where players wait and anyone can configure settings.
 
-use leptos::*;
+use leptos::prelude::*;
 
 /// Game mode options
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +42,7 @@ pub fn Lobby(
     /// Callback to start the game
     on_start: impl Fn() + 'static,
 ) -> impl IntoView {
+    use leptos::prelude::CollectView;
     let on_mode_change = std::rc::Rc::new(on_mode_change);
     let on_grid_change = std::rc::Rc::new(on_grid_change);
     let on_start = std::rc::Rc::new(on_start);

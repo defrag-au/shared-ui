@@ -305,7 +305,7 @@ impl LoadingState {
         };
 
         if let Some(element) = document.get_element_by_id(self.element_id) {
-            let _ = element.remove();
+            element.remove();
         }
     }
 

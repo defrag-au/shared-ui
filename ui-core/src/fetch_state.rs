@@ -26,8 +26,10 @@
 /// Represents the state of an async fetch operation.
 /// Use pattern matching to handle the different states.
 #[derive(Debug, Clone, PartialEq)]
+#[derive(Default)]
 pub enum FetchState<T> {
     /// No fetch has been initiated
+    #[default]
     Idle,
     /// Fetch is in progress
     Loading,
@@ -85,8 +87,3 @@ impl<T> FetchState<T> {
     }
 }
 
-impl<T> Default for FetchState<T> {
-    fn default() -> Self {
-        Self::Idle
-    }
-}

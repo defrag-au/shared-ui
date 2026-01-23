@@ -2,13 +2,15 @@
 //!
 //! Displays the grid of cards and handles card flip interactions.
 
-use leptos::*;
+use crate::memory_app::CardId;
+use leptos::prelude::*;
+use ui_components::MemoryCard;
 
 /// Card view data for the frontend
 #[derive(Debug, Clone)]
 pub struct CardView {
-    /// Card index
-    pub index: usize,
+    /// Stable card ID (used as DOM key for animations)
+    pub card_id: CardId,
     /// Whether the card face is visible
     pub visible: bool,
     /// Asset ID (policy_id + asset_name_hex) for IIIF URL generation
@@ -27,26 +29,23 @@ pub fn GameBoard(
     /// Grid dimensions (cols, rows)
     #[prop(into)]
     grid_size: Signal<(u8, u8)>,
-    /// Card data
+    /// Card data - keyed by CardId for stable DOM elements
     #[prop(into)]
     cards: Signal<Vec<CardView>>,
-    /// Currently flipped card indices
+    /// Currently flipped card IDs
     #[prop(into)]
-    flipped_indices: Signal<Vec<usize>>,
+    flipped_card_ids: Signal<Vec<CardId>>,
     /// Whether it's this player's turn
     #[prop(into)]
     is_my_turn: Signal<bool>,
-    /// Callback when a card is clicked
-    on_flip: impl Fn(usize) + 'static,
-    /// Callback when a card's image has loaded
-    on_card_loaded: impl Fn(usize) + 'static,
+    /// Callback when a card is clicked (receives CardId)
+    on_flip: impl Fn(CardId) + 'static + Clone + Send + Sync,
+    /// Callback when a card's image has loaded (receives CardId)
+    on_card_loaded: impl Fn(CardId) + 'static + Clone + Send + Sync,
     /// Whether input is disabled
     #[prop(into)]
     disabled: Signal<bool>,
 ) -> impl IntoView {
-    let on_flip = std::rc::Rc::new(on_flip);
-    let on_card_loaded = std::rc::Rc::new(on_card_loaded);
-
     view! {
         <div class="game-board-container">
             <div
@@ -59,55 +58,107 @@ pub fn GameBoard(
                     )
                 }
             >
-                {move || {
-                    let cards_vec = cards.get();
-                    let flipped = flipped_indices.get();
-                    let my_turn = is_my_turn.get();
-                    let is_disabled = disabled.get();
-
-                    cards_vec.into_iter().enumerate().map(|(idx, card)| {
+                // Use For with CardId as the stable key
+                // This ensures DOM elements persist across state updates and CSS transitions animate
+                <For
+                    each=move || cards.get()
+                    key=|card| card.card_id.0.clone()
+                    children={
                         let on_flip = on_flip.clone();
                         let on_card_loaded = on_card_loaded.clone();
-                        let is_flipped = flipped.contains(&idx) || card.visible;
-                        let can_click = my_turn && !is_disabled && !card.matched && !is_flipped;
+                        move |card| {
+                        let card_id = card.card_id.clone();
+                        let card_id_for_flip = card_id.clone();
+                        let card_id_for_load = card_id.clone();
+                        let on_flip = on_flip.clone();
+                        let on_card_loaded = on_card_loaded.clone();
 
-                        if idx == 0 {
-                            tracing::debug!(
-                                my_turn,
-                                is_disabled,
-                                card_matched = card.matched,
-                                is_flipped,
-                                can_click,
-                                "GameBoard card[0] state"
-                            );
-                        }
+                        // Derive state reactively for this specific card
+                        let asset_id = Signal::derive({
+                            let card_id = card_id.clone();
+                            move || {
+                                cards.get()
+                                    .iter()
+                                    .find(|c| c.card_id == card_id)
+                                    .and_then(|c| c.asset_id.clone())
+                                    .unwrap_or_default()
+                            }
+                        });
 
-                        // For boolean attributes, use Option<&str> - None removes the attribute
-                        let flipped_attr = is_flipped.then_some("");
-                        let matched_attr = card.matched.then_some("");
-                        let disabled_attr = (!can_click).then_some("");
+                        let name = Signal::derive({
+                            let card_id = card_id.clone();
+                            move || {
+                                cards.get()
+                                    .iter()
+                                    .find(|c| c.card_id == card_id)
+                                    .and_then(|c| c.name.clone())
+                                    .unwrap_or_default()
+                            }
+                        });
+
+                        let is_flipped = Signal::derive({
+                            let card_id = card_id.clone();
+                            move || {
+                                let flipped = flipped_card_ids.get();
+                                let card_visible = cards.get()
+                                    .iter()
+                                    .find(|c| c.card_id == card_id)
+                                    .map(|c| c.visible)
+                                    .unwrap_or(false);
+                                flipped.contains(&card_id) || card_visible
+                            }
+                        });
+
+                        let is_matched = Signal::derive({
+                            let card_id = card_id.clone();
+                            move || {
+                                cards.get()
+                                    .iter()
+                                    .find(|c| c.card_id == card_id)
+                                    .map(|c| c.matched)
+                                    .unwrap_or(false)
+                            }
+                        });
+
+                        let matched_by_signal = Signal::derive({
+                            let card_id = card_id.clone();
+                            move || {
+                                cards.get()
+                                    .iter()
+                                    .find(|c| c.card_id == card_id)
+                                    .and_then(|c| c.matched_by.clone())
+                                    .unwrap_or_default()
+                            }
+                        });
+
+                        let can_click = Signal::derive(move || {
+                            let my_turn = is_my_turn.get();
+                            let is_disabled_val = disabled.get();
+                            let matched = is_matched.get();
+                            let flipped = is_flipped.get();
+                            my_turn && !is_disabled_val && !matched && !flipped
+                        });
 
                         view! {
-                            <memory-card
-                                attr:asset-id=card.asset_id.clone().unwrap_or_default()
-                                attr:name=card.name.clone().unwrap_or_default()
-                                attr:flipped=flipped_attr
-                                attr:matched=matched_attr
-                                attr:matched-by=card.matched_by.clone().unwrap_or_default()
-                                attr:disabled=disabled_attr
-                                on:card-click=move |_: web_sys::CustomEvent| {
-                                    if can_click {
-                                        on_flip(idx);
+                            <MemoryCard
+                                asset_id=asset_id
+                                name=name
+                                flipped=is_flipped
+                                matched=is_matched
+                                matched_by=matched_by_signal
+                                disabled=Signal::derive(move || !can_click.get())
+                                on_click=move |()| {
+                                    if can_click.get_untracked() {
+                                        on_flip(card_id_for_flip.clone());
                                     }
                                 }
-                                on:card-loaded=move |_: web_sys::CustomEvent| {
-                                    // Notify server that card image has loaded
-                                    on_card_loaded(idx);
+                                on_load=move |()| {
+                                    on_card_loaded(card_id_for_load.clone());
                                 }
                             />
                         }
-                    }).collect_view()
-                }}
+                    }}
+                />
             </div>
         </div>
     }

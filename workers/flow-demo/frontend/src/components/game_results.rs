@@ -2,7 +2,7 @@
 //!
 //! Displays the final rankings when a game ends.
 
-use leptos::*;
+use leptos::prelude::*;
 
 /// Game results / end screen component
 #[component]
@@ -19,6 +19,7 @@ pub fn GameResults(
     /// Callback to request rematch
     on_rematch: impl Fn() + 'static,
 ) -> impl IntoView {
+    use leptos::prelude::CollectView;
     let on_rematch = std::rc::Rc::new(on_rematch);
 
     view! {
@@ -40,12 +41,12 @@ pub fn GameResults(
                     <div class="winner-announcement">
                         {if let Some(name) = winner_name {
                             if i_won {
-                                view! { <p class="winner-text you-won">"🎉 You won! 🎉"</p> }.into_view()
+                                view! { <p class="winner-text you-won">"🎉 You won! 🎉"</p> }.into_any()
                             } else {
-                                view! { <p class="winner-text">{format!("🏆 {} wins!", name)}</p> }.into_view()
+                                view! { <p class="winner-text">{format!("🏆 {} wins!", name)}</p> }.into_any()
                             }
                         } else {
-                            view! { <p class="winner-text">"It's a tie!"</p> }.into_view()
+                            view! { <p class="winner-text">"It's a tie!"</p> }.into_any()
                         }}
                     </div>
                 }

@@ -5,6 +5,22 @@
 
 use crate::assets::{fetch_game_cards, AssetId};
 use crate::types::*;
+
+/// Helper trait for looking up cards by CardId
+trait CardLookup {
+    fn find_card(&self, card_id: &CardId) -> Option<&Card>;
+    fn find_card_mut(&mut self, card_id: &CardId) -> Option<&mut Card>;
+}
+
+impl CardLookup for Vec<Card> {
+    fn find_card(&self, card_id: &CardId) -> Option<&Card> {
+        self.iter().find(|c| &c.card_id == card_id)
+    }
+
+    fn find_card_mut(&mut self, card_id: &CardId) -> Option<&mut Card> {
+        self.iter_mut().find(|c| &c.card_id == card_id)
+    }
+}
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use ui_flow_protocol::{encode, OpId, PresenceInfo, PresenceStatus, ServerMessage};
@@ -283,11 +299,12 @@ impl MemoryGameSessionDO {
             MemoryAction::StartGame => {
                 self.handle_start_game(ws, conn, op_id).await?;
             }
-            MemoryAction::FlipCard { index } => {
-                self.handle_flip_card(ws, conn, op_id, index).await?;
+            MemoryAction::FlipCard { card_id } => {
+                self.handle_flip_card(ws, conn, op_id, card_id).await?;
             }
-            MemoryAction::AckCardLoaded { index } => {
-                self.handle_ack_card_loaded(ws, conn, op_id, index).await?;
+            MemoryAction::AckCardLoaded { card_id } => {
+                self.handle_ack_card_loaded(ws, conn, op_id, card_id)
+                    .await?;
             }
             MemoryAction::Ready => {
                 self.handle_ready(ws, conn, op_id).await?;
@@ -386,7 +403,7 @@ impl MemoryGameSessionDO {
 
             // Adjust current turn if needed
             if !state.turn_order.is_empty() {
-                state.current_turn = state.current_turn % state.turn_order.len();
+                state.current_turn %= state.turn_order.len();
             }
 
             self.save_game_state(&state).await;
@@ -404,7 +421,7 @@ impl MemoryGameSessionDO {
     async fn handle_set_config(
         &self,
         ws: &WebSocket,
-        conn: &ConnectionInfo,
+        _conn: &ConnectionInfo,
         op_id: OpId,
         mode: Option<GameMode>,
         grid_size: Option<(u8, u8)>,
@@ -611,7 +628,7 @@ impl MemoryGameSessionDO {
         ws: &WebSocket,
         conn: &ConnectionInfo,
         op_id: OpId,
-        index: usize,
+        card_id: CardId,
     ) -> Result<()> {
         let mut state = self.get_game_state().await;
 
@@ -622,15 +639,17 @@ impl MemoryGameSessionDO {
             return Ok(());
         }
 
-        // Validate card index
-        if index >= state.cards.len() {
-            self.send_action_error(ws, op_id, "Invalid card index")
-                .await;
-            return Ok(());
-        }
+        // Validate card exists
+        let card = match state.cards.find_card(&card_id) {
+            Some(c) => c,
+            None => {
+                self.send_action_error(ws, op_id, "Invalid card ID").await;
+                return Ok(());
+            }
+        };
 
         // Card must not be already matched
-        if state.cards[index].matched {
+        if card.matched {
             self.send_action_error(ws, op_id, "Card already matched")
                 .await;
             return Ok(());
@@ -638,11 +657,11 @@ impl MemoryGameSessionDO {
 
         match state.config.mode {
             GameMode::TurnTaking => {
-                self.handle_flip_turn_taking(ws, conn, op_id, index, &mut state)
+                self.handle_flip_turn_taking(ws, conn, op_id, card_id, &mut state)
                     .await?;
             }
             GameMode::Race => {
-                self.handle_flip_race(ws, conn, op_id, index, &mut state)
+                self.handle_flip_race(ws, conn, op_id, card_id, &mut state)
                     .await?;
             }
         }
@@ -655,7 +674,7 @@ impl MemoryGameSessionDO {
         ws: &WebSocket,
         conn: &ConnectionInfo,
         op_id: OpId,
-        index: usize,
+        card_id: CardId,
         state: &mut MemoryGameState,
     ) -> Result<()> {
         // Must be player's turn
@@ -666,7 +685,7 @@ impl MemoryGameSessionDO {
         }
 
         // Use FSM to validate and transition
-        let new_turn_state = match state.turn_state.on_flip(index) {
+        let new_turn_state = match state.turn_state.on_flip(card_id.clone()) {
             Some(s) => s,
             None => {
                 self.send_action_error(ws, op_id, "Invalid flip action")
@@ -676,20 +695,27 @@ impl MemoryGameSessionDO {
         };
 
         // Card must not already be matched
-        if state.cards[index].matched {
+        let card = match state.cards.find_card(&card_id) {
+            Some(c) => c,
+            None => {
+                self.send_action_error(ws, op_id, "Card not found").await;
+                return Ok(());
+            }
+        };
+
+        if card.matched {
             self.send_action_error(ws, op_id, "Card already matched")
                 .await;
             return Ok(());
         }
 
+        let face = CardFace::from(card);
+
         state.turn_state = new_turn_state;
 
         // Broadcast the flip
-        let card = &state.cards[index];
-        let face = CardFace::from(card);
-
         let delta = MemoryDelta::CardFlipped {
-            index,
+            card_id,
             by: conn.user_id.clone(),
             face,
         };
@@ -706,9 +732,9 @@ impl MemoryGameSessionDO {
     async fn handle_ack_card_loaded(
         &self,
         ws: &WebSocket,
-        conn: &ConnectionInfo,
+        _conn: &ConnectionInfo,
         op_id: OpId,
-        index: usize,
+        card_id: CardId,
     ) -> Result<()> {
         let mut state = self.get_game_state().await;
 
@@ -728,20 +754,25 @@ impl MemoryGameSessionDO {
         // Compute if it's a match (needed for FSM transition)
         let is_match = match &state.turn_state {
             TurnState::SecondFlipped { first, second, .. } => {
-                state.cards[*first].pair_id == state.cards[*second].pair_id
+                let first_card = state.cards.find_card(first);
+                let second_card = state.cards.find_card(second);
+                match (first_card, second_card) {
+                    (Some(fc), Some(sc)) => fc.pair_id == sc.pair_id,
+                    _ => false,
+                }
             }
             _ => false,
         };
 
         tracing::info!(
-            index,
+            %card_id,
             is_match,
             turn_state = ?state.turn_state,
             "AckCardLoaded received"
         );
 
         // Advance FSM with ACK
-        let new_turn_state = state.turn_state.on_ack(index, is_match, now());
+        let new_turn_state = state.turn_state.on_ack(&card_id, is_match, now());
         let was_both_ready = matches!(new_turn_state, TurnState::BothReady { .. });
 
         tracing::info!(?new_turn_state, was_both_ready, "After FSM transition");
@@ -757,15 +788,15 @@ impl MemoryGameSessionDO {
                 ..
             } = &state.turn_state
             {
-                let first = *first;
-                let second = *second;
+                let first = first.clone();
+                let second = second.clone();
                 let is_match = *is_match;
 
                 if is_match {
-                    tracing::info!(first, second, "Match found - resolving immediately");
+                    tracing::info!(%first, %second, "Match found - resolving immediately");
                     // Use the current turn player, not the ACK sender
                     let current_player_id = state.turn_order.get(state.current_turn).cloned();
-                    self.resolve_match(&mut state, first, second, current_player_id.as_deref())
+                    self.resolve_match(&mut state, &first, &second, current_player_id.as_deref())
                         .await;
                 } else {
                     // Schedule the flip-back after delay using Duration
@@ -798,12 +829,12 @@ impl MemoryGameSessionDO {
             second,
             is_match,
             ..
-        } = state.turn_state
+        } = &state.turn_state
         {
             if !is_match {
                 // Flip cards back
                 let delta = MemoryDelta::CardsReset {
-                    indices: [first, second],
+                    card_ids: [first.clone(), second.clone()],
                     for_player: None,
                 };
                 self.broadcast_delta(delta).await;
@@ -831,8 +862,8 @@ impl MemoryGameSessionDO {
     async fn resolve_match(
         &self,
         state: &mut MemoryGameState,
-        first: usize,
-        second: usize,
+        first: &CardId,
+        second: &CardId,
         player_id: Option<&str>,
     ) {
         let player_id = match player_id {
@@ -841,10 +872,14 @@ impl MemoryGameSessionDO {
         };
 
         // Mark cards as matched
-        state.cards[first].matched = true;
-        state.cards[first].matched_by = Some(player_id.clone());
-        state.cards[second].matched = true;
-        state.cards[second].matched_by = Some(player_id.clone());
+        if let Some(card) = state.cards.find_card_mut(first) {
+            card.matched = true;
+            card.matched_by = Some(player_id.clone());
+        }
+        if let Some(card) = state.cards.find_card_mut(second) {
+            card.matched = true;
+            card.matched_by = Some(player_id.clone());
+        }
 
         // Update score
         if let Some(player) = state.players.get_mut(&player_id) {
@@ -858,10 +893,15 @@ impl MemoryGameSessionDO {
             .map(|p| p.user_name.clone())
             .unwrap_or_default();
 
-        let face = CardFace::from(&state.cards[first]);
+        let first_card = state.cards.find_card(first);
+        let face = first_card.map(CardFace::from).unwrap_or_else(|| CardFace {
+            asset_id: String::new(),
+            name: String::new(),
+        });
+        let pair_name = first_card.map(|c| c.name.clone()).unwrap_or_default();
 
         let delta = MemoryDelta::PairMatched {
-            indices: [first, second],
+            card_ids: [first.clone(), second.clone()],
             by: player_id.clone(),
             by_name: user_name.clone(),
             new_score,
@@ -872,7 +912,7 @@ impl MemoryGameSessionDO {
         // Broadcast match event
         let event = MemoryEvent::MatchFound {
             player_name: user_name,
-            pair_name: state.cards[first].name.clone(),
+            pair_name,
         };
         self.broadcast_event("game", event).await;
 
@@ -890,7 +930,7 @@ impl MemoryGameSessionDO {
         ws: &WebSocket,
         conn: &ConnectionInfo,
         op_id: OpId,
-        index: usize,
+        card_id: CardId,
         state: &mut MemoryGameState,
     ) -> Result<()> {
         // Get player's flipped cards
@@ -904,7 +944,7 @@ impl MemoryGameSessionDO {
         };
 
         // Can't flip same card twice
-        if player.flipped.contains(&index) {
+        if player.flipped.contains(&card_id) {
             self.send_action_error(ws, op_id, "Card already flipped")
                 .await;
             return Ok(());
@@ -917,43 +957,71 @@ impl MemoryGameSessionDO {
             return Ok(());
         }
 
-        // Flip the card (only this player sees it initially)
-        player.flipped.push(index);
-        let card = &state.cards[index];
+        // Get card data before mutating player state
+        let card = match state.cards.find_card(&card_id) {
+            Some(c) => c,
+            None => {
+                self.send_action_error(ws, op_id, "Card not found").await;
+                return Ok(());
+            }
+        };
         let face = CardFace::from(card);
+
+        // Flip the card (only this player sees it initially)
+        let player = state.players.get_mut(&conn.user_id).unwrap();
+        player.flipped.push(card_id.clone());
 
         // Send only to this player
         let delta = MemoryDelta::OwnCardFlipped {
-            index,
+            card_id: card_id.clone(),
             face: face.clone(),
         };
         self.send_delta_to(ws, delta).await;
 
         // Check if player has two cards flipped
+        let player = state.players.get(&conn.user_id).unwrap();
         if player.flipped.len() == 2 {
-            let idx1 = player.flipped[0];
-            let idx2 = player.flipped[1];
+            let id1 = player.flipped[0].clone();
+            let id2 = player.flipped[1].clone();
 
-            let pair_match = state.cards[idx1].pair_id == state.cards[idx2].pair_id;
+            // Look up cards to check for pair match
+            let card1 = state.cards.find_card(&id1);
+            let card2 = state.cards.find_card(&id2);
+
+            let (pair_match, card1_matched, card2_matched, pair_name) = match (card1, card2) {
+                (Some(c1), Some(c2)) => (
+                    c1.pair_id == c2.pair_id,
+                    c1.matched,
+                    c2.matched,
+                    c1.name.clone(),
+                ),
+                _ => (false, false, false, String::new()),
+            };
 
             if pair_match {
                 // Check if cards are still available (race condition)
-                if state.cards[idx1].matched || state.cards[idx2].matched {
+                if card1_matched || card2_matched {
                     // Someone else got it first
+                    let player = state.players.get_mut(&conn.user_id).unwrap();
                     player.flipped.clear();
 
                     let delta = MemoryDelta::CardsReset {
-                        indices: [idx1, idx2],
+                        card_ids: [id1, id2],
                         for_player: Some(conn.user_id.clone()),
                     };
                     self.send_delta_to(ws, delta).await;
                 } else {
                     // Claim the match!
-                    state.cards[idx1].matched = true;
-                    state.cards[idx1].matched_by = Some(conn.user_id.clone());
-                    state.cards[idx2].matched = true;
-                    state.cards[idx2].matched_by = Some(conn.user_id.clone());
+                    if let Some(card) = state.cards.find_card_mut(&id1) {
+                        card.matched = true;
+                        card.matched_by = Some(conn.user_id.clone());
+                    }
+                    if let Some(card) = state.cards.find_card_mut(&id2) {
+                        card.matched = true;
+                        card.matched_by = Some(conn.user_id.clone());
+                    }
 
+                    let player = state.players.get_mut(&conn.user_id).unwrap();
                     player.score += 1;
                     let new_score = player.score;
                     let user_name = player.user_name.clone();
@@ -961,7 +1029,7 @@ impl MemoryGameSessionDO {
 
                     // Broadcast match to all players
                     let delta = MemoryDelta::PairMatched {
-                        indices: [idx1, idx2],
+                        card_ids: [id1, id2],
                         by: conn.user_id.clone(),
                         by_name: user_name.clone(),
                         new_score,
@@ -971,7 +1039,7 @@ impl MemoryGameSessionDO {
 
                     let event = MemoryEvent::MatchFound {
                         player_name: user_name,
-                        pair_name: state.cards[idx1].name.clone(),
+                        pair_name,
                     };
                     self.broadcast_event("game", event).await;
 
@@ -982,10 +1050,11 @@ impl MemoryGameSessionDO {
                 }
             } else {
                 // No match - reset for this player only
+                let player = state.players.get_mut(&conn.user_id).unwrap();
                 player.flipped.clear();
 
                 let delta = MemoryDelta::CardsReset {
-                    indices: [idx1, idx2],
+                    card_ids: [id1, id2],
                     for_player: Some(conn.user_id.clone()),
                 };
                 self.send_delta_to(ws, delta).await;

@@ -4,8 +4,10 @@ use serde::{Deserialize, Serialize};
 
 /// Current status of the WebSocket connection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ConnectionStatus {
     /// Not connected, no reconnection in progress
+    #[default]
     Disconnected,
     /// Attempting initial connection
     Connecting,
@@ -55,11 +57,6 @@ impl ConnectionStatus {
     }
 }
 
-impl Default for ConnectionStatus {
-    fn default() -> Self {
-        ConnectionStatus::Disconnected
-    }
-}
 
 /// Information about a WebSocket close event
 #[derive(Debug, Clone, Serialize, Deserialize)]

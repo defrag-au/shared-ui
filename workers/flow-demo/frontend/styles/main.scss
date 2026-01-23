@@ -53,61 +53,7 @@ body {
     }
 }
 
-// Connection status
-.connection-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 2rem;
-    font-size: 0.85rem;
-    margin-bottom: 1.5rem;
-
-    .indicator {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-    }
-
-    &.connected {
-        background-color: rgba(74, 222, 128, 0.1);
-        color: var(--success);
-
-        .indicator {
-            background-color: var(--success);
-            animation: pulse 2s infinite;
-        }
-    }
-
-    &.disconnected {
-        background-color: rgba(239, 68, 68, 0.1);
-        color: var(--error);
-
-        .indicator {
-            background-color: var(--error);
-        }
-    }
-
-    &.connecting {
-        background-color: rgba(251, 191, 36, 0.1);
-        color: var(--warning);
-
-        .indicator {
-            background-color: var(--warning);
-            animation: pulse 1s infinite;
-        }
-    }
-}
-
-@keyframes pulse {
-    0%,
-    100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
-}
+// Connection status: styles come from ui-components::STYLES in RootApp
 
 // Main layout
 .main-content {
@@ -568,12 +514,7 @@ button {
 .game-board {
     max-width: 800px;
     width: 100%;
-
-    memory-card {
-        aspect-ratio: 1;
-        min-width: 60px;
-        max-width: 100px;
-    }
+    // Card styles come from ui_components::STYLES
 }
 
 // Player List

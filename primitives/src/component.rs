@@ -76,9 +76,14 @@ pub fn get_shadow_and_host(element: &HtmlElement) -> (ShadowRoot, HtmlElement) {
     }
 }
 
-/// Dispatch a custom event from an element
+/// Dispatch a custom event from an element.
+/// The event bubbles and is composed (crosses shadow DOM boundaries).
 pub fn dispatch_event(element: &Element, event_name: &str) {
-    let event = web_sys::Event::new(event_name).unwrap();
+    let init = web_sys::CustomEventInit::new();
+    init.set_bubbles(true);
+    init.set_composed(true); // crosses shadow DOM boundary
+
+    let event = web_sys::CustomEvent::new_with_event_init_dict(event_name, &init).unwrap();
     let _ = element.dispatch_event(&event);
 }
 

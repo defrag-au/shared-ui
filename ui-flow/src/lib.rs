@@ -110,14 +110,7 @@ mod operation;
 mod state;
 mod status;
 
-// Legacy JSON-based messages (deprecated, use ui_flow_protocol types instead)
-#[deprecated(
-    since = "0.2.0",
-    note = "Use ui_flow_protocol types for new code. This module uses JSON string tags."
-)]
-pub mod messages;
-
-// Re-export the new protocol types
+// Re-export the protocol types from ui_flow_protocol
 pub use ui_flow_protocol::{
     self as protocol,
     // Codec functions

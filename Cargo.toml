@@ -8,7 +8,6 @@ members = [
     "ui-loader",
     "ui-toast",
     "wallet-core",
-    "primitives",
     "ui-components",
     "_storybook",
     "workers/flow-demo",
@@ -76,11 +75,12 @@ worker_utils = { git = "https://github.com/defrag-au/shared-crates", package = "
 # Cardano assets
 cardano-assets = { git = "https://github.com/defrag-au/shared-crates", package = "cardano-assets", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
 
-# Custom elements
-custom-elements = "0.2"
-
 # Error handling
 thiserror = "1"
+
+# RNG (wasm-compatible)
+rand = { version = "0.9", features = ["small_rng", "std"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }
 
 # Static maps
 phf = { version = "0.11", features = ["macros"] }
@@ -95,5 +95,4 @@ ui-flow = { path = "ui-flow" }
 ui-loader = { path = "ui-loader" }
 ui-toast = { path = "ui-toast" }
 wallet-core = { path = "wallet-core" }
-primitives = { path = "primitives" }
 ui-components = { path = "ui-components" }

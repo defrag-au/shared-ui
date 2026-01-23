@@ -3,7 +3,7 @@
 //! This module provides functions to fetch random assets from the PFP City API
 //! for use in the memory game.
 
-use crate::types::Card;
+use crate::types::{Card, CardId};
 pub use cardano_assets::AssetId;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
@@ -128,18 +128,18 @@ pub async fn fetch_game_cards(policy_id: &str, pair_count: u8, seed: u64) -> Res
             .clone()
             .unwrap_or_else(|| image_url(policy_id, &concatenated_id));
 
-        let card = Card {
-            asset_id: concatenated_id,
-            name: asset.name.clone(),
-            image_url: img_url,
-            matched: false,
-            matched_by: None,
-            pair_id: pair_id as u8,
-        };
-
-        // Add two copies of each card
-        cards.push(card.clone());
-        cards.push(card);
+        // Create two cards with unique IDs for each pair
+        for _ in 0..2 {
+            cards.push(Card {
+                card_id: CardId::new(),
+                asset_id: concatenated_id.clone(),
+                name: asset.name.clone(),
+                image_url: img_url.clone(),
+                matched: false,
+                matched_by: None,
+                pair_id: pair_id as u8,
+            });
+        }
     }
 
     // Shuffle the cards deterministically using the seed

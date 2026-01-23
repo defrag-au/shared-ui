@@ -8,6 +8,34 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // =============================================================================
+// CardId - Stable identifier for cards
+// =============================================================================
+
+/// Unique stable identifier for a card.
+/// Uses ULID format for ordering and uniqueness.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CardId(pub String);
+
+impl CardId {
+    /// Generate a new unique CardId
+    pub fn new() -> Self {
+        Self(ulid::Ulid::new().to_string())
+    }
+}
+
+impl Default for CardId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for CardId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+// =============================================================================
 // Counter/Chat Demo Types (Original Demo)
 // =============================================================================
 
@@ -91,17 +119,13 @@ pub type ClientMsg = ui_flow_protocol::ClientMessage<DemoAction>;
 /// Game mode determines how players interact with the board
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum GameMode {
     /// Classic turn-taking with shared board view - all players see all flips
+    #[default]
     TurnTaking,
     /// Simultaneous race with independent views - only see own flips until match
     Race,
-}
-
-impl Default for GameMode {
-    fn default() -> Self {
-        Self::TurnTaking
-    }
 }
 
 /// Game configuration set by the host
@@ -209,56 +233,52 @@ impl Default for GamePhase {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "state", rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TurnState {
     /// Waiting for the current player to flip their first card
+    #[default]
     AwaitingFirst,
 
     /// First card has been flipped, waiting for ACK and/or second flip
-    FirstFlipped { index: usize, acked: bool },
+    FirstFlipped { card_id: CardId, acked: bool },
 
     /// Second card has been flipped, waiting for both ACKs
     SecondFlipped {
-        first: usize,
-        second: usize,
+        first: CardId,
+        second: CardId,
         first_acked: bool,
         second_acked: bool,
     },
 
     /// Both cards flipped and ACKed - timer is running
     BothReady {
-        first: usize,
-        second: usize,
+        first: CardId,
+        second: CardId,
         is_match: bool,
         /// Timestamp when both became ready (timer started)
         ready_at: u64,
     },
 }
 
-impl Default for TurnState {
-    fn default() -> Self {
-        Self::AwaitingFirst
-    }
-}
-
 impl TurnState {
     /// Handle a card flip action. Returns the new state, or None if invalid.
-    pub fn on_flip(&self, index: usize) -> Option<TurnState> {
+    pub fn on_flip(&self, card_id: CardId) -> Option<TurnState> {
         match self {
             TurnState::AwaitingFirst => Some(TurnState::FirstFlipped {
-                index,
+                card_id,
                 acked: false,
             }),
 
             TurnState::FirstFlipped {
-                index: first,
+                card_id: first,
                 acked,
             } => {
-                if index == *first {
+                if card_id == *first {
                     None // Can't flip same card twice
                 } else {
                     Some(TurnState::SecondFlipped {
-                        first: *first,
-                        second: index,
+                        first: first.clone(),
+                        second: card_id,
                         first_acked: *acked,
                         second_acked: false,
                     })
@@ -272,13 +292,13 @@ impl TurnState {
 
     /// Handle a card ACK. Returns the new state.
     /// If both cards are now acked, transitions to BothReady with match info.
-    pub fn on_ack(&self, index: usize, is_match: bool, now: u64) -> TurnState {
+    pub fn on_ack(&self, card_id: &CardId, is_match: bool, now: u64) -> TurnState {
         match self {
             TurnState::FirstFlipped {
-                index: first,
+                card_id: first,
                 acked: _,
-            } if index == *first => TurnState::FirstFlipped {
-                index: *first,
+            } if card_id == first => TurnState::FirstFlipped {
+                card_id: first.clone(),
                 acked: true,
             },
 
@@ -288,20 +308,20 @@ impl TurnState {
                 first_acked,
                 second_acked,
             } => {
-                let new_first_acked = *first_acked || index == *first;
-                let new_second_acked = *second_acked || index == *second;
+                let new_first_acked = *first_acked || card_id == first;
+                let new_second_acked = *second_acked || card_id == second;
 
                 if new_first_acked && new_second_acked {
                     TurnState::BothReady {
-                        first: *first,
-                        second: *second,
+                        first: first.clone(),
+                        second: second.clone(),
                         is_match,
                         ready_at: now,
                     }
                 } else {
                     TurnState::SecondFlipped {
-                        first: *first,
-                        second: *second,
+                        first: first.clone(),
+                        second: second.clone(),
                         first_acked: new_first_acked,
                         second_acked: new_second_acked,
                     }
@@ -312,43 +332,13 @@ impl TurnState {
             other => other.clone(),
         }
     }
-
-    /// Check if the timer has expired and we should resolve the turn.
-    /// Returns true if in BothReady state and enough time has passed.
-    pub fn should_resolve(&self, now: u64, delay_ms: u64) -> bool {
-        matches!(
-            self,
-            TurnState::BothReady { ready_at, .. } if now >= ready_at + delay_ms
-        )
-    }
-
-    /// Get the flipped card indices (if any) for rendering
-    pub fn flipped_indices(&self) -> Vec<usize> {
-        match self {
-            TurnState::AwaitingFirst => vec![],
-            TurnState::FirstFlipped { index, .. } => vec![*index],
-            TurnState::SecondFlipped { first, second, .. } => vec![*first, *second],
-            TurnState::BothReady { first, second, .. } => vec![*first, *second],
-        }
-    }
-
-    /// Check if we're waiting for any ACKs
-    pub fn awaiting_acks(&self) -> bool {
-        match self {
-            TurnState::FirstFlipped { acked, .. } => !acked,
-            TurnState::SecondFlipped {
-                first_acked,
-                second_acked,
-                ..
-            } => !first_acked || !second_acked,
-            _ => false,
-        }
-    }
 }
 
 /// A card on the game board
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Card {
+    /// Unique stable identifier for this card (survives reshuffles, used as DOM key)
+    pub card_id: CardId,
     /// Asset identifier from PFP City
     pub asset_id: String,
     /// Display name of the asset
@@ -373,7 +363,7 @@ pub struct PlayerState {
     /// Current score (number of pairs found)
     pub score: u32,
     /// Cards this player has flipped (race mode - each player has own view)
-    pub flipped: Vec<usize>,
+    pub flipped: Vec<CardId>,
     /// Whether player is spectating (joined after game started)
     pub spectating: bool,
     /// When the player joined
@@ -401,13 +391,6 @@ pub struct MemoryGameState {
     pub host: Option<String>,
 }
 
-impl MemoryGameState {
-    /// Get currently flipped card indices (convenience method)
-    pub fn flipped_indices(&self) -> Vec<usize> {
-        self.turn_state.flipped_indices()
-    }
-}
-
 /// Card face data sent to clients when a card is revealed
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CardFace {
@@ -428,6 +411,8 @@ impl From<&Card> for CardFace {
 /// Sent when cards are dealt so clients know board layout
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HiddenCard {
+    /// Stable card identifier (used as DOM key for animations)
+    pub card_id: CardId,
     /// Whether this card has been matched
     pub matched: bool,
     /// Who matched this card (if matched)
@@ -437,6 +422,7 @@ pub struct HiddenCard {
 impl From<&Card> for HiddenCard {
     fn from(card: &Card) -> Self {
         Self {
+            card_id: card.card_id.clone(),
             matched: card.matched,
             matched_by: card.matched_by.clone(),
         }
@@ -491,7 +477,7 @@ pub enum MemoryDelta {
     // === Turn-Taking Mode ===
     /// A card was flipped (visible to all in turn-taking)
     CardFlipped {
-        index: usize,
+        card_id: CardId,
         by: String,
         face: CardFace,
     },
@@ -500,12 +486,12 @@ pub enum MemoryDelta {
 
     // === Race Mode ===
     /// Your own card flip result (only you see this in race mode)
-    OwnCardFlipped { index: usize, face: CardFace },
+    OwnCardFlipped { card_id: CardId, face: CardFace },
 
     // === Both Modes ===
     /// A pair was matched and claimed
     PairMatched {
-        indices: [usize; 2],
+        card_ids: [CardId; 2],
         by: String,
         by_name: String,
         new_score: u32,
@@ -513,7 +499,7 @@ pub enum MemoryDelta {
     },
     /// Cards didn't match - flip them back
     CardsReset {
-        indices: [usize; 2],
+        card_ids: [CardId; 2],
         /// In race mode, only reset for specific player; None = all players
         for_player: Option<String>,
     },
@@ -565,10 +551,10 @@ pub enum MemoryAction {
     },
     /// Start the game (lobby phase only)
     StartGame,
-    /// Flip a card at the given index
-    FlipCard { index: usize },
+    /// Flip a card by its stable ID
+    FlipCard { card_id: CardId },
     /// Acknowledge that a flipped card's image has loaded (starts flip-back timer)
-    AckCardLoaded { index: usize },
+    AckCardLoaded { card_id: CardId },
     /// Signal that client has finished preloading assets and is ready to play
     Ready,
     /// Request a rematch after game ends

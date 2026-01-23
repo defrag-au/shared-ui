@@ -2,7 +2,7 @@
 //!
 //! Displays the list of players with their scores and turn indicator.
 
-use leptos::*;
+use leptos::prelude::*;
 
 /// Player information for display
 #[derive(Debug, Clone)]
@@ -26,6 +26,7 @@ pub fn PlayerList(
     #[prop(into)]
     current_user_id: Signal<String>,
 ) -> impl IntoView {
+    use leptos::prelude::CollectView;
     view! {
         <div class="player-list">
             <h3>"Players"</h3>
@@ -45,13 +46,13 @@ pub fn PlayerList(
                                     {if is_current_turn { "▶ " } else { "" }}
                                 </span>
                                 <span class="player-name">
-                                    {&player.user_name}
+                                    {player.user_name.clone()}
                                     {if is_me { " (me)" } else { "" }}
                                 </span>
                                 {if player.spectating {
-                                    view! { <span class="spectator-badge">" 👁"</span> }.into_view()
+                                    view! { <span class="spectator-badge">" 👁"</span> }.into_any()
                                 } else {
-                                    view! { <span class="score">{format!(" - {} pts", player.score)}</span> }.into_view()
+                                    view! { <span class="score">{format!(" - {} pts", player.score)}</span> }.into_any()
                                 }}
                             </li>
                         }
