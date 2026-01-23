@@ -2,24 +2,34 @@
 //!
 //! Provides admin controls for managing the game state.
 
-use leptos::*;
+use leptos::prelude::*;
 
 /// Admin panel component
 #[component]
 pub fn AdminPanel(
     /// Callback to reset the game
-    on_reset: impl Fn() + 'static,
+    on_reset: impl Fn() + 'static + Clone + Send + Sync,
 ) -> impl IntoView {
-    let on_reset = std::rc::Rc::new(on_reset);
-    let (confirming, set_confirming) = create_signal(false);
+    let (confirming, set_confirming) = signal(false);
+    let on_reset_clone = on_reset.clone();
 
     view! {
         <div class="admin-panel">
             <h3>"Admin"</h3>
 
-            {move || {
-                if confirming.get() {
-                    let on_reset = on_reset.clone();
+            <Show
+                when=move || confirming.get()
+                fallback={
+                    let set_confirming = set_confirming;
+                    move || view! {
+                        <button class="btn btn-warning" on:click=move |_| set_confirming.set(true)>
+                            "Reset Game"
+                        </button>
+                    }
+                }
+            >
+                {
+                    let on_reset = on_reset_clone.clone();
                     view! {
                         <div class="admin-confirm">
                             <p>"Reset all game state?"</p>
@@ -33,15 +43,9 @@ pub fn AdminPanel(
                                 "Cancel"
                             </button>
                         </div>
-                    }.into_view()
-                } else {
-                    view! {
-                        <button class="btn btn-warning" on:click=move |_| set_confirming.set(true)>
-                            "Reset Game"
-                        </button>
-                    }.into_view()
+                    }
                 }
-            }}
+            </Show>
         </div>
     }
 }

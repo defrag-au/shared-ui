@@ -1,13 +1,13 @@
 //! Memory Card component story
 
 use crate::stories::helpers::AttributeCard;
-use leptos::*;
+use leptos::prelude::*;
 use ui_components::MemoryCard;
 
 #[component]
 pub fn MemoryCardStory() -> impl IntoView {
-    let (click_count, set_click_count) = create_signal(0u32);
-    let (is_flipped, set_is_flipped) = create_signal(false);
+    let (click_count, set_click_count) = signal(0u32);
+    let (is_flipped, set_is_flipped) = signal(false);
 
     view! {
         <div>

@@ -1,13 +1,13 @@
 //! Connection Status component story
 
 use crate::stories::helpers::AttributeCard;
-use leptos::*;
+use leptos::prelude::*;
 use ui_components::{ConnectionState, ConnectionStatus};
 
 #[component]
 pub fn ConnectionStatusStory() -> impl IntoView {
-    let (status, set_status) = create_signal(ConnectionState::Disconnected);
-    let (reconnect_count, set_reconnect_count) = create_signal(0u32);
+    let (status, set_status) = signal(ConnectionState::Disconnected);
+    let (reconnect_count, set_reconnect_count) = signal(0u32);
 
     view! {
         <div>

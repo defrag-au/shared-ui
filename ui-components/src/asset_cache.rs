@@ -21,7 +21,7 @@
 //! ```
 
 use crate::image_cache;
-use leptos::*;
+use leptos::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
@@ -55,7 +55,7 @@ impl PreloadAsset {
 pub fn AssetCache(
     /// Assets to preload
     #[prop(into)]
-    assets: MaybeSignal<Vec<PreloadAsset>>,
+    assets: Signal<Vec<PreloadAsset>>,
     /// Callback when all images have been loaded (loaded_count, failed_count)
     #[prop(into)]
     on_ready: Callback<(u32, u32)>,
@@ -66,11 +66,11 @@ pub fn AssetCache(
     // Track assets we've already started loading to avoid duplicates
     let loading_started = Rc::new(RefCell::new(Vec::<String>::new()));
 
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let current_assets = assets.get();
 
         if current_assets.is_empty() {
-            on_ready.call((0, 0));
+            on_ready.run((0, 0));
             return;
         }
 
@@ -128,7 +128,7 @@ pub fn AssetCache(
 
                 // Emit progress
                 if let Some(cb) = &on_progress {
-                    cb.call((current_loaded, total));
+                    cb.run((current_loaded, total));
                 }
 
                 // Check if all done
@@ -138,7 +138,7 @@ pub fn AssetCache(
                         current_loaded,
                         current_failed
                     );
-                    on_ready.call((current_loaded, current_failed));
+                    on_ready.run((current_loaded, current_failed));
                 }
             });
         }

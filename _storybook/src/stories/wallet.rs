@@ -1,6 +1,6 @@
 //! Wallet stories - wallet providers and connection states
 
-use leptos::*;
+use leptos::prelude::*;
 use wallet_core::{ConnectionState, Network, WalletProvider};
 
 // ============================================================================
@@ -9,6 +9,7 @@ use wallet_core::{ConnectionState, Network, WalletProvider};
 
 #[component]
 pub fn WalletProvidersStory() -> impl IntoView {
+    use leptos::prelude::CollectView;
     view! {
         <div>
             <div class="story-header">
@@ -78,6 +79,7 @@ fn wallet_icon(provider: WalletProvider) -> &'static str {
 
 #[component]
 pub fn ConnectionStatesStory() -> impl IntoView {
+    use leptos::prelude::CollectView;
     let states = vec![
         ConnectionState::Disconnected,
         ConnectionState::Connecting,
@@ -158,7 +160,7 @@ fn ConnectionCard(state: ConnectionState) -> impl IntoView {
                                     <span class="wallet-card__value">{network_name}</span>
                                 </div>
                             </>
-                        }.into_view()
+                        }.into_any()
                     }
                     ConnectionState::Error(msg) => {
                         view! {
@@ -166,12 +168,12 @@ fn ConnectionCard(state: ConnectionState) -> impl IntoView {
                                 <span class="wallet-card__label">"Error"</span>
                                 <span class="wallet-card__value">{msg}</span>
                             </div>
-                        }.into_view()
+                        }.into_any()
                     }
                     _ => {
                         view! {
                             <p>"No additional details"</p>
-                        }.into_view()
+                        }.into_any()
                     }
                 }}
             </div>

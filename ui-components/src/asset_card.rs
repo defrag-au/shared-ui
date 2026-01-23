@@ -38,7 +38,7 @@
 //! ```
 
 use crate::image_card::{CardSize, ImageCard};
-use leptos::*;
+use leptos::prelude::*;
 
 /// IIIF base URL for image lookups
 const IIIF_BASE_URL: &str = "https://iiif.hodlcroft.com/iiif/3";
@@ -104,19 +104,19 @@ pub fn generate_iiif_url(asset_id: &str, size: IiifSize) -> Option<String> {
 pub fn AssetCard(
     /// Cardano asset ID (policy_id + asset_name hex)
     #[prop(into, optional)]
-    asset_id: Option<MaybeSignal<String>>,
+    asset_id: Option<Signal<String>>,
     /// Direct image URL (fallback when asset_id not available)
     #[prop(into, optional)]
-    image_url: Option<MaybeSignal<String>>,
+    image_url: Option<Signal<String>>,
     /// Card size
     #[prop(optional, default = CardSize::Sm)]
     size: CardSize,
     /// Display name
     #[prop(into, optional)]
-    name: Option<MaybeSignal<String>>,
+    name: Option<Signal<String>>,
     /// Accent color for top bar
     #[prop(into, optional)]
-    accent_color: Option<MaybeSignal<String>>,
+    accent_color: Option<Signal<String>>,
     /// If true, card is non-interactive
     #[prop(optional)]
     is_static: bool,
@@ -135,7 +135,7 @@ pub fn AssetCard(
     let asset_id_for_click = asset_id.clone();
 
     // Resolve image URL - prefer direct URL, fall back to IIIF generation
-    let resolved_url: Memo<String> = create_memo(move |_| {
+    let resolved_url: Memo<String> = Memo::new(move |_| {
         // Direct image URL takes precedence
         if let Some(ref url_signal) = image_url {
             let url = url_signal.get();
@@ -163,21 +163,21 @@ pub fn AssetCard(
                 .as_ref()
                 .map(|s| s.get())
                 .unwrap_or_default();
-            cb.call(id);
+            cb.run(id);
         }
     };
 
     // Convert optional signals to memos for ImageCard
     let name_memo: Memo<String> =
-        create_memo(move |_| name.as_ref().map(|n| n.get()).unwrap_or_default());
+        Memo::new(move |_| name.as_ref().map(|n| n.get()).unwrap_or_default());
 
     let accent_memo: Memo<String> =
-        create_memo(move |_| accent_color.as_ref().map(|c| c.get()).unwrap_or_default());
+        Memo::new(move |_| accent_color.as_ref().map(|c| c.get()).unwrap_or_default());
 
     // Wrap the on_load callback to forward through
     let handle_load = move |()| {
         if let Some(cb) = on_load {
-            cb.call(());
+            cb.run(());
         }
     };
 

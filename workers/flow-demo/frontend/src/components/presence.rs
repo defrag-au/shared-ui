@@ -1,6 +1,6 @@
 //! Presence component
 
-use leptos::*;
+use leptos::prelude::*;
 use ui_flow_protocol::PresenceInfo;
 
 /// Online users list

@@ -31,32 +31,32 @@
 
 use crate::asset_card::AssetCard;
 use crate::image_card::CardSize;
-use leptos::*;
+use leptos::prelude::*;
 
 /// Memory card component - a flippable wrapper around AssetCard
 #[component]
 pub fn MemoryCard(
     /// Cardano asset ID for IIIF image generation
     #[prop(into, optional)]
-    asset_id: Option<MaybeSignal<String>>,
+    asset_id: Option<Signal<String>>,
     /// Asset name (shown when flipped)
     #[prop(into, optional)]
-    name: Option<MaybeSignal<String>>,
+    name: Option<Signal<String>>,
     /// Card size (default: Sm)
     #[prop(optional, default = CardSize::Sm)]
     size: CardSize,
     /// Whether card is face-up
     #[prop(into)]
-    flipped: MaybeSignal<bool>,
+    flipped: Signal<bool>,
     /// Whether card has been matched
-    #[prop(into, optional, default = false.into())]
-    matched: MaybeSignal<bool>,
+    #[prop(into, optional, default = Signal::derive(|| false))]
+    matched: Signal<bool>,
     /// Name of player who matched this card
     #[prop(into, optional)]
-    matched_by: Option<MaybeSignal<String>>,
+    matched_by: Option<Signal<String>>,
     /// Whether card is disabled (can't be clicked)
-    #[prop(into, optional, default = false.into())]
-    disabled: MaybeSignal<bool>,
+    #[prop(into, optional, default = Signal::derive(|| false))]
+    disabled: Signal<bool>,
     /// Click callback
     #[prop(into, optional)]
     on_click: Option<Callback<()>>,
@@ -93,14 +93,14 @@ pub fn MemoryCard(
     let handle_click = move |_| {
         if !disabled.get() && !matched.get() {
             if let Some(cb) = on_click {
-                cb.call(());
+                cb.run(());
             }
         }
     };
 
     // Convert matched_by to memo for reactive access
     let matched_by_value: Memo<Option<String>> =
-        create_memo(move |_| matched_by.as_ref().map(|m| m.get()));
+        Memo::new(move |_| matched_by.as_ref().map(|m| m.get()));
 
     view! {
         <div class=card_class data-flipped=data_flipped data-matched=data_matched on:click=handle_click>
@@ -127,7 +127,7 @@ pub fn MemoryCard(
                         is_static=true
                         on_load=move |()| {
                             if let Some(cb) = on_load {
-                                cb.call(());
+                                cb.run(());
                             }
                         }
                     />

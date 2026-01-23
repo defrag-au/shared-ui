@@ -1,6 +1,6 @@
 //! Welcome story - landing page for the storybook
 
-use leptos::*;
+use leptos::prelude::*;
 
 #[component]
 pub fn WelcomeStory() -> impl IntoView {

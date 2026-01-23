@@ -1,7 +1,7 @@
 //! UI Flow stories - overview, FlowState trait, operations
 
 use super::helpers::{ConfigOptionCard, FlowConceptCard, LoaderStepCard};
-use leptos::*;
+use leptos::prelude::*;
 
 // ============================================================================
 // Flow Overview Story

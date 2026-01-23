@@ -1,7 +1,7 @@
 //! UI Toast stories - toast types and usage
 
 use super::helpers::{ToastFnCard, ToastKindCard, TraitMethodCard};
-use leptos::*;
+use leptos::prelude::*;
 
 // ============================================================================
 // Toast Types Story

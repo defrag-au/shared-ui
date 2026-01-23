@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 # Leptos framework
-leptos = { version = "0.6", features = ["csr"] }
+leptos = { version = "0.8", features = ["csr"] }
 
 # Shared UI crates
 wallet-core = { path = "../wallet-core" }

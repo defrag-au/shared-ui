@@ -25,7 +25,7 @@
 //! />
 //! ```
 
-use leptos::*;
+use leptos::prelude::*;
 use phf::phf_map;
 
 /// Card size variants
@@ -95,16 +95,16 @@ pub fn parse_card_size(s: &str) -> CardSize {
 pub fn ImageCard(
     /// URL for the image
     #[prop(into, optional)]
-    image_url: Option<MaybeSignal<String>>,
+    image_url: Option<Signal<String>>,
     /// Display name (shown in overlay and as title tooltip)
     #[prop(into, optional)]
-    name: Option<MaybeSignal<String>>,
+    name: Option<Signal<String>>,
     /// Card size
     #[prop(optional, default = CardSize::Sm)]
     size: CardSize,
     /// Accent color for top bar
     #[prop(into, optional)]
-    accent_color: Option<MaybeSignal<String>>,
+    accent_color: Option<Signal<String>>,
     /// If true, card is non-interactive
     #[prop(optional)]
     is_static: bool,
@@ -131,26 +131,26 @@ pub fn ImageCard(
     let handle_click = move |_| {
         if !is_static {
             if let Some(cb) = on_click {
-                cb.call(());
+                cb.run(());
             }
         }
     };
 
     // Convert name to a signal for reactive access
     let name_signal: Memo<String> =
-        create_memo(move |_| name.as_ref().map(|n| n.get()).unwrap_or_default());
+        Memo::new(move |_| name.as_ref().map(|n| n.get()).unwrap_or_default());
 
     // Convert image_url to a signal
     let url_signal: Memo<String> =
-        create_memo(move |_| image_url.as_ref().map(|u| u.get()).unwrap_or_default());
+        Memo::new(move |_| image_url.as_ref().map(|u| u.get()).unwrap_or_default());
 
     // Convert accent_color to a signal
     let accent_signal: Memo<Option<String>> =
-        create_memo(move |_| accent_color.as_ref().map(|c| c.get()));
+        Memo::new(move |_| accent_color.as_ref().map(|c| c.get()));
 
     // Store callback in StoredValue to safely handle async image load events
     // even if the reactive scope is disposed
-    let stored_on_load = store_value(on_load);
+    let stored_on_load = StoredValue::new(on_load);
 
     view! {
         <div
@@ -178,15 +178,15 @@ pub fn ImageCard(
                                 on:load=move |_| {
                                     // Use try_get_value to safely handle disposed scope
                                     if let Some(Some(cb)) = stored_on_load.try_get_value() {
-                                        cb.call(());
+                                        cb.run(());
                                     }
                                 }
                             />
-                        }.into_view()
+                        }.into_any()
                     } else {
                         view! {
                             <div class="image-card__placeholder"></div>
-                        }.into_view()
+                        }.into_any()
                     }
                 }}
 

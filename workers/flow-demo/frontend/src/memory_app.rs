@@ -6,7 +6,8 @@ use crate::components::{
     AdminPanel, CardView, GameBoard, GameMode, GameResults, Lobby, PlayerInfo, PlayerList,
 };
 use crate::get_or_create_user_id;
-use leptos::*;
+use leptos::prelude::*;
+use send_wrapper::SendWrapper;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -315,34 +316,36 @@ pub fn MemoryApp() -> impl IntoView {
     let user_id = get_or_create_user_id();
     let user_id_for_ws = user_id.clone();
 
-    let (room_id, _set_room_id) = create_signal("default".to_string());
-    let (status, set_status) = create_signal(ConnectionState::Disconnected);
-    let (game_state, set_game_state) = create_signal(MemoryGameState::default());
-    let (presence, set_presence) = create_signal(Vec::<PresenceInfo>::new());
-    let (current_user_id, _) = create_signal(user_id);
+    let (room_id, _set_room_id) = signal("default".to_string());
+    let (status, set_status) = signal(ConnectionState::Disconnected);
+    let (game_state, set_game_state) = signal(MemoryGameState::default());
+    let (presence, set_presence) = signal(Vec::<PresenceInfo>::new());
+    let (current_user_id, _) = signal(user_id);
 
     // Local UI state for flipped cards (before server confirms)
-    let (local_flipped, set_local_flipped) = create_signal(Vec::<CardId>::new());
+    let (local_flipped, set_local_flipped) = signal(Vec::<CardId>::new());
     // Revealed card faces (from server) - keyed by CardId
-    let (revealed_faces, set_revealed_faces) = create_signal(HashMap::<CardId, CardFace>::new());
+    let (revealed_faces, set_revealed_faces) = signal(HashMap::<CardId, CardFace>::new());
     // Asset IDs for preloading images
-    let (preload_assets, set_preload_assets) = create_signal(Vec::<AssetId>::new());
+    let (preload_assets, set_preload_assets) = signal(Vec::<AssetId>::new());
 
-    let ws: Rc<RefCell<Option<WebSocket>>> = Rc::new(RefCell::new(None));
+    // Use SendWrapper to make Rc<RefCell<...>> work with Leptos 0.8's Send+Sync requirements
+    let ws: SendWrapper<Rc<RefCell<Option<WebSocket>>>> =
+        SendWrapper::new(Rc::new(RefCell::new(None)));
 
     // Disconnect helper
     let ws_disconnect = ws.clone();
-    let disconnect = Rc::new(move || {
+    let disconnect = SendWrapper::new(Rc::new(move || {
         if let Some(socket) = ws_disconnect.borrow_mut().take() {
             let _ = socket.close();
         }
         set_status.set(ConnectionState::Disconnected);
-    });
+    }));
 
     // Connect to WebSocket
     let ws_connect = ws.clone();
     let user_id_ws = user_id_for_ws.clone();
-    let connect = Rc::new(move || {
+    let connect = SendWrapper::new(Rc::new(move || {
         let room = room_id.get();
         let ws_url = get_memory_ws_url(&room, &user_id_ws);
 
@@ -411,11 +414,11 @@ pub fn MemoryApp() -> impl IntoView {
                 set_status.set(ConnectionState::Disconnected);
             }
         }
-    });
+    }));
 
     // Send action helper
     let ws_send = ws.clone();
-    let send_action = Rc::new(move |action: MemoryAction| {
+    let send_action = SendWrapper::new(Rc::new(move |action: MemoryAction| {
         if let Some(socket) = ws_send.borrow().as_ref() {
             if socket.ready_state() == WebSocket::OPEN {
                 let msg: ClientMsg = ClientMessage::action(OpId::new(), action);
@@ -424,19 +427,19 @@ pub fn MemoryApp() -> impl IntoView {
                 }
             }
         }
-    });
+    }));
     let send_action_for_admin = send_action.clone();
 
     // Auto-connect on mount
     let connect_effect = connect.clone();
-    create_effect(move |_| {
+    Effect::new(move |_| {
         connect_effect();
     });
 
     // Auto-join game when connected
     let send_join = send_action.clone();
     let user_id_join = current_user_id.get();
-    create_effect(move |prev_status: Option<ConnectionState>| {
+    Effect::new(move |prev_status: Option<ConnectionState>| {
         let current = status.get();
         if prev_status != Some(ConnectionState::Connected) && current == ConnectionState::Connected
         {
@@ -769,8 +772,8 @@ pub fn MemoryApp() -> impl IntoView {
                             let send = send_rematch.clone();
                             move || {
                                 let (winner, rankings) = finished_info.get();
-                                let (winner_sig, _) = create_signal(winner);
-                                let (rankings_sig, _) = create_signal(rankings);
+                                let (winner_sig, _) = signal(winner);
+                                let (rankings_sig, _) = signal(rankings);
                                 let send = send.clone();
                                 view! {
                                     <GameResults

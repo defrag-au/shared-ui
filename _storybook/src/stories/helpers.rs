@@ -1,6 +1,6 @@
 //! Shared helper components for rendering story cards
 
-use leptos::*;
+use leptos::prelude::*;
 
 /// Render an attribute documentation card
 #[component]

@@ -1,7 +1,7 @@
 //! UI Loader stories - loading states and configuration
 
 use super::helpers::{ConfigOptionCard, LoaderErrorCard, LoaderStepCard};
-use leptos::*;
+use leptos::prelude::*;
 
 // ============================================================================
 // Loading States Story

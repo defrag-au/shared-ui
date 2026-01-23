@@ -1,7 +1,7 @@
 //! Asset Cache component story
 
 use crate::stories::helpers::AttributeCard;
-use leptos::*;
+use leptos::prelude::*;
 use ui_components::{AssetCache, AssetCard, PreloadAsset};
 
 /// Sample Pirate assets for testing
@@ -30,11 +30,12 @@ const TEST_ASSETS: &[(&str, &str)] = &[
 
 #[component]
 pub fn AssetCacheStory() -> impl IntoView {
-    let (status, set_status) = create_signal("Ready to preload".to_string());
-    let (cache_size, set_cache_size) = create_signal(0usize);
-    let (cards_visible, set_cards_visible) = create_signal(false);
-    let (preload_started, set_preload_started) = create_signal(false);
-    let (assets_to_load, set_assets_to_load) = create_signal::<Vec<PreloadAsset>>(vec![]);
+    use leptos::prelude::CollectView;
+    let (status, set_status) = signal("Ready to preload".to_string());
+    let (cache_size, set_cache_size) = signal(0usize);
+    let (cards_visible, set_cards_visible) = signal(false);
+    let (preload_started, set_preload_started) = signal(false);
+    let (assets_to_load, set_assets_to_load) = signal::<Vec<PreloadAsset>>(vec![]);
 
     let test_assets: Vec<PreloadAsset> = TEST_ASSETS
         .iter()

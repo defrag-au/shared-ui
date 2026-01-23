@@ -18,7 +18,7 @@
 //! />
 //! ```
 
-use leptos::*;
+use leptos::prelude::*;
 
 /// Connection state values
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -59,7 +59,7 @@ impl ConnectionState {
 pub fn ConnectionStatus(
     /// Connection state
     #[prop(into)]
-    status: MaybeSignal<ConnectionState>,
+    status: Signal<ConnectionState>,
     /// Whether to show status text
     #[prop(optional, default = true)]
     show_text: bool,
@@ -88,7 +88,7 @@ pub fn ConnectionStatus(
     let handle_click = move |_| {
         if status.get().is_reconnectable() {
             if let Some(cb) = on_reconnect {
-                cb.call(());
+                cb.run(());
             }
         }
     };

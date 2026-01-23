@@ -1,7 +1,7 @@
 //! Chat component
 
 use crate::ChatMessage;
-use leptos::*;
+use leptos::prelude::*;
 
 /// Chat messages list with input
 #[component]
@@ -18,7 +18,7 @@ pub fn Chat<F>(
 where
     F: Fn(String) + 'static,
 {
-    let (input_value, set_input_value) = create_signal(String::new());
+    let (input_value, set_input_value) = signal(String::new());
 
     // Wrap on_send in Rc so we can clone it for multiple handlers
     let on_send = std::rc::Rc::new(on_send);

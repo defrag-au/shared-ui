@@ -1,13 +1,13 @@
 //! Asset Card component story
 
 use crate::stories::helpers::AttributeCard;
-use leptos::*;
+use leptos::prelude::*;
 use ui_components::{AssetCard, CardSize};
 
 #[component]
 pub fn AssetCardStory() -> impl IntoView {
-    let (click_count, set_click_count) = create_signal(0u32);
-    let (last_asset_id, set_last_asset_id) = create_signal(String::new());
+    let (click_count, set_click_count) = signal(0u32);
+    let (last_asset_id, set_last_asset_id) = signal(String::new());
 
     view! {
         <div>

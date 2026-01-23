@@ -1,12 +1,12 @@
 //! Image Card component story
 
 use crate::stories::helpers::AttributeCard;
-use leptos::*;
+use leptos::prelude::*;
 use ui_components::{CardSize, ImageCard};
 
 #[component]
 pub fn ImageCardStory() -> impl IntoView {
-    let (click_count, set_click_count) = create_signal(0u32);
+    let (click_count, set_click_count) = signal(0u32);
 
     view! {
         <div>

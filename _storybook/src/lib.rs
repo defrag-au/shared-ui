@@ -4,7 +4,7 @@
 
 mod stories;
 
-use leptos::*;
+use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -109,12 +109,12 @@ pub fn main() {
         .expect("should find #app element")
         .dyn_into::<web_sys::HtmlElement>()
         .expect("#app should be an HtmlElement");
-    mount_to(app_element, App);
+    mount_to(app_element, App).forget();
 }
 
 #[component]
 fn App() -> impl IntoView {
-    let (current_story, set_current_story) = create_signal(Story::Welcome);
+    let (current_story, set_current_story) = signal(Story::Welcome);
 
     view! {
         // Include ui-components styles
@@ -133,6 +133,7 @@ fn Sidebar(
     current_story: ReadSignal<Story>,
     set_current_story: WriteSignal<Story>,
 ) -> impl IntoView {
+    use leptos::prelude::CollectView;
     // Group stories by category
     let categories: Vec<(&'static str, Vec<Story>)> = {
         let mut cats: Vec<(&str, Vec<Story>)> = Vec::new();

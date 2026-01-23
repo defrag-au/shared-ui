@@ -13,8 +13,9 @@ mod components;
 pub mod memory_app;
 
 use components::{Chat, Counter, Presence};
-use leptos::*;
+use leptos::prelude::*;
 pub use memory_app::MemoryApp;
+use send_wrapper::SendWrapper;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -150,7 +151,7 @@ pub fn main() {
     ui_core::runtime::init_widget_with_level(tracing::Level::DEBUG);
 
     // Mount the app
-    mount_to_body(RootApp);
+    let _ = mount_to_body(RootApp);
 }
 
 /// Root application component with mode switching
@@ -167,10 +168,10 @@ fn RootApp() -> impl IntoView {
         }
     };
 
-    let (mode, set_mode) = create_signal(initial_mode);
+    let (mode, set_mode) = signal(initial_mode);
 
     // Update URL hash when mode changes
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let current_mode = mode.get();
         let window = web_sys::window().expect("no window");
         let hash = match current_mode {
@@ -200,8 +201,8 @@ fn RootApp() -> impl IntoView {
             </nav>
 
             {move || match mode.get() {
-                AppMode::Demo => view! { <App /> }.into_view(),
-                AppMode::MemoryGame => view! { <MemoryApp /> }.into_view(),
+                AppMode::Demo => view! { <App /> }.into_any(),
+                AppMode::MemoryGame => view! { <MemoryApp /> }.into_any(),
             }}
         </div>
     }
@@ -215,36 +216,37 @@ fn App() -> impl IntoView {
     let user_id_for_ws = user_id.clone();
 
     // Room ID (can be changed)
-    let (room_id, set_room_id) = create_signal("default".to_string());
+    let (room_id, set_room_id) = signal("default".to_string());
 
     // Connection status
-    let (status, set_status) = create_signal(ConnectionState::Disconnected);
+    let (status, set_status) = signal(ConnectionState::Disconnected);
 
     // Application state
-    let (state, set_state) = create_signal(DemoState::default());
+    let (state, set_state) = signal(DemoState::default());
 
     // Presence list
-    let (presence, set_presence) = create_signal(Vec::<PresenceInfo>::new());
+    let (presence, set_presence) = signal(Vec::<PresenceInfo>::new());
 
     // Current user ID signal for components
-    let (current_user_id, _set_current_user_id) = create_signal(user_id);
+    let (current_user_id, _set_current_user_id) = signal(user_id);
 
-    // WebSocket reference
-    let ws: Rc<RefCell<Option<WebSocket>>> = Rc::new(RefCell::new(None));
+    // WebSocket reference - wrapped for Leptos 0.8 Send+Sync requirements
+    let ws: SendWrapper<Rc<RefCell<Option<WebSocket>>>> =
+        SendWrapper::new(Rc::new(RefCell::new(None)));
 
     // Disconnect helper
     let ws_disconnect = ws.clone();
-    let disconnect = Rc::new(move || {
+    let disconnect = SendWrapper::new(Rc::new(move || {
         if let Some(socket) = ws_disconnect.borrow_mut().take() {
             let _ = socket.close();
         }
         set_status.set(ConnectionState::Disconnected);
-    });
+    }));
 
     // Connect to WebSocket
     let ws_connect = ws.clone();
     let user_id_ws = user_id_for_ws.clone();
-    let connect = Rc::new(move || {
+    let connect = SendWrapper::new(Rc::new(move || {
         let room = room_id.get();
         let ws_url = get_ws_url(&room, &user_id_ws);
 
@@ -307,11 +309,11 @@ fn App() -> impl IntoView {
                 set_status.set(ConnectionState::Disconnected);
             }
         }
-    });
+    }));
 
     // Send action helper
     let ws_send = ws.clone();
-    let send_action = Rc::new(move |action: DemoAction| {
+    let send_action = SendWrapper::new(Rc::new(move |action: DemoAction| {
         if let Some(socket) = ws_send.borrow().as_ref() {
             if socket.ready_state() == WebSocket::OPEN {
                 let msg: ClientMsg = ClientMessage::action(OpId::new(), action);
@@ -320,11 +322,11 @@ fn App() -> impl IntoView {
                 }
             }
         }
-    });
+    }));
 
     // Auto-connect on mount
     let connect_effect = connect.clone();
-    create_effect(move |_| {
+    Effect::new(move |_| {
         connect_effect();
     });
 

@@ -1,6 +1,6 @@
 //! Counter component
 
-use leptos::*;
+use leptos::prelude::*;
 
 /// Counter display with increment/decrement buttons
 #[component]

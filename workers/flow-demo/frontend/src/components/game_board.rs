@@ -3,7 +3,7 @@
 //! Displays the grid of cards and handles card flip interactions.
 
 use crate::memory_app::CardId;
-use leptos::*;
+use leptos::prelude::*;
 use ui_components::MemoryCard;
 
 /// Card view data for the frontend
@@ -39,16 +39,13 @@ pub fn GameBoard(
     #[prop(into)]
     is_my_turn: Signal<bool>,
     /// Callback when a card is clicked (receives CardId)
-    on_flip: impl Fn(CardId) + 'static,
+    on_flip: impl Fn(CardId) + 'static + Clone + Send + Sync,
     /// Callback when a card's image has loaded (receives CardId)
-    on_card_loaded: impl Fn(CardId) + 'static,
+    on_card_loaded: impl Fn(CardId) + 'static + Clone + Send + Sync,
     /// Whether input is disabled
     #[prop(into)]
     disabled: Signal<bool>,
 ) -> impl IntoView {
-    let on_flip = std::rc::Rc::new(on_flip);
-    let on_card_loaded = std::rc::Rc::new(on_card_loaded);
-
     view! {
         <div class="game-board-container">
             <div
@@ -66,7 +63,10 @@ pub fn GameBoard(
                 <For
                     each=move || cards.get()
                     key=|card| card.card_id.0.clone()
-                    children=move |card| {
+                    children={
+                        let on_flip = on_flip.clone();
+                        let on_card_loaded = on_card_loaded.clone();
+                        move |card| {
                         let card_id = card.card_id.clone();
                         let card_id_for_flip = card_id.clone();
                         let card_id_for_load = card_id.clone();
@@ -157,7 +157,7 @@ pub fn GameBoard(
                                 }
                             />
                         }
-                    }
+                    }}
                 />
             </div>
         </div>
