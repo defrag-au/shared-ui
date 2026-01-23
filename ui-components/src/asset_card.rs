@@ -131,8 +131,8 @@ pub fn AssetCard(
     on_load: Option<Callback<()>>,
 ) -> impl IntoView {
     // Clone for use in closures
-    let asset_id_for_url = asset_id.clone();
-    let asset_id_for_click = asset_id.clone();
+    let asset_id_for_url = asset_id;
+    let asset_id_for_click = asset_id;
 
     // Resolve image URL - prefer direct URL, fall back to IIIF generation
     let resolved_url: Memo<String> = Memo::new(move |_| {

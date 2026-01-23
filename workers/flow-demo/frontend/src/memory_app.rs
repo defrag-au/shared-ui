@@ -319,7 +319,7 @@ pub fn MemoryApp() -> impl IntoView {
     let (room_id, _set_room_id) = signal("default".to_string());
     let (status, set_status) = signal(ConnectionState::Disconnected);
     let (game_state, set_game_state) = signal(MemoryGameState::default());
-    let (presence, set_presence) = signal(Vec::<PresenceInfo>::new());
+    let (_presence, set_presence) = signal(Vec::<PresenceInfo>::new());
     let (current_user_id, _) = signal(user_id);
 
     // Local UI state for flipped cards (before server confirms)
@@ -333,9 +333,9 @@ pub fn MemoryApp() -> impl IntoView {
     let ws: SendWrapper<Rc<RefCell<Option<WebSocket>>>> =
         SendWrapper::new(Rc::new(RefCell::new(None)));
 
-    // Disconnect helper
+    // Disconnect helper (currently unused but kept for future use)
     let ws_disconnect = ws.clone();
-    let disconnect = SendWrapper::new(Rc::new(move || {
+    let _disconnect = SendWrapper::new(Rc::new(move || {
         if let Some(socket) = ws_disconnect.borrow_mut().take() {
             let _ = socket.close();
         }
@@ -484,25 +484,22 @@ pub fn MemoryApp() -> impl IntoView {
         state.turn_order.get(state.current_turn).cloned()
     });
 
-    let is_my_turn = {
-        let current_user_id = current_user_id;
-        Signal::derive(move || {
-            let state = game_state.get();
-            let my_id = current_user_id.get();
+    let is_my_turn = Signal::derive(move || {
+        let state = game_state.get();
+        let my_id = current_user_id.get();
 
-            // In race mode, it's always "your turn" if you're playing
-            if state.config.mode == ServerGameMode::Race {
-                return state
-                    .players
-                    .get(&my_id)
-                    .map(|p| !p.spectating)
-                    .unwrap_or(false);
-            }
+        // In race mode, it's always "your turn" if you're playing
+        if state.config.mode == ServerGameMode::Race {
+            return state
+                .players
+                .get(&my_id)
+                .map(|p| !p.spectating)
+                .unwrap_or(false);
+        }
 
-            // In turn-taking mode, check if it's actually your turn
-            state.turn_order.get(state.current_turn) == Some(&my_id)
-        })
-    };
+        // In turn-taking mode, check if it's actually your turn
+        state.turn_order.get(state.current_turn) == Some(&my_id)
+    });
 
     let cards_view = {
         let _current_user_id = current_user_id;

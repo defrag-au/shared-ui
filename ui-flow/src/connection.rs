@@ -18,6 +18,12 @@ use ui_flow_protocol::{
     decode, encode, ClientMessage, OpId, PresenceInfo, ProtocolError, ServerMessage,
 };
 
+// Type aliases to reduce complexity warnings
+type DeltasCallback<Delta> = Option<Rc<dyn Fn(Vec<Delta>, u64)>>;
+type NotifyCallback<Event> = Option<Rc<dyn Fn(String, Event, Option<OpId>)>>;
+type ProgressCallback = Option<Rc<dyn Fn(OpId, Option<u8>, Option<String>)>>;
+type ActionErrorCallback = Option<Rc<dyn Fn(OpId, Option<String>, String)>>;
+
 /// Configuration for reconnection behavior
 #[derive(Debug, Clone)]
 pub struct ReconnectConfig {
@@ -68,13 +74,13 @@ pub struct FlowConnectionBuilder<State, Delta, Event, Action> {
     on_connected: Option<Rc<dyn Fn(String)>>,
     on_snapshot: Option<Rc<dyn Fn(State, u64)>>,
     on_delta: Option<Rc<dyn Fn(Delta, u64)>>,
-    on_deltas: Option<Rc<dyn Fn(Vec<Delta>, u64)>>,
+    on_deltas: DeltasCallback<Delta>,
     on_presence: Option<Rc<dyn Fn(Vec<PresenceInfo>)>>,
-    on_notify: Option<Rc<dyn Fn(String, Event, Option<OpId>)>>,
+    on_notify: NotifyCallback<Event>,
     on_status: Option<Rc<dyn Fn(ConnectionStatus)>>,
-    on_progress: Option<Rc<dyn Fn(OpId, Option<u8>, Option<String>)>>,
+    on_progress: ProgressCallback,
     on_action_complete: Option<Rc<dyn Fn(OpId)>>,
-    on_action_error: Option<Rc<dyn Fn(OpId, Option<String>, String)>>,
+    on_action_error: ActionErrorCallback,
     on_error: Option<Rc<dyn Fn(String, bool)>>,
     _action: std::marker::PhantomData<Action>,
 }
@@ -292,13 +298,13 @@ where
         on_connected: Option<Rc<dyn Fn(String)>>,
         on_snapshot: Option<Rc<dyn Fn(State, u64)>>,
         on_delta: Option<Rc<dyn Fn(Delta, u64)>>,
-        on_deltas: Option<Rc<dyn Fn(Vec<Delta>, u64)>>,
+        on_deltas: DeltasCallback<Delta>,
         on_presence: Option<Rc<dyn Fn(Vec<PresenceInfo>)>>,
-        on_notify: Option<Rc<dyn Fn(String, Event, Option<OpId>)>>,
+        on_notify: NotifyCallback<Event>,
         on_status: Option<Rc<dyn Fn(ConnectionStatus)>>,
-        on_progress: Option<Rc<dyn Fn(OpId, Option<u8>, Option<String>)>>,
+        on_progress: ProgressCallback,
         on_action_complete: Option<Rc<dyn Fn(OpId)>>,
-        on_action_error: Option<Rc<dyn Fn(OpId, Option<String>, String)>>,
+        on_action_error: ActionErrorCallback,
         on_error: Option<Rc<dyn Fn(String, bool)>>,
     ) -> Result<Self, FlowError>
     where
@@ -595,12 +601,12 @@ fn handle_server_message<State, Delta, Event, Action>(
     on_connected: &Option<Rc<dyn Fn(String)>>,
     on_snapshot: &Option<Rc<dyn Fn(State, u64)>>,
     on_delta: &Option<Rc<dyn Fn(Delta, u64)>>,
-    on_deltas: &Option<Rc<dyn Fn(Vec<Delta>, u64)>>,
+    on_deltas: &DeltasCallback<Delta>,
     on_presence: &Option<Rc<dyn Fn(Vec<PresenceInfo>)>>,
-    on_notify: &Option<Rc<dyn Fn(String, Event, Option<OpId>)>>,
-    on_progress: &Option<Rc<dyn Fn(OpId, Option<u8>, Option<String>)>>,
+    on_notify: &NotifyCallback<Event>,
+    on_progress: &ProgressCallback,
     on_action_complete: &Option<Rc<dyn Fn(OpId)>>,
-    on_action_error: &Option<Rc<dyn Fn(OpId, Option<String>, String)>>,
+    on_action_error: &ActionErrorCallback,
     on_error: &Option<Rc<dyn Fn(String, bool)>>,
 ) {
     match msg {

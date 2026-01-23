@@ -151,7 +151,7 @@ pub fn main() {
     ui_core::runtime::init_widget_with_level(tracing::Level::DEBUG);
 
     // Mount the app
-    let _ = mount_to_body(RootApp);
+    mount_to_body(RootApp);
 }
 
 /// Root application component with mode switching

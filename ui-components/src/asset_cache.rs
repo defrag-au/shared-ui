@@ -102,8 +102,8 @@ pub fn AssetCache(
         for url in urls {
             let loaded = Rc::clone(&loaded);
             let failed = Rc::clone(&failed);
-            let on_ready = on_ready.clone();
-            let on_progress = on_progress.clone();
+            let on_ready = on_ready;
+            let on_progress = on_progress;
 
             spawn_local(async move {
                 let success = match image_cache::preload_image(url.clone()).await {
@@ -145,5 +145,4 @@ pub fn AssetCache(
     });
 
     // Non-visual component - renders nothing
-    view! {}
 }

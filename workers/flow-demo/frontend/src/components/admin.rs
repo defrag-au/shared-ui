@@ -19,13 +19,10 @@ pub fn AdminPanel(
 
             <Show
                 when=move || confirming.get()
-                fallback={
-                    let set_confirming = set_confirming;
-                    move || view! {
-                        <button class="btn btn-warning" on:click=move |_| set_confirming.set(true)>
-                            "Reset Game"
-                        </button>
-                    }
+                fallback=move || view! {
+                    <button class="btn btn-warning" on:click=move |_| set_confirming.set(true)>
+                        "Reset Game"
+                    </button>
                 }
             >
                 {

@@ -115,14 +115,8 @@ pub fn MemoryCard(
                 // Back (card face - shown when flipped)
                 <div class="memory-card__back">
                     <AssetCard
-                        asset_id=Signal::derive({
-                            let asset_id = asset_id.clone();
-                            move || asset_id.as_ref().map(|a| a.get()).unwrap_or_default()
-                        })
-                        name=Signal::derive({
-                            let name = name.clone();
-                            move || name.as_ref().map(|n| n.get()).unwrap_or_default()
-                        })
+                        asset_id=Signal::derive(move || asset_id.as_ref().map(|a| a.get()).unwrap_or_default())
+                        name=Signal::derive(move || name.as_ref().map(|n| n.get()).unwrap_or_default())
                         size=size
                         is_static=true
                         on_load=move |()| {

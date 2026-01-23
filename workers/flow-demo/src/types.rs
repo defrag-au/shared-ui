@@ -332,38 +332,6 @@ impl TurnState {
             other => other.clone(),
         }
     }
-
-    /// Check if the timer has expired and we should resolve the turn.
-    /// Returns true if in BothReady state and enough time has passed.
-    pub fn should_resolve(&self, now: u64, delay_ms: u64) -> bool {
-        matches!(
-            self,
-            TurnState::BothReady { ready_at, .. } if now >= ready_at + delay_ms
-        )
-    }
-
-    /// Get the flipped card IDs (if any) for rendering
-    pub fn flipped_card_ids(&self) -> Vec<CardId> {
-        match self {
-            TurnState::AwaitingFirst => vec![],
-            TurnState::FirstFlipped { card_id, .. } => vec![card_id.clone()],
-            TurnState::SecondFlipped { first, second, .. } => vec![first.clone(), second.clone()],
-            TurnState::BothReady { first, second, .. } => vec![first.clone(), second.clone()],
-        }
-    }
-
-    /// Check if we're waiting for any ACKs
-    pub fn awaiting_acks(&self) -> bool {
-        match self {
-            TurnState::FirstFlipped { acked, .. } => !acked,
-            TurnState::SecondFlipped {
-                first_acked,
-                second_acked,
-                ..
-            } => !first_acked || !second_acked,
-            _ => false,
-        }
-    }
 }
 
 /// A card on the game board
@@ -421,13 +389,6 @@ pub struct MemoryGameState {
     pub turn_state: TurnState,
     /// Host user_id (can change settings)
     pub host: Option<String>,
-}
-
-impl MemoryGameState {
-    /// Get currently flipped card IDs (convenience method)
-    pub fn flipped_card_ids(&self) -> Vec<CardId> {
-        self.turn_state.flipped_card_ids()
-    }
 }
 
 /// Card face data sent to clients when a card is revealed

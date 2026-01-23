@@ -8,16 +8,11 @@ use crate::types::*;
 
 /// Helper trait for looking up cards by CardId
 trait CardLookup {
-    fn find_card_index(&self, card_id: &CardId) -> Option<usize>;
     fn find_card(&self, card_id: &CardId) -> Option<&Card>;
     fn find_card_mut(&mut self, card_id: &CardId) -> Option<&mut Card>;
 }
 
 impl CardLookup for Vec<Card> {
-    fn find_card_index(&self, card_id: &CardId) -> Option<usize> {
-        self.iter().position(|c| &c.card_id == card_id)
-    }
-
     fn find_card(&self, card_id: &CardId) -> Option<&Card> {
         self.iter().find(|c| &c.card_id == card_id)
     }
@@ -426,7 +421,7 @@ impl MemoryGameSessionDO {
     async fn handle_set_config(
         &self,
         ws: &WebSocket,
-        conn: &ConnectionInfo,
+        _conn: &ConnectionInfo,
         op_id: OpId,
         mode: Option<GameMode>,
         grid_size: Option<(u8, u8)>,
@@ -737,7 +732,7 @@ impl MemoryGameSessionDO {
     async fn handle_ack_card_loaded(
         &self,
         ws: &WebSocket,
-        conn: &ConnectionInfo,
+        _conn: &ConnectionInfo,
         op_id: OpId,
         card_id: CardId,
     ) -> Result<()> {
