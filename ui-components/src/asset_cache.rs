@@ -43,8 +43,7 @@ impl AssetCache {
 
     /// Build the IIIF thumbnail URL for an asset (400px thumb)
     fn build_image_url(policy_id: &str, asset_name_hex: &str) -> String {
-        let full_id = format!("{policy_id}{asset_name_hex}");
-        format!("https://img.pfp.city/{policy_id}/iiif/{full_id}/full/400,/0/default.png")
+        format!("https://iiif.hodlcroft.com/iiif/3/{policy_id}:{asset_name_hex}/full/400,/0/default.jpg")
     }
 
     /// Dispatch a custom event with detail object

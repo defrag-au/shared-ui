@@ -24,6 +24,7 @@ enum Story {
     // Components
     ImageCardComponent,
     AssetCardComponent,
+    AssetCacheComponent,
     ConnectionStatusComponent,
     MemoryCardComponent,
     // Wallet Core
@@ -51,6 +52,7 @@ impl Story {
             Story::EventHandlers,
             Story::ImageCardComponent,
             Story::AssetCardComponent,
+            Story::AssetCacheComponent,
             Story::ConnectionStatusComponent,
             Story::MemoryCardComponent,
             Story::WalletProviders,
@@ -74,6 +76,7 @@ impl Story {
             Story::EventHandlers => "Event Handlers",
             Story::ImageCardComponent => "Image Card",
             Story::AssetCardComponent => "Asset Card",
+            Story::AssetCacheComponent => "Asset Cache",
             Story::ConnectionStatusComponent => "Connection Status",
             Story::MemoryCardComponent => "Memory Card",
             Story::WalletProviders => "Wallet Providers",
@@ -97,6 +100,7 @@ impl Story {
             | Story::EventHandlers => "Primitives",
             Story::ImageCardComponent
             | Story::AssetCardComponent
+            | Story::AssetCacheComponent
             | Story::ConnectionStatusComponent
             | Story::MemoryCardComponent => "Components",
             Story::WalletProviders | Story::ConnectionStates => "Wallet Core",
@@ -224,6 +228,7 @@ fn render_story(story: Story) {
         Story::EventHandlers => stories::render_event_handlers_story(),
         Story::ImageCardComponent => stories::render_image_card_story(),
         Story::AssetCardComponent => stories::render_asset_card_story(),
+        Story::AssetCacheComponent => stories::render_asset_cache_story(),
         Story::ConnectionStatusComponent => stories::render_connection_status_story(),
         Story::MemoryCardComponent => stories::render_memory_card_story(),
         Story::WalletProviders => stories::render_wallet_providers_story(),
