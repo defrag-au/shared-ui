@@ -125,7 +125,7 @@ impl Default for GameConfig {
             grid_size: (6, 6),
             mode: GameMode::TurnTaking,
             policy_id: "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6".to_string(), // Black Flag
-            flip_delay_ms: 2500,
+            flip_delay_ms: 1200,
             shuffle_seed: 0,
         }
     }
