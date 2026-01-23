@@ -18,6 +18,7 @@
 //! ## Events
 //!
 //! - `card-click` - Dispatched when card is clicked (if not static)
+//! - `image-loaded` - Dispatched when the image has finished loading
 //!
 //! ## Usage
 //!
@@ -192,6 +193,16 @@ impl ImageCard {
             });
         }
     }
+
+    /// Setup image load handler to dispatch image-loaded event
+    fn setup_image_load_handler(&self, element: &HtmlElement) {
+        let (shadow, host) = primitives::get_shadow_and_host(element);
+        if let Ok(Some(img)) = shadow.query_selector(".image-card__image") {
+            primitives::setup_image_load_handler(&img, move || {
+                dispatch_event(&host, "image-loaded");
+            });
+        }
+    }
 }
 
 impl CustomElement for ImageCard {
@@ -237,11 +248,13 @@ impl CustomElement for ImageCard {
 
         render_to_shadow(this, &self.render_html());
         self.setup_click_handler(this);
+        self.setup_image_load_handler(this);
     }
 
     fn inject_children(&mut self, this: &HtmlElement) {
         render_to_shadow(this, &self.render_html());
         self.setup_click_handler(this);
+        self.setup_image_load_handler(this);
     }
 }
 

@@ -16,6 +16,7 @@
 //! ## Events
 //!
 //! - `card-click` - Dispatched when card is clicked (if not disabled)
+//! - `card-loaded` - Dispatched when the card's image has finished loading
 //!
 //! ## Usage
 //!
@@ -91,8 +92,7 @@ impl MemoryCard {
         let mut attrs = vec![
             format!(r#"asset-id="{}""#, html_escape(&self.asset_id)),
             "size=\"md\"".to_string(), // Medium size for game cards
-            "show-name".to_string(),
-            "static".to_string(), // Memory card handles its own click events
+            "static".to_string(),      // Memory card handles its own click events
         ];
 
         if !self.name.is_empty() {
@@ -140,6 +140,14 @@ impl MemoryCard {
             tracing::warn!("memory-card: .memory-card element NOT found in shadow DOM");
         }
     }
+
+    /// Setup image load handler to forward as card-loaded event
+    fn setup_image_load_handler(&self, element: &HtmlElement) {
+        let (shadow, host) = primitives::get_shadow_and_host(element);
+        if let Ok(Some(asset_card)) = shadow.query_selector("asset-card") {
+            primitives::forward_event(&asset_card, "image-loaded", &host, "card-loaded");
+        }
+    }
 }
 
 impl CustomElement for MemoryCard {
@@ -181,15 +189,17 @@ impl CustomElement for MemoryCard {
         }
 
         render_to_shadow(this, &self.render_html());
-        // Re-setup click handler since render_to_shadow replaces DOM content
+        // Re-setup handlers since render_to_shadow replaces DOM content
         self.setup_click_handler(this);
+        self.setup_image_load_handler(this);
     }
 
     fn inject_children(&mut self, this: &HtmlElement) {
         tracing::debug!("memory-card: inject_children called");
         render_to_shadow(this, &self.render_html());
-        tracing::debug!("memory-card: after render_to_shadow, calling setup_click_handler");
+        tracing::debug!("memory-card: after render_to_shadow, setting up handlers");
         self.setup_click_handler(this);
+        self.setup_image_load_handler(this);
         tracing::debug!("memory-card: inject_children complete");
     }
 }

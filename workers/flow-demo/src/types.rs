@@ -124,7 +124,7 @@ impl Default for GameConfig {
             grid_size: (6, 6),
             mode: GameMode::TurnTaking,
             policy_id: "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6".to_string(), // Black Flag
-            flip_delay_ms: 1500,
+            flip_delay_ms: 2500,
             shuffle_seed: 0,
         }
     }
@@ -154,6 +154,186 @@ impl Default for GamePhase {
         Self::Lobby {
             min_players: 1,
             max_players: 8,
+        }
+    }
+}
+
+// =============================================================================
+// Turn State Machine (for turn-taking mode)
+// =============================================================================
+
+/// Finite state machine for a single turn's flip/match cycle.
+///
+/// This cleanly models the valid states and transitions during card flipping,
+/// ensuring we don't start timers until images are loaded.
+///
+/// ```text
+///                              ┌─────────────────┐
+///                              │ AwaitingFirst   │ ◄── Turn starts here
+///                              └────────┬────────┘
+///                                       │ FlipCard(idx)
+///                                       ▼
+///                              ┌─────────────────┐
+///                              │ FirstFlipped    │
+///                              │ { idx, acked }  │
+///                              └────────┬────────┘
+///                                       │ AckCardLoaded (acked=true)
+///                                       │ then FlipCard(idx2)
+///                                       ▼
+///                              ┌─────────────────┐
+///                              │ SecondFlipped   │
+///                              │ { first, second,│
+///                              │   first_acked,  │
+///                              │   second_acked }│
+///                              └────────┬────────┘
+///                                       │ Both acked
+///                                       ▼
+///                              ┌─────────────────┐
+///                              │ BothReady       │
+///                              │ { first, second,│
+///                              │   is_match }    │ ◄── Timer starts HERE
+///                              └────────┬────────┘
+///                                       │ Timer expires OR match handled
+///                                       ▼
+///                              ┌─────────────────┐
+///                              │ AwaitingFirst   │ (next turn)
+///                              └─────────────────┘
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum TurnState {
+    /// Waiting for the current player to flip their first card
+    AwaitingFirst,
+
+    /// First card has been flipped, waiting for ACK and/or second flip
+    FirstFlipped { index: usize, acked: bool },
+
+    /// Second card has been flipped, waiting for both ACKs
+    SecondFlipped {
+        first: usize,
+        second: usize,
+        first_acked: bool,
+        second_acked: bool,
+    },
+
+    /// Both cards flipped and ACKed - timer is running
+    BothReady {
+        first: usize,
+        second: usize,
+        is_match: bool,
+        /// Timestamp when both became ready (timer started)
+        ready_at: u64,
+    },
+}
+
+impl Default for TurnState {
+    fn default() -> Self {
+        Self::AwaitingFirst
+    }
+}
+
+impl TurnState {
+    /// Handle a card flip action. Returns the new state, or None if invalid.
+    pub fn on_flip(&self, index: usize) -> Option<TurnState> {
+        match self {
+            TurnState::AwaitingFirst => Some(TurnState::FirstFlipped {
+                index,
+                acked: false,
+            }),
+
+            TurnState::FirstFlipped {
+                index: first,
+                acked,
+            } => {
+                if index == *first {
+                    None // Can't flip same card twice
+                } else {
+                    Some(TurnState::SecondFlipped {
+                        first: *first,
+                        second: index,
+                        first_acked: *acked,
+                        second_acked: false,
+                    })
+                }
+            }
+
+            // Can't flip more cards until turn resolves
+            TurnState::SecondFlipped { .. } | TurnState::BothReady { .. } => None,
+        }
+    }
+
+    /// Handle a card ACK. Returns the new state.
+    /// If both cards are now acked, transitions to BothReady with match info.
+    pub fn on_ack(&self, index: usize, is_match: bool, now: u64) -> TurnState {
+        match self {
+            TurnState::FirstFlipped {
+                index: first,
+                acked: _,
+            } if index == *first => TurnState::FirstFlipped {
+                index: *first,
+                acked: true,
+            },
+
+            TurnState::SecondFlipped {
+                first,
+                second,
+                first_acked,
+                second_acked,
+            } => {
+                let new_first_acked = *first_acked || index == *first;
+                let new_second_acked = *second_acked || index == *second;
+
+                if new_first_acked && new_second_acked {
+                    TurnState::BothReady {
+                        first: *first,
+                        second: *second,
+                        is_match,
+                        ready_at: now,
+                    }
+                } else {
+                    TurnState::SecondFlipped {
+                        first: *first,
+                        second: *second,
+                        first_acked: new_first_acked,
+                        second_acked: new_second_acked,
+                    }
+                }
+            }
+
+            // Ignore ACKs in other states
+            other => other.clone(),
+        }
+    }
+
+    /// Check if the timer has expired and we should resolve the turn.
+    /// Returns true if in BothReady state and enough time has passed.
+    pub fn should_resolve(&self, now: u64, delay_ms: u64) -> bool {
+        matches!(
+            self,
+            TurnState::BothReady { ready_at, .. } if now >= ready_at + delay_ms
+        )
+    }
+
+    /// Get the flipped card indices (if any) for rendering
+    pub fn flipped_indices(&self) -> Vec<usize> {
+        match self {
+            TurnState::AwaitingFirst => vec![],
+            TurnState::FirstFlipped { index, .. } => vec![*index],
+            TurnState::SecondFlipped { first, second, .. } => vec![*first, *second],
+            TurnState::BothReady { first, second, .. } => vec![*first, *second],
+        }
+    }
+
+    /// Check if we're waiting for any ACKs
+    pub fn awaiting_acks(&self) -> bool {
+        match self {
+            TurnState::FirstFlipped { acked, .. } => !acked,
+            TurnState::SecondFlipped {
+                first_acked,
+                second_acked,
+                ..
+            } => !first_acked || !second_acked,
+            _ => false,
         }
     }
 }
@@ -207,12 +387,17 @@ pub struct MemoryGameState {
     pub turn_order: Vec<String>,
     /// Index into turn_order for current player
     pub current_turn: usize,
-    /// Currently flipped cards (turn-taking mode - shared view)
-    pub shared_flipped: Vec<usize>,
-    /// Timestamp when cards were flipped (for auto-flip-back timer)
-    pub flip_time: Option<u64>,
+    /// Turn state machine (turn-taking mode) - tracks flip/ack/match cycle
+    pub turn_state: TurnState,
     /// Host user_id (can change settings)
     pub host: Option<String>,
+}
+
+impl MemoryGameState {
+    /// Get currently flipped card indices (convenience method)
+    pub fn flipped_indices(&self) -> Vec<usize> {
+        self.turn_state.flipped_indices()
+    }
 }
 
 /// Card face data sent to clients when a card is revealed
@@ -361,6 +546,8 @@ pub enum MemoryAction {
     StartGame,
     /// Flip a card at the given index
     FlipCard { index: usize },
+    /// Acknowledge that a flipped card's image has loaded (starts flip-back timer)
+    AckCardLoaded { index: usize },
     /// Request a rematch after game ends
     RequestRematch,
     /// Reset entire game state (admin)

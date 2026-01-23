@@ -96,6 +96,11 @@ impl DurableObject for MemoryGameSessionDO {
         }
         Ok(())
     }
+
+    async fn alarm(&self) -> Result<Response> {
+        self.handle_flip_timer_expired().await?;
+        Response::ok("OK")
+    }
 }
 
 impl MemoryGameSessionDO {
@@ -279,6 +284,9 @@ impl MemoryGameSessionDO {
             }
             MemoryAction::FlipCard { index } => {
                 self.handle_flip_card(ws, conn, op_id, index).await?;
+            }
+            MemoryAction::AckCardLoaded { index } => {
+                self.handle_ack_card_loaded(ws, conn, op_id, index).await?;
             }
             MemoryAction::RequestRematch => {
                 self.handle_request_rematch(ws, conn, op_id).await?;
@@ -485,8 +493,7 @@ impl MemoryGameSessionDO {
 
         state.current_turn = 0;
         state.phase = GamePhase::Playing;
-        state.shared_flipped.clear();
-        state.flip_time = None;
+        state.turn_state = TurnState::AwaitingFirst;
 
         // Reset player scores
         for player in state.players.values_mut() {
@@ -577,98 +584,148 @@ impl MemoryGameSessionDO {
             return Ok(());
         }
 
-        // Can't flip same card twice
-        if state.shared_flipped.contains(&index) {
-            self.send_action_error(ws, op_id, "Card already flipped")
+        // Use FSM to validate and transition
+        let new_turn_state = match state.turn_state.on_flip(index) {
+            Some(s) => s,
+            None => {
+                self.send_action_error(ws, op_id, "Invalid flip action")
+                    .await;
+                return Ok(());
+            }
+        };
+
+        // Card must not already be matched
+        if state.cards[index].matched {
+            self.send_action_error(ws, op_id, "Card already matched")
                 .await;
             return Ok(());
         }
 
-        // Can only have 2 cards flipped
-        if state.shared_flipped.len() >= 2 {
-            self.send_action_error(ws, op_id, "Two cards already flipped")
-                .await;
-            return Ok(());
-        }
+        state.turn_state = new_turn_state;
 
-        // Flip the card
-        state.shared_flipped.push(index);
+        // Broadcast the flip
         let card = &state.cards[index];
         let face = CardFace::from(card);
 
         let delta = MemoryDelta::CardFlipped {
             index,
             by: conn.user_id.clone(),
-            face: face.clone(),
+            face,
         };
         self.broadcast_delta(delta).await;
 
-        // Check if we have two cards flipped
-        if state.shared_flipped.len() == 2 {
-            let idx1 = state.shared_flipped[0];
-            let idx2 = state.shared_flipped[1];
+        self.save_game_state(state).await;
+        self.send_action_ok(ws, op_id).await;
 
-            let pair_match = state.cards[idx1].pair_id == state.cards[idx2].pair_id;
+        Ok(())
+    }
 
-            if pair_match {
-                // Mark cards as matched
-                state.cards[idx1].matched = true;
-                state.cards[idx1].matched_by = Some(conn.user_id.clone());
-                state.cards[idx2].matched = true;
-                state.cards[idx2].matched_by = Some(conn.user_id.clone());
+    /// Handle ACK that a card's image has loaded on the client.
+    /// This advances the turn state FSM and may trigger the flip-back timer.
+    async fn handle_ack_card_loaded(
+        &self,
+        ws: &WebSocket,
+        conn: &ConnectionInfo,
+        op_id: OpId,
+        index: usize,
+    ) -> Result<()> {
+        let mut state = self.get_game_state().await;
 
-                // Update score
-                if let Some(player) = state.players.get_mut(&conn.user_id) {
-                    player.score += 1;
+        // Must be playing
+        if !matches!(state.phase, GamePhase::Playing) {
+            self.send_action_error(ws, op_id, "Game is not in progress")
+                .await;
+            return Ok(());
+        }
+
+        // Only turn-taking mode uses this ACK flow for now
+        if state.config.mode != GameMode::TurnTaking {
+            self.send_action_ok(ws, op_id).await;
+            return Ok(());
+        }
+
+        // Compute if it's a match (needed for FSM transition)
+        let is_match = match &state.turn_state {
+            TurnState::SecondFlipped { first, second, .. } => {
+                state.cards[*first].pair_id == state.cards[*second].pair_id
+            }
+            _ => false,
+        };
+
+        tracing::info!(
+            index,
+            is_match,
+            turn_state = ?state.turn_state,
+            "AckCardLoaded received"
+        );
+
+        // Advance FSM with ACK
+        let new_turn_state = state.turn_state.on_ack(index, is_match, now());
+        let was_both_ready = matches!(new_turn_state, TurnState::BothReady { .. });
+
+        tracing::info!(?new_turn_state, was_both_ready, "After FSM transition");
+
+        state.turn_state = new_turn_state;
+
+        // If we just transitioned to BothReady, handle match/no-match resolution
+        if was_both_ready {
+            if let TurnState::BothReady {
+                first,
+                second,
+                is_match,
+                ..
+            } = &state.turn_state
+            {
+                let first = *first;
+                let second = *second;
+                let is_match = *is_match;
+
+                if is_match {
+                    tracing::info!(first, second, "Match found - resolving immediately");
+                    // Use the current turn player, not the ACK sender
+                    let current_player_id = state.turn_order.get(state.current_turn).cloned();
+                    self.resolve_match(&mut state, first, second, current_player_id.as_deref())
+                        .await;
+                } else {
+                    // Schedule the flip-back after delay using Duration
+                    let delay_ms = state.config.flip_delay_ms;
+                    let duration = std::time::Duration::from_millis(delay_ms);
+                    tracing::info!(?duration, "No match - scheduling alarm");
+                    match self.state.storage().set_alarm(duration).await {
+                        Ok(_) => tracing::info!("Alarm set successfully"),
+                        Err(e) => tracing::error!("Failed to set alarm: {:?}", e),
+                    }
                 }
+            }
+        }
 
-                let new_score = state
-                    .players
-                    .get(&conn.user_id)
-                    .map(|p| p.score)
-                    .unwrap_or(0);
-                let user_name = state
-                    .players
-                    .get(&conn.user_id)
-                    .map(|p| p.user_name.clone())
-                    .unwrap_or_default();
+        self.save_game_state(&state).await;
+        self.send_action_ok(ws, op_id).await;
 
-                let delta = MemoryDelta::PairMatched {
-                    indices: [idx1, idx2],
-                    by: conn.user_id.clone(),
-                    by_name: user_name.clone(),
-                    new_score,
-                    face,
-                };
-                self.broadcast_delta(delta).await;
+        Ok(())
+    }
 
-                // Broadcast match event
-                let event = MemoryEvent::MatchFound {
-                    player_name: user_name,
-                    pair_name: state.cards[idx1].name.clone(),
-                };
-                self.broadcast_event("game", event).await;
+    /// Handle the flip timer expiring - flip cards back and advance turn
+    async fn handle_flip_timer_expired(&self) -> Result<()> {
+        tracing::info!("Alarm fired - handle_flip_timer_expired called");
+        let mut state = self.get_game_state().await;
+        tracing::info!(turn_state = ?state.turn_state, "Current turn state in alarm handler");
 
-                // Clear flipped (player gets another turn)
-                state.shared_flipped.clear();
-
-                // Check for game end
-                if state.cards.iter().all(|c| c.matched) {
-                    self.end_game(state).await;
-                }
-            } else {
-                // No match - schedule flip back
-                state.flip_time = Some(now());
-
-                // For now, immediately flip back and advance turn
-                // In a real implementation, we'd use an alarm or client-side timer
+        // Only process if we're in BothReady state with a non-match
+        if let TurnState::BothReady {
+            first,
+            second,
+            is_match,
+            ..
+        } = state.turn_state
+        {
+            if !is_match {
+                // Flip cards back
                 let delta = MemoryDelta::CardsReset {
-                    indices: [idx1, idx2],
+                    indices: [first, second],
                     for_player: None,
                 };
                 self.broadcast_delta(delta).await;
-
-                state.shared_flipped.clear();
 
                 // Advance turn
                 state.current_turn = (state.current_turn + 1) % state.turn_order.len();
@@ -678,13 +735,73 @@ impl MemoryGameSessionDO {
                     user_id: next_player,
                 };
                 self.broadcast_delta(delta).await;
+
+                // Reset turn state for next player
+                state.turn_state = TurnState::AwaitingFirst;
+
+                self.save_game_state(&state).await;
             }
         }
 
-        self.save_game_state(state).await;
-        self.send_action_ok(ws, op_id).await;
-
         Ok(())
+    }
+
+    /// Resolve a successful match - mark cards, update score, check game end
+    async fn resolve_match(
+        &self,
+        state: &mut MemoryGameState,
+        first: usize,
+        second: usize,
+        player_id: Option<&str>,
+    ) {
+        let player_id = match player_id {
+            Some(id) => id.to_string(),
+            None => return, // No player to credit
+        };
+
+        // Mark cards as matched
+        state.cards[first].matched = true;
+        state.cards[first].matched_by = Some(player_id.clone());
+        state.cards[second].matched = true;
+        state.cards[second].matched_by = Some(player_id.clone());
+
+        // Update score
+        if let Some(player) = state.players.get_mut(&player_id) {
+            player.score += 1;
+        }
+
+        let new_score = state.players.get(&player_id).map(|p| p.score).unwrap_or(0);
+        let user_name = state
+            .players
+            .get(&player_id)
+            .map(|p| p.user_name.clone())
+            .unwrap_or_default();
+
+        let face = CardFace::from(&state.cards[first]);
+
+        let delta = MemoryDelta::PairMatched {
+            indices: [first, second],
+            by: player_id.clone(),
+            by_name: user_name.clone(),
+            new_score,
+            face,
+        };
+        self.broadcast_delta(delta).await;
+
+        // Broadcast match event
+        let event = MemoryEvent::MatchFound {
+            player_name: user_name,
+            pair_name: state.cards[first].name.clone(),
+        };
+        self.broadcast_event("game", event).await;
+
+        // Reset turn state (player gets another turn)
+        state.turn_state = TurnState::AwaitingFirst;
+
+        // Check for game end
+        if state.cards.iter().all(|c| c.matched) {
+            self.end_game(state).await;
+        }
     }
 
     async fn handle_flip_race(
@@ -873,8 +990,7 @@ impl MemoryGameSessionDO {
         state.cards.clear();
         state.turn_order.clear();
         state.current_turn = 0;
-        state.shared_flipped.clear();
-        state.flip_time = None;
+        state.turn_state = TurnState::AwaitingFirst;
 
         // Reset player states but keep players
         for player in state.players.values_mut() {

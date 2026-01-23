@@ -94,3 +94,94 @@ where
     let _ = element.add_event_listener_with_callback("blur", closure.as_ref().unchecked_ref());
     closure.forget();
 }
+
+/// Generic event listener for any event type
+///
+/// # Example
+/// ```ignore
+/// on_event(&element, "custom-event", |_: web_sys::Event| {
+///     // handle event
+/// });
+/// ```
+pub fn on_event<F>(element: &Element, event_name: &str, handler: F)
+where
+    F: Fn(web_sys::Event) + 'static,
+{
+    let closure = Closure::wrap(Box::new(handler) as Box<dyn Fn(_)>);
+    let _ = element.add_event_listener_with_callback(event_name, closure.as_ref().unchecked_ref());
+    closure.forget();
+}
+
+/// Forward an event from a source element to a target element, optionally renaming it.
+///
+/// This is useful for bubbling events up through nested web components.
+///
+/// # Example
+/// ```ignore
+/// // Forward "image-loaded" from nested component as "card-loaded" on host
+/// forward_event(&nested_element, "image-loaded", &host_element, "card-loaded");
+/// ```
+pub fn forward_event(source: &Element, source_event: &str, target: &Element, target_event: &str) {
+    use crate::dispatch_event;
+
+    let target = target.clone();
+    let target_event = target_event.to_string();
+
+    on_event(source, source_event, move |_| {
+        dispatch_event(&target, &target_event);
+    });
+}
+
+/// Event listener for image load events with cached image handling.
+///
+/// Dispatches immediately if the image is already loaded (from cache),
+/// otherwise waits for the load event.
+///
+/// # Example
+/// ```ignore
+/// on_image_load(&img_element, || {
+///     dispatch_event(&host, "image-loaded");
+/// });
+/// ```
+pub fn on_image_load<F>(img: &web_sys::HtmlImageElement, handler: F)
+where
+    F: Fn() + Clone + 'static,
+{
+    // Set up load event listener
+    let handler_clone = handler.clone();
+    let closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
+        handler_clone();
+    }) as Box<dyn Fn(_)>);
+
+    let _ = img.add_event_listener_with_callback("load", closure.as_ref().unchecked_ref());
+    closure.forget();
+
+    // Check if already loaded (cached image)
+    if img.complete() && img.natural_width() > 0 {
+        handler();
+    }
+}
+
+/// Try to get an image element from a generic element and set up load handling.
+///
+/// Returns true if the element was an image and the handler was set up.
+///
+/// # Example
+/// ```ignore
+/// if let Ok(Some(img)) = shadow.query_selector(".image-card__image") {
+///     setup_image_load_handler(&img, || {
+///         dispatch_event(&host, "image-loaded");
+///     });
+/// }
+/// ```
+pub fn setup_image_load_handler<F>(element: &Element, handler: F) -> bool
+where
+    F: Fn() + Clone + 'static,
+{
+    if let Some(img) = element.dyn_ref::<web_sys::HtmlImageElement>() {
+        on_image_load(img, handler);
+        true
+    } else {
+        false
+    }
+}

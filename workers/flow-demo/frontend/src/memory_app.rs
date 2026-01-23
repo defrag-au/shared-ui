@@ -101,6 +101,42 @@ pub struct PlayerState {
     pub joined_at: u64,
 }
 
+/// Turn state machine - mirrors server's TurnState
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum TurnState {
+    #[default]
+    AwaitingFirst,
+    FirstFlipped {
+        index: usize,
+        acked: bool,
+    },
+    SecondFlipped {
+        first: usize,
+        second: usize,
+        first_acked: bool,
+        second_acked: bool,
+    },
+    BothReady {
+        first: usize,
+        second: usize,
+        is_match: bool,
+        ready_at: u64,
+    },
+}
+
+impl TurnState {
+    /// Get the flipped card indices for display
+    pub fn flipped_indices(&self) -> Vec<usize> {
+        match self {
+            TurnState::AwaitingFirst => vec![],
+            TurnState::FirstFlipped { index, .. } => vec![*index],
+            TurnState::SecondFlipped { first, second, .. } => vec![*first, *second],
+            TurnState::BothReady { first, second, .. } => vec![*first, *second],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MemoryGameState {
     pub config: GameConfig,
@@ -109,9 +145,15 @@ pub struct MemoryGameState {
     pub players: HashMap<String, PlayerState>,
     pub turn_order: Vec<String>,
     pub current_turn: usize,
-    pub shared_flipped: Vec<usize>,
-    pub flip_time: Option<u64>,
+    pub turn_state: TurnState,
     pub host: Option<String>,
+}
+
+impl MemoryGameState {
+    /// Get currently flipped card indices (convenience method)
+    pub fn flipped_indices(&self) -> Vec<usize> {
+        self.turn_state.flipped_indices()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -222,6 +264,9 @@ pub enum MemoryAction {
     },
     StartGame,
     FlipCard {
+        index: usize,
+    },
+    AckCardLoaded {
         index: usize,
     },
     RequestRematch,
@@ -440,11 +485,11 @@ pub fn MemoryApp() -> impl IntoView {
                     // Card is visible if:
                     // 1. It's matched
                     // 2. It's in revealed_faces (server confirmed flip)
-                    // 3. In turn-taking mode and it's in shared_flipped
+                    // 3. In turn-taking mode and it's in turn_state flipped
                     let is_matched = card.matched;
                     let is_revealed = revealed.contains_key(&idx);
                     let is_shared_flipped = state.config.mode == ServerGameMode::TurnTaking
-                        && state.shared_flipped.contains(&idx);
+                        && state.flipped_indices().contains(&idx);
                     let is_local_flipped = local.contains(&idx);
 
                     let visible =
@@ -479,7 +524,7 @@ pub fn MemoryApp() -> impl IntoView {
     let flipped_indices = Signal::derive(move || {
         let state = game_state.get();
         let local = local_flipped.get();
-        let mut indices = state.shared_flipped.clone();
+        let mut indices = state.flipped_indices();
         for idx in local {
             if !indices.contains(&idx) {
                 indices.push(idx);
@@ -555,6 +600,7 @@ pub fn MemoryApp() -> impl IntoView {
 
                     GamePhase::Playing => {
                         let send_flip = send_action.clone();
+                        let send_ack = send_action.clone();
 
                         view! {
                             <div class="game-playing">
@@ -572,6 +618,10 @@ pub fn MemoryApp() -> impl IntoView {
                                                 }
                                             });
                                             send_flip(MemoryAction::FlipCard { index: idx });
+                                        }
+                                        on_card_loaded=move |idx: usize| {
+                                            // ACK that card image has loaded - starts flip-back timer
+                                            send_ack(MemoryAction::AckCardLoaded { index: idx });
                                         }
                                         disabled=Signal::derive(move || status.get() != ConnectionStatus::Connected)
                                     />
@@ -769,11 +819,26 @@ fn apply_delta(
             set_revealed_faces.update(|m| {
                 m.insert(index, face);
             });
-            // Update shared_flipped
-            set_game_state.update(|s| {
-                if !s.shared_flipped.contains(&index) {
-                    s.shared_flipped.push(index);
+            // Update turn_state to reflect the flip
+            set_game_state.update(|s| match &s.turn_state {
+                TurnState::AwaitingFirst => {
+                    s.turn_state = TurnState::FirstFlipped {
+                        index,
+                        acked: false,
+                    };
                 }
+                TurnState::FirstFlipped {
+                    index: first,
+                    acked,
+                } => {
+                    s.turn_state = TurnState::SecondFlipped {
+                        first: *first,
+                        second: index,
+                        first_acked: *acked,
+                        second_acked: false,
+                    };
+                }
+                _ => {}
             });
             // Clear from local flipped (server confirmed)
             set_local_flipped.update(|v| {
@@ -818,8 +883,8 @@ fn apply_delta(
                 if let Some(player) = s.players.get_mut(&by) {
                     player.score = new_score;
                 }
-                // Clear shared flipped
-                s.shared_flipped.clear();
+                // Reset turn state (player gets another turn)
+                s.turn_state = TurnState::AwaitingFirst;
             });
             // Clear revealed faces for these cards (they stay visible as matched)
             set_revealed_faces.update(|m| {
@@ -840,9 +905,9 @@ fn apply_delta(
                     m.remove(&idx);
                 }
             });
-            // Clear shared flipped
+            // Reset turn state (next player's turn)
             set_game_state.update(|s| {
-                s.shared_flipped.clear();
+                s.turn_state = TurnState::AwaitingFirst;
             });
             set_local_flipped.set(Vec::new());
         }
