@@ -21,19 +21,81 @@ Both patterns share connection management, authentication, and serialization inf
 
 ## Protocol Messages
 
-All messages are MessagePack-encoded binary frames.
+All messages are MessagePack-encoded binary frames using u16 integer tags for efficient wire format and extensibility.
+
+### Message Tag Ranges
+
+Tags are organized into logical ranges for clarity and future expansion:
+
+| Range | Category | Notes |
+|-------|----------|-------|
+| 0-999 | Core protocol | Connection lifecycle, errors |
+| 1000-1999 | State sync | Snapshots, deltas |
+| 2000-2999 | Presence | User presence tracking |
+| 3000-3999 | Signalling | WebRTC connection setup |
+| 4000-4999 | Notifications | Application events |
+| 5000-5999 | Action feedback | Optimistic UI support |
+| 6000-65535 | Reserved | Future protocol extensions |
+
+This gives ~60,000 slots for future expansion while keeping related messages grouped.
 
 ### Server → Client
 
 ```rust
+use serde_repr::{Serialize_repr, Deserialize_repr};
+
+/// Message type tag for ServerMessage variants
+#[derive(Serialize_repr, Deserialize_repr, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum ServerTag {
+    // Core protocol (0-999)
+    Connected = 0,
+    Pong = 1,
+    Error = 2,
+    
+    // State sync (1000-1999)
+    Snapshot = 1000,
+    Delta = 1001,
+    Deltas = 1002,
+    
+    // Presence (2000-2999)
+    Presence = 2000,
+    
+    // WebRTC signalling (3000-3999)
+    Signal = 3000,
+    
+    // Notifications (4000-4999)
+    Notify = 4000,
+    
+    // Action feedback (5000-5999)
+    Progress = 5000,
+    ActionOk = 5001,
+    ActionErr = 5002,
+}
+
+/// Server-to-client message
+/// 
+/// Generic over:
+/// - `State`: Full state type for snapshots
+/// - `Delta`: Incremental state change type
+/// - `Event`: Application-specific event type (flows through Notify)
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "t", rename_all = "snake_case")]
-pub enum ServerMessage<State, Delta, Event> {
+pub struct ServerMessage<State, Delta, Event> {
+    /// Message type tag (u16)
+    pub t: ServerTag,
+    /// Message payload (variant-specific)
+    #[serde(flatten)]
+    pub payload: ServerPayload<State, Delta, Event>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ServerPayload<State, Delta, Event> {
     // ─────────────────────────────────────────────────────────────
-    // Connection Lifecycle
+    // Connection Lifecycle (0-999)
     // ─────────────────────────────────────────────────────────────
     
-    /// Connection established, server ready
+    /// Connection established, server ready (tag: 0)
     Connected {
         /// Protocol version for compatibility checking
         protocol_version: u8,
@@ -41,7 +103,7 @@ pub enum ServerMessage<State, Delta, Event> {
         connection_id: String,
     },
     
-    /// Response to client ping
+    /// Response to client ping (tag: 1)
     Pong {
         /// Echo back the client's timestamp for latency measurement
         client_ts: u64,
@@ -49,11 +111,21 @@ pub enum ServerMessage<State, Delta, Event> {
         server_ts: u64,
     },
     
+    /// Server-initiated error (tag: 2)
+    Error {
+        /// Error code
+        code: Option<String>,
+        /// Error message
+        message: String,
+        /// Whether client should disconnect
+        fatal: bool,
+    },
+    
     // ─────────────────────────────────────────────────────────────
-    // State Synchronization (Snapshot + Delta)
+    // State Synchronization (1000-1999)
     // ─────────────────────────────────────────────────────────────
     
-    /// Full state snapshot - sent on connect and on resync requests
+    /// Full state snapshot - sent on connect and on resync requests (tag: 1000)
     Snapshot {
         /// Complete state
         state: State,
@@ -63,7 +135,7 @@ pub enum ServerMessage<State, Delta, Event> {
         timestamp: u64,
     },
     
-    /// Incremental state update
+    /// Incremental state update (tag: 1001)
     Delta {
         /// Changes to apply
         delta: Delta,
@@ -73,27 +145,61 @@ pub enum ServerMessage<State, Delta, Event> {
         timestamp: u64,
     },
     
+    /// Batched deltas for catch-up scenarios (tag: 1002)
+    Deltas {
+        /// Ordered list of deltas to apply
+        deltas: Vec<Delta>,
+        /// Final sequence number after all deltas applied
+        seq: u64,
+        /// Server timestamp
+        timestamp: u64,
+    },
+    
     // ─────────────────────────────────────────────────────────────
-    // Notifications (Domain Events)
+    // Presence (2000-2999)
     // ─────────────────────────────────────────────────────────────
     
-    /// Application event notification
+    /// Presence update - who's connected (tag: 2000)
+    Presence {
+        /// Users currently connected to this resource
+        users: Vec<PresenceInfo>,
+    },
+    
+    // ─────────────────────────────────────────────────────────────
+    // WebRTC Signalling (3000-3999)
+    // ─────────────────────────────────────────────────────────────
+    
+    /// WebRTC signalling message from another peer (tag: 3000)
+    Signal {
+        /// Source user ID
+        from_user_id: String,
+        /// Signalling payload
+        signal: SignalPayload,
+    },
+    
+    // ─────────────────────────────────────────────────────────────
+    // Notifications (4000-4999)
+    // ─────────────────────────────────────────────────────────────
+    
+    /// Application event notification (tag: 4000)
+    /// 
+    /// The `Event` type parameter allows applications to define their own
+    /// strongly-typed event enums. All application-specific events flow
+    /// through this single variant.
     Notify {
         /// Domain identifier (e.g., "world", "widget_bridge", "rewards")
         domain: String,
-        /// Event type within the domain
-        event_type: String,
-        /// Event payload (domain-specific)
+        /// Event payload - application-defined type
         event: Event,
         /// Optional correlation ID (links to triggering action)
         correlation_id: Option<OpId>,
     },
     
     // ─────────────────────────────────────────────────────────────
-    // Action Feedback (Optimistic UI)
+    // Action Feedback (5000-5999)
     // ─────────────────────────────────────────────────────────────
     
-    /// Progress update for an in-flight action
+    /// Progress update for an in-flight action (tag: 5000)
     Progress {
         op_id: OpId,
         /// Progress percentage (0-100), if determinable
@@ -102,14 +208,14 @@ pub enum ServerMessage<State, Delta, Event> {
         message: Option<String>,
     },
     
-    /// Action completed successfully
+    /// Action completed successfully (tag: 5001)
     ActionOk {
         op_id: OpId,
         /// Optional result data
         result: Option<serde_json::Value>,
     },
     
-    /// Action failed
+    /// Action failed (tag: 5002)
     ActionErr {
         op_id: OpId,
         /// Error code for programmatic handling
@@ -117,85 +223,169 @@ pub enum ServerMessage<State, Delta, Event> {
         /// Human-readable error message
         message: String,
     },
-    
-    // ─────────────────────────────────────────────────────────────
-    // Errors
-    // ─────────────────────────────────────────────────────────────
-    
-    /// Server-initiated error (not tied to specific action)
-    Error {
-        /// Error code
-        code: Option<String>,
-        /// Error message
-        message: String,
-        /// Whether client should disconnect
-        fatal: bool,
-    },
 }
 ```
 
 ### Client → Server
 
 ```rust
+/// Message type tag for ClientMessage variants
+#[derive(Serialize_repr, Deserialize_repr, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum ClientTag {
+    // Core protocol (0-999)
+    Ping = 0,
+    Resync = 1,
+    
+    // Actions (1000-1999)
+    Action = 1000,
+    
+    // Subscriptions (2000-2999)
+    Subscribe = 2000,
+    Unsubscribe = 2001,
+    
+    // WebRTC signalling (3000-3999)
+    Signal = 3000,
+}
+
+/// Client-to-server message
+/// 
+/// Generic over:
+/// - `Action`: Application-specific action type
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "t", rename_all = "snake_case")]
-pub enum ClientMessage<Action> {
+pub struct ClientMessage<Action> {
+    /// Message type tag (u16)
+    pub t: ClientTag,
+    /// Message payload (variant-specific)
+    #[serde(flatten)]
+    pub payload: ClientPayload<Action>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ClientPayload<Action> {
     // ─────────────────────────────────────────────────────────────
-    // Connection Lifecycle
+    // Connection Lifecycle (0-999)
     // ─────────────────────────────────────────────────────────────
     
-    /// Keepalive ping
+    /// Keepalive ping (tag: 0)
     Ping {
         /// Client timestamp for latency measurement
         ts: u64,
     },
     
-    /// Request state resynchronization
+    /// Request state resynchronization (tag: 1)
     Resync {
         /// Last known sequence number (server may send delta if close enough)
         last_seq: Option<u64>,
     },
     
     // ─────────────────────────────────────────────────────────────
-    // Actions
+    // Actions (1000-1999)
     // ─────────────────────────────────────────────────────────────
     
-    /// Client action with operation tracking
+    /// Client action with operation tracking (tag: 1000)
     Action {
         /// Operation ID for correlation
         op_id: OpId,
-        /// The action payload
+        /// The action payload - application-defined type
         action: Action,
     },
     
     // ─────────────────────────────────────────────────────────────
-    // Subscriptions
+    // Subscriptions (2000-2999)
     // ─────────────────────────────────────────────────────────────
     
-    /// Subscribe to notification domain(s)
+    /// Subscribe to notification domain(s) (tag: 2000)
     Subscribe {
         /// Domains to subscribe to
         domains: Vec<String>,
     },
     
-    /// Unsubscribe from notification domain(s)
+    /// Unsubscribe from notification domain(s) (tag: 2001)
     Unsubscribe {
         /// Domains to unsubscribe from
         domains: Vec<String>,
+    },
+    
+    // ─────────────────────────────────────────────────────────────
+    // WebRTC Signalling (3000-3999)
+    // ─────────────────────────────────────────────────────────────
+    
+    /// Send WebRTC signalling message to a peer (tag: 3000)
+    Signal {
+        /// Target user ID
+        target_user_id: String,
+        /// Signalling payload (offer, answer, ICE candidate)
+        signal: SignalPayload,
     },
 }
 ```
 
 ## Type Parameters
 
-The protocol is generic over three type parameters:
+The protocol is generic over four type parameters:
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
 | `State` | Full state for snapshots | `WorldSnapshot`, `GameState` |
 | `Delta` | Incremental state changes | `TickDelta`, `GameDelta` |
-| `Event` | Notification payloads | `WorldEvent`, `serde_json::Value` |
+| `Event` | Application-specific notifications | `WorldEvent`, `RewardEvent` |
 | `Action` | Client action payloads | `PlayerAction`, `Command` |
+
+### Application Events (the `Event` type)
+
+The protocol keeps its message types fixed - applications extend the protocol through the generic `Event` type parameter in the `Notify` variant. This means:
+
+- **Protocol is stable** - Adding new application events never requires protocol changes
+- **Type-safe events** - Applications define their event enum, getting compile-time type checking
+- **Domain routing** - The `domain` field in `Notify` allows event filtering/routing
+
+**Example application event type:**
+
+```rust
+/// Application-specific events for a game world
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum WorldEvent {
+    /// An encounter was completed
+    EncounterCompleted {
+        encounter_id: EntityId,
+        position: HexCoord,
+        loot: Vec<LootItem>,
+    },
+    
+    /// A reward was earned
+    RewardEarned {
+        user_id: String,
+        amount: u64,
+        source: RewardSource,
+    },
+    
+    /// Entity state changed (for notifications, not full delta sync)
+    EntityNotification {
+        entity_id: EntityId,
+        notification_type: String,
+        data: serde_json::Value,
+    },
+}
+
+// Usage: ServerMessage<WorldSnapshot, TickDelta, WorldEvent>
+```
+
+**For applications that need multiple event types**, use an outer enum:
+
+```rust
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "domain", rename_all = "snake_case")]
+pub enum AppEvent {
+    World(WorldEvent),
+    Rewards(RewardEvent),
+    System(SystemEvent),
+}
+```
+
+The `domain` field in `Notify` provides additional routing context but the event type itself can also carry domain information through its structure.
 
 ### FlowState Trait
 
@@ -207,6 +397,44 @@ pub trait FlowState: Clone + Default {
     
     /// Apply a delta to update the state
     fn apply_delta(&mut self, delta: Self::Delta);
+}
+```
+
+### Supporting Types
+
+```rust
+/// Presence information for a connected user
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PresenceInfo {
+    pub user_id: String,
+    /// Display name if available
+    pub name: Option<String>,
+    /// User's current status
+    pub status: PresenceStatus,
+    /// When they connected (unix ms)
+    pub connected_at: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub enum PresenceStatus {
+    Active,
+    Idle,
+    Away,
+}
+
+/// WebRTC signalling payload
+#[derive(Serialize, Deserialize, Clone)]
+pub enum SignalPayload {
+    /// SDP offer
+    Offer { sdp: String },
+    /// SDP answer
+    Answer { sdp: String },
+    /// ICE candidate
+    IceCandidate {
+        candidate: String,
+        sdp_mid: Option<String>,
+        sdp_m_line_index: Option<u16>,
+    },
 }
 ```
 
@@ -278,12 +506,32 @@ With MessagePack:
 - Simpler derive macros - just `#[derive(Serialize, Deserialize)]`
 - No `#[serde(with = "wasm_safe_serde::u64_required")]` annotations needed
 
+### Wire Format
+
+Messages are serialized as MessagePack maps with a `t` field (tag) followed by payload fields:
+
+```
+{
+  "t": 1000,           // u16 tag: Snapshot
+  "state": {...},      // State payload
+  "seq": 42,
+  "timestamp": 1706123456789
+}
+```
+
+The tag is always the first field, allowing efficient dispatch without parsing the full payload. Unknown tags should be ignored (forward compatibility).
+
 ### Versioning
 
 Protocol version is exchanged in `Connected` message. Version changes:
 - **Patch** (0.0.x) - Additive changes, backward compatible
-- **Minor** (0.x.0) - New message types, old clients ignore unknown
+- **Minor** (0.x.0) - New message types, old clients ignore unknown tags
 - **Major** (x.0.0) - Breaking changes, requires client update
+
+**Adding new message types:**
+1. Allocate a tag from the appropriate range (see Message Tag Ranges)
+2. Add the variant to the tag enum and payload enum
+3. Old clients will ignore the unknown tag (no breaking change)
 
 ## Notification Domains
 
@@ -473,13 +721,124 @@ shared-ui/
 │   └── Cargo.toml
 ```
 
-## Open Questions
+## Design Decisions
 
-1. **Delta batching** - Should server batch multiple deltas into single message?
-2. **Compression** - Add optional compression for large snapshots?
-3. **Binary blobs** - How to handle large binary data (images, etc.)?
-4. **Presence** - Add presence/typing indicators as first-class feature?
-5. **History** - Support for fetching historical events/states?
+### Delta Batching
+
+The server may batch multiple deltas into a single message for efficiency. This is useful when:
+- Client reconnects and needs to catch up
+- Multiple rapid changes occur within a short window
+
+```rust
+/// Batched deltas for catch-up scenarios
+Deltas {
+    /// Ordered list of deltas to apply
+    deltas: Vec<Delta>,
+    /// Final sequence number after all deltas applied
+    seq: u64,
+    /// Server timestamp
+    timestamp: u64,
+},
+```
+
+Clients apply deltas in order. The final `seq` represents state after all deltas.
+
+### Compression (Future)
+
+Optional compression for large snapshots will be negotiated during connection handshake:
+
+```rust
+// In Connected message (future)
+Connected {
+    protocol_version: u8,
+    connection_id: String,
+    compression: Option<Compression>, // None, Zstd, Lz4
+}
+```
+
+Not implemented in v1 - added when snapshot sizes warrant it.
+
+### Presence
+
+Presence information (who's connected, activity status) is a first-class feature:
+
+```rust
+/// Server → Client: Presence update
+Presence {
+    /// Users currently connected to this resource
+    users: Vec<PresenceInfo>,
+},
+
+#[derive(Serialize, Deserialize)]
+struct PresenceInfo {
+    user_id: String,
+    /// Display name if available
+    name: Option<String>,
+    /// User's current status
+    status: PresenceStatus,
+    /// When they connected
+    connected_at: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+enum PresenceStatus {
+    Active,
+    Idle,
+    Away,
+}
+```
+
+Clients receive presence updates when users join/leave/change status.
+
+### History
+
+Historical events and states are fetched via separate REST API, not through the WebSocket. The realtime protocol is for live synchronization only.
+
+### WebRTC Signalling
+
+The notification system supports WebRTC connection establishment through a `signalling` domain:
+
+```rust
+// Client → Server: Send signalling message to peer
+ClientMessage::Signal {
+    /// Target user ID
+    target_user_id: String,
+    /// Signalling payload (offer, answer, ICE candidate)
+    signal: SignalPayload,
+}
+
+#[derive(Serialize, Deserialize)]
+enum SignalPayload {
+    /// SDP offer
+    Offer { sdp: String },
+    /// SDP answer  
+    Answer { sdp: String },
+    /// ICE candidate
+    IceCandidate { candidate: String, sdp_mid: Option<String>, sdp_m_line_index: Option<u16> },
+}
+
+// Server → Client: Receive signalling message from peer
+ServerMessage::Signal {
+    /// Source user ID
+    from_user_id: String,
+    /// Signalling payload
+    signal: SignalPayload,
+}
+```
+
+This enables:
+- Peer discovery via presence
+- SDP offer/answer exchange
+- ICE candidate trickling
+- Establishing WebRTC data channels for direct P2P communication
+
+The WebSocket acts as the signalling server; once WebRTC connection is established, high-bandwidth/low-latency data flows directly between peers.
+
+## Future Considerations
+
+- **Compression** - Zstd/Lz4 for large snapshots (negotiate in handshake)
+- **Rooms/Channels** - Subscribe to multiple resources on single connection
+- **Rate limiting** - Server-side throttling for misbehaving clients
 
 ## References
 

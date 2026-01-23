@@ -8,35 +8,9 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 
-/// Unique identifier for a client-initiated operation
-///
-/// Generated client-side and included in requests. The server echoes it back
-/// in progress updates and completion messages, allowing the client to correlate
-/// responses with the original request.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct OpId(pub u64);
-
-impl OpId {
-    /// Generate a new unique operation ID
-    pub fn new() -> Self {
-        static COUNTER: AtomicU64 = AtomicU64::new(1);
-        Self(COUNTER.fetch_add(1, Ordering::Relaxed))
-    }
-}
-
-impl Default for OpId {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl std::fmt::Display for OpId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "op:{}", self.0)
-    }
-}
+// Re-export OpId for internal use
+pub use ui_flow_protocol::OpId;
 
 /// Progress update for an in-flight operation
 #[derive(Debug, Clone, Serialize, Deserialize)]

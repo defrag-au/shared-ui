@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Demo - Unified Realtime Protocol</title>
+    <link rel="stylesheet" href="/main-62000f42585783a4.css" integrity="sha384-24euZX6/Ee0maudOsJ9dqF9cbOkPyhbH9rMCWXrmEV3SilUv1W2SWZujT66/nqNw"/>
+<link rel="modulepreload" href="/flow-demo-frontend-f8ef7667943d05e.js" crossorigin="anonymous" integrity="sha384-B4kamgGDRd8TJQAIGb6n4Tvn+Wmswkra4wGt5D1qcwvprVkDJdJDkWjNQuodwfZ2"><link rel="preload" href="/flow-demo-frontend-f8ef7667943d05e_bg.wasm" crossorigin="anonymous" integrity="sha384-DsI0qyu6ZQ5wgE/ScCi9uMPlLzXZxrH5e1dlZCJPltiWRTEKgPPHDp4aX/WVJ5Ay" as="fetch" type="application/wasm"></head>
+<body>
+    <div id="app"></div>
+    
+<script type="module">
+import init, * as bindings from '/flow-demo-frontend-f8ef7667943d05e.js';
+const wasm = await init({ module_or_path: '/flow-demo-frontend-f8ef7667943d05e_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+</body>
+</html>

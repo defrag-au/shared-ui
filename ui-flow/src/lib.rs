@@ -106,13 +106,36 @@
 //! See the `examples` directory for framework-specific integration patterns.
 
 mod connection;
-mod messages;
 mod operation;
 mod state;
 mod status;
 
+// Legacy JSON-based messages (deprecated, use ui_flow_protocol types instead)
+#[deprecated(
+    since = "0.2.0",
+    note = "Use ui_flow_protocol types for new code. This module uses JSON string tags."
+)]
+pub mod messages;
+
+// Re-export the new protocol types
+pub use ui_flow_protocol::{
+    self as protocol,
+    // Codec functions
+    decode,
+    encode,
+    // Core message types
+    ClientMessage,
+    // Helper types
+    OpId,
+    PresenceInfo,
+    PresenceStatus,
+    // Error types
+    ProtocolError,
+    ServerMessage,
+    SignalPayload,
+};
+
 pub use connection::{FlowConnection, FlowConnectionBuilder, FlowError, ReconnectConfig};
-pub use messages::{ClientMessage, ServerMessage};
-pub use operation::{ActionError, ActionProgress, OpId, OperationTracker, PendingOperation};
+pub use operation::{ActionError, ActionProgress, OperationTracker, PendingOperation};
 pub use state::FlowState;
 pub use status::{CloseInfo, ConnectionStatus};

@@ -13,9 +13,12 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CloseEvent, MessageEvent, WebSocket};
 
+// Use legacy messages module (this module uses JSON, not the new binary protocol)
+#[allow(deprecated)]
 use crate::messages::{ClientMessage, ServerMessage};
-use crate::operation::{ActionError, ActionProgress, OpId};
+use crate::operation::{ActionError, ActionProgress};
 use crate::status::{CloseInfo, ConnectionStatus};
+use ui_flow_protocol::OpId;
 
 /// Configuration for reconnection behavior
 #[derive(Debug, Clone)]

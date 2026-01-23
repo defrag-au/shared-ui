@@ -1,0 +1,45 @@
+[package]
+name = "flow-demo-frontend"
+version = "0.1.0"
+edition = "2021"
+description = "Leptos frontend for the flow-demo worker"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Leptos framework (CSR mode)
+leptos = { version = "0.6", features = ["csr"] }
+leptos_meta = { version = "0.6", features = ["csr"] }
+
+# Protocol types
+ui-flow-protocol = { path = "../../../ui-flow-protocol" }
+
+# WebSocket + WASM
+web-sys = { version = "0.3", features = [
+    "WebSocket",
+    "MessageEvent",
+    "CloseEvent",
+    "BinaryType",
+    "Blob",
+    "FileReader",
+    "Window",
+    "Document",
+    "HtmlInputElement",
+    "Event",
+    "KeyboardEvent",
+] }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+rmp-serde = "1.3"
+
+# Logging
+tracing = "0.1"
+tracing-wasm = "0.2"
+
+# Utilities
+gloo-timers = { version = "0.3", features = ["futures"] }
