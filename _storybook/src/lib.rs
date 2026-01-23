@@ -6,6 +6,7 @@ mod stories;
 
 use leptos::*;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 // ============================================================================
 // Story Enum
@@ -99,7 +100,16 @@ impl Story {
 #[wasm_bindgen(start)]
 pub fn main() {
     console_error_panic_hook::set_once();
-    mount_to_body(App);
+    // Initialize tracing to browser console
+    tracing_wasm::set_as_global_default();
+
+    // Mount to #app element (not body) to work with the index.html structure
+    let app_element = document()
+        .get_element_by_id("app")
+        .expect("should find #app element")
+        .dyn_into::<web_sys::HtmlElement>()
+        .expect("#app should be an HtmlElement");
+    mount_to(app_element, App);
 }
 
 #[component]
@@ -148,8 +158,13 @@ fn Sidebar(
                                 view! {
                                     <li>
                                         <a
+                                            href="#"
                                             class:active=is_active
-                                            on:click=move |_| set_current_story.set(story)
+                                            on:click=move |ev| {
+                                                ev.prevent_default();
+                                                tracing::info!("Clicked story: {:?}", story);
+                                                set_current_story.set(story);
+                                            }
                                         >
                                             {story.label()}
                                         </a>
@@ -166,21 +181,51 @@ fn Sidebar(
 
 #[component]
 fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
-    move || match story.get() {
-        Story::Welcome => stories::WelcomeStory().into_view(),
-        Story::ImageCardComponent => stories::ImageCardStory().into_view(),
-        Story::AssetCardComponent => stories::AssetCardStory().into_view(),
-        Story::AssetCacheComponent => stories::AssetCacheStory().into_view(),
-        Story::ConnectionStatusComponent => stories::ConnectionStatusStory().into_view(),
-        Story::MemoryCardComponent => stories::MemoryCardStory().into_view(),
-        Story::WalletProviders => stories::WalletProvidersStory().into_view(),
-        Story::ConnectionStates => stories::ConnectionStatesStory().into_view(),
-        Story::FlowOverview => stories::FlowOverviewStory().into_view(),
-        Story::FlowState => stories::FlowStateStory().into_view(),
-        Story::FlowOperations => stories::FlowOperationsStory().into_view(),
-        Story::LoadingStates => stories::LoadingStatesStory().into_view(),
-        Story::LoaderConfig => stories::LoaderConfigStory().into_view(),
-        Story::ToastTypes => stories::ToastTypesStory().into_view(),
-        Story::ToastUsage => stories::ToastUsageStory().into_view(),
+    view! {
+        <Show when=move || story.get() == Story::Welcome fallback=|| ()>
+            <stories::WelcomeStory />
+        </Show>
+        <Show when=move || story.get() == Story::ImageCardComponent fallback=|| ()>
+            <stories::ImageCardStory />
+        </Show>
+        <Show when=move || story.get() == Story::AssetCardComponent fallback=|| ()>
+            <stories::AssetCardStory />
+        </Show>
+        <Show when=move || story.get() == Story::AssetCacheComponent fallback=|| ()>
+            <stories::AssetCacheStory />
+        </Show>
+        <Show when=move || story.get() == Story::ConnectionStatusComponent fallback=|| ()>
+            <stories::ConnectionStatusStory />
+        </Show>
+        <Show when=move || story.get() == Story::MemoryCardComponent fallback=|| ()>
+            <stories::MemoryCardStory />
+        </Show>
+        <Show when=move || story.get() == Story::WalletProviders fallback=|| ()>
+            <stories::WalletProvidersStory />
+        </Show>
+        <Show when=move || story.get() == Story::ConnectionStates fallback=|| ()>
+            <stories::ConnectionStatesStory />
+        </Show>
+        <Show when=move || story.get() == Story::FlowOverview fallback=|| ()>
+            <stories::FlowOverviewStory />
+        </Show>
+        <Show when=move || story.get() == Story::FlowState fallback=|| ()>
+            <stories::FlowStateStory />
+        </Show>
+        <Show when=move || story.get() == Story::FlowOperations fallback=|| ()>
+            <stories::FlowOperationsStory />
+        </Show>
+        <Show when=move || story.get() == Story::LoadingStates fallback=|| ()>
+            <stories::LoadingStatesStory />
+        </Show>
+        <Show when=move || story.get() == Story::LoaderConfig fallback=|| ()>
+            <stories::LoaderConfigStory />
+        </Show>
+        <Show when=move || story.get() == Story::ToastTypes fallback=|| ()>
+            <stories::ToastTypesStory />
+        </Show>
+        <Show when=move || story.get() == Story::ToastUsage fallback=|| ()>
+            <stories::ToastUsageStory />
+        </Show>
     }
 }

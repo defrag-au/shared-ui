@@ -30,6 +30,44 @@
 use crate::asset_card::AssetCard;
 use crate::image_card::CardSize;
 use leptos::*;
+use scss_macros::scss;
+
+/// Compiled SCSS styles for MemoryCard
+const COMPONENT_STYLES: &str = scss!("src/styles/memory_card.scss");
+
+/// Memory card size variants
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MemoryCardSize {
+    /// 80px
+    Xs,
+    /// 100px (default for memory games)
+    #[default]
+    Sm,
+    /// 120px
+    Md,
+    /// 160px
+    Lg,
+}
+
+impl MemoryCardSize {
+    fn css_class(&self) -> &'static str {
+        match self {
+            MemoryCardSize::Xs => "memory-card--xs",
+            MemoryCardSize::Sm => "memory-card--sm",
+            MemoryCardSize::Md => "memory-card--md",
+            MemoryCardSize::Lg => "memory-card--lg",
+        }
+    }
+
+    fn to_inner_card_size(&self) -> CardSize {
+        // Map to appropriate CardSize for inner AssetCard image resolution
+        match self {
+            MemoryCardSize::Xs | MemoryCardSize::Sm => CardSize::Xs,
+            MemoryCardSize::Md => CardSize::Sm,
+            MemoryCardSize::Lg => CardSize::Sm,
+        }
+    }
+}
 
 /// Memory card component - a flippable wrapper around AssetCard
 #[component]
@@ -40,6 +78,9 @@ pub fn MemoryCard(
     /// Asset name (shown when flipped)
     #[prop(into, optional)]
     name: Option<MaybeSignal<String>>,
+    /// Card size (default: Sm = 100px)
+    #[prop(optional, default = MemoryCardSize::Sm)]
+    size: MemoryCardSize,
     /// Whether card is face-up
     #[prop(into)]
     flipped: MaybeSignal<bool>,
@@ -59,8 +100,11 @@ pub fn MemoryCard(
     #[prop(into, optional)]
     on_load: Option<Callback<()>>,
 ) -> impl IntoView {
+    let size_class = size.css_class();
+    let inner_card_size = size.to_inner_card_size();
+
     let card_class = move || {
-        let mut classes = vec!["memory-card"];
+        let mut classes = vec!["memory-card", size_class];
         if flipped.get() || matched.get() {
             classes.push("memory-card--flipped");
         }
@@ -107,7 +151,7 @@ pub fn MemoryCard(
                             let name = name.clone();
                             move || name.as_ref().map(|n| n.get()).unwrap_or_default()
                         })
-                        size=CardSize::Md
+                        size=inner_card_size
                         is_static=true
                         on_load=move |()| {
                             if let Some(cb) = on_load {
@@ -124,139 +168,3 @@ pub fn MemoryCard(
         </div>
     }
 }
-
-const COMPONENT_STYLES: &str = r##"
-.memory-card {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1;
-    cursor: pointer;
-    perspective: 1000px;
-    transition: transform 0.1s ease;
-}
-
-.memory-card:hover:not(.memory-card--disabled):not(.memory-card--matched) {
-    transform: scale(1.02);
-}
-
-.memory-card:active:not(.memory-card--disabled):not(.memory-card--matched) {
-    transform: scale(0.98);
-}
-
-.memory-card--disabled {
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-.memory-card--matched {
-    cursor: default;
-}
-
-.memory-card--matched .memory-card__inner {
-    box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
-    animation: matched-glow 2s ease-in-out infinite;
-}
-
-.memory-card__inner {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    transform-style: preserve-3d;
-    transition: transform 0.5s ease;
-    border-radius: 8px;
-}
-
-.memory-card--flipped .memory-card__inner {
-    transform: rotateY(180deg);
-}
-
-.memory-card__front,
-.memory-card__back {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    backface-visibility: hidden;
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.memory-card__front {
-    background: #1a1a2e;
-    border: 2px solid #2a2a4e;
-}
-
-.memory-card__back {
-    background: #1a1a2e;
-    border: 2px solid #2a2a4e;
-    transform: rotateY(180deg);
-    position: relative;
-}
-
-.memory-card__back-design {
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, #0d0d1a 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-}
-
-.memory-card__back-design::before {
-    content: "";
-    position: absolute;
-    inset: 8px;
-    border: 2px solid rgba(255, 215, 0, 0.3);
-    border-radius: 4px;
-}
-
-.memory-card__back-design::after {
-    content: "";
-    position: absolute;
-    inset: 4px;
-    background:
-        linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%),
-        linear-gradient(225deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%),
-        linear-gradient(315deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%),
-        linear-gradient(45deg, rgba(255, 215, 0, 0.2) 0%, transparent 20%);
-}
-
-.memory-card__skull {
-    width: 40%;
-    height: 40%;
-    background: rgba(255, 255, 255, 0.1);
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12c0 3.31 1.61 6.24 4.09 8.05L6 22l2-2h8l2 2-.09-1.95C20.39 18.24 22 15.31 22 12c0-5.52-4.48-10-10-10zm-2 14H8v-2h2v2zm0-4H8V8h2v4zm6 4h-2v-2h2v2zm0-4h-2V8h2v4z'/%3E%3C/svg%3E");
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12c0 3.31 1.61 6.24 4.09 8.05L6 22l2-2h8l2 2-.09-1.95C20.39 18.24 22 15.31 22 12c0-5.52-4.48-10-10-10zm-2 14H8v-2h2v2zm0-4H8V8h2v4zm6 4h-2v-2h2v2zm0-4h-2V8h2v4z'/%3E%3C/svg%3E");
-    mask-size: contain;
-    -webkit-mask-size: contain;
-    mask-repeat: no-repeat;
-    -webkit-mask-repeat: no-repeat;
-    mask-position: center;
-    -webkit-mask-position: center;
-    z-index: 1;
-}
-
-.memory-card__matched-by {
-    position: absolute;
-    top: 0.25rem;
-    right: 0.25rem;
-    padding: 0.15rem 0.4rem;
-    background: rgba(255, 215, 0, 0.9);
-    color: #000;
-    font-size: 0.6rem;
-    font-weight: 600;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    border-radius: 4px;
-    white-space: nowrap;
-    z-index: 10;
-}
-
-@keyframes matched-glow {
-    0%, 100% {
-        box-shadow: 0 0 6px rgba(255, 215, 0, 0.2);
-    }
-    50% {
-        box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
-    }
-}
-"##;

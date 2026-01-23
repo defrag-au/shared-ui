@@ -27,6 +27,10 @@
 
 use leptos::*;
 use phf::phf_map;
+use scss_macros::scss;
+
+/// Compiled SCSS styles for ImageCard
+const COMPONENT_STYLES: &str = scss!("src/styles/image_card.scss");
 
 /// Card size variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -204,104 +208,3 @@ pub fn ImageCard(
         </div>
     }
 }
-
-const COMPONENT_STYLES: &str = r##"
-.image-card {
-    position: relative;
-    border-radius: 8px;
-    overflow: hidden;
-    background: var(--card-bg, #1a1a2e);
-    cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-    width: 100%;
-}
-
-.image-card--xs { max-width: 80px; border-radius: 4px; }
-.image-card--xs .image-card__name { font-size: 0.6rem; padding: 0.2rem 0.3rem; }
-.image-card--xs .image-card__accent { height: 2px; }
-
-.image-card--sm { max-width: 120px; border-radius: 6px; }
-.image-card--sm .image-card__name { font-size: 0.7rem; padding: 0.25rem 0.4rem; }
-.image-card--sm .image-card__accent { height: 3px; }
-
-.image-card--md { max-width: 240px; }
-.image-card--md .image-card__name { font-size: 0.85rem; padding: 0.4rem 0.6rem; }
-.image-card--md .image-card__accent { height: 4px; }
-
-.image-card--lg { max-width: 400px; border-radius: 10px; }
-.image-card--lg .image-card__name { font-size: 1rem; padding: 0.5rem 0.75rem; }
-.image-card--lg .image-card__accent { height: 5px; }
-
-.image-card--xl { max-width: 800px; border-radius: 12px; }
-.image-card--xl .image-card__name { font-size: 1.1rem; padding: 0.6rem 1rem; }
-.image-card--xl .image-card__accent { height: 6px; }
-
-.image-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.image-card--static {
-    cursor: default;
-}
-
-.image-card--static:hover {
-    transform: none;
-    box-shadow: none;
-}
-
-.image-card__accent {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    z-index: 1;
-}
-
-.image-card__image-wrapper {
-    position: relative;
-    aspect-ratio: 1;
-    overflow: hidden;
-}
-
-.image-card__image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.image-card__placeholder {
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, #2a2a3e 0%, #1a1a2e 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.image-card__placeholder::after {
-    content: "";
-    width: 40%;
-    height: 40%;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 50%;
-}
-
-.image-card__name {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 0.35rem 0.5rem;
-    background: rgba(0, 0, 0, 0.75);
-    color: white;
-    font-size: 0.75rem;
-    font-weight: 500;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: center;
-}
-"##;

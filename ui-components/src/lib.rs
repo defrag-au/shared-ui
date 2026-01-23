@@ -55,4 +55,4 @@ pub use asset_cache::{AssetCache, PreloadAsset};
 pub use asset_card::{generate_iiif_url, AssetCard, IiifSize};
 pub use connection_status::{ConnectionState, ConnectionStatus};
 pub use image_card::{parse_card_size, CardSize, ImageCard};
-pub use memory_card::MemoryCard;
+pub use memory_card::{MemoryCard, MemoryCardSize};
