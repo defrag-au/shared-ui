@@ -1,11 +1,12 @@
 //! Memory Card Web Component
 //!
 //! A flippable card for the memory matching game. Shows a card back when
-//! face-down and wraps an `<image-card>` when face-up.
+//! face-down and wraps an `<asset-card>` when face-up. The asset-card handles
+//! IIIF URL generation from the asset ID automatically.
 //!
 //! ## Attributes
 //!
-//! - `image-url` - URL of the image (shown when face-up)
+//! - `asset-id` - Cardano asset ID (policy_id + asset_name hex) for IIIF image
 //! - `name` - Name shown in overlay when flipped
 //! - `flipped` - Whether the card is face-up (present = face-up)
 //! - `matched` - Whether the card has been matched (stays revealed, shows glow)
@@ -19,8 +20,8 @@
 //! ## Usage
 //!
 //! ```html
-//! <memory-card image-url="https://..." name="Captain Jack"></memory-card>
-//! <memory-card image-url="https://..." flipped matched matched-by="Player1"></memory-card>
+//! <memory-card asset-id="b3dab69f...506972617465313839" name="Captain Jack"></memory-card>
+//! <memory-card asset-id="b3dab69f..." flipped matched matched-by="Player1"></memory-card>
 //! ```
 
 use crate::render_to_shadow;
@@ -29,10 +30,10 @@ use primitives::{dispatch_event, on_click};
 use scss_macros::scss_inline;
 use web_sys::HtmlElement;
 
-/// Memory card custom element - a flippable wrapper around image-card
+/// Memory card custom element - a flippable wrapper around asset-card
 #[derive(Default)]
 pub struct MemoryCard {
-    image_url: String,
+    asset_id: String,
     name: String,
     flipped: bool,
     matched: bool,
@@ -49,7 +50,7 @@ impl MemoryCard {
     /// Render HTML string for the component
     fn render_html(&self) -> String {
         let card_classes = self.build_card_classes();
-        let image_card = self.build_image_card();
+        let asset_card = self.build_asset_card();
         let matched_overlay = self.build_matched_overlay();
 
         format!(
@@ -62,7 +63,7 @@ impl MemoryCard {
             </div>
         </div>
         <div class="memory-card__back">
-            {image_card}
+            {asset_card}
             {matched_overlay}
         </div>
     </div>
@@ -86,15 +87,19 @@ impl MemoryCard {
         classes.join(" ")
     }
 
-    fn build_image_card(&self) -> String {
-        let attrs = vec![
-            format!(r#"image-url="{}""#, html_escape(&self.image_url)),
-            format!(r#"name="{}""#, html_escape(&self.name)),
+    fn build_asset_card(&self) -> String {
+        let mut attrs = vec![
+            format!(r#"asset-id="{}""#, html_escape(&self.asset_id)),
+            "size=\"md\"".to_string(), // Medium size for game cards
             "show-name".to_string(),
             "static".to_string(), // Memory card handles its own click events
         ];
 
-        format!("<image-card {}></image-card>", attrs.join(" "))
+        if !self.name.is_empty() {
+            attrs.push(format!(r#"name="{}""#, html_escape(&self.name)));
+        }
+
+        format!("<asset-card {}></asset-card>", attrs.join(" "))
     }
 
     fn build_matched_overlay(&self) -> String {
@@ -110,15 +115,18 @@ impl MemoryCard {
 
     /// Setup click handler after rendering
     fn setup_click_handler(&self, element: &HtmlElement) {
-        if self.disabled || self.matched {
-            return;
-        }
-
+        // Always set up click handler - disabled/matched state is checked via attributes
+        // when the event would be dispatched
         if let Some(shadow) = element.shadow_root() {
             if let Ok(Some(card)) = shadow.query_selector(".memory-card") {
                 let host = element.clone();
                 on_click(&card, move |_| {
-                    dispatch_event(&host, "card-click");
+                    // Check disabled/matched state at click time via attributes
+                    let is_disabled = host.has_attribute("disabled");
+                    let is_matched = host.has_attribute("matched");
+                    if !is_disabled && !is_matched {
+                        dispatch_event(&host, "card-click");
+                    }
                 });
             }
         }
@@ -128,7 +136,7 @@ impl MemoryCard {
 impl CustomElement for MemoryCard {
     fn observed_attributes() -> &'static [&'static str] {
         &[
-            "image-url",
+            "asset-id",
             "name",
             "flipped",
             "matched",
@@ -138,7 +146,7 @@ impl CustomElement for MemoryCard {
     }
 
     fn constructor(&mut self, this: &HtmlElement) {
-        self.image_url = this.get_attribute("image-url").unwrap_or_default();
+        self.asset_id = this.get_attribute("asset-id").unwrap_or_default();
         self.name = this.get_attribute("name").unwrap_or_default();
         self.flipped = this.has_attribute("flipped");
         self.matched = this.has_attribute("matched");
@@ -154,7 +162,7 @@ impl CustomElement for MemoryCard {
         new_value: Option<String>,
     ) {
         match name.as_str() {
-            "image-url" => self.image_url = new_value.unwrap_or_default(),
+            "asset-id" => self.asset_id = new_value.unwrap_or_default(),
             "name" => self.name = new_value.unwrap_or_default(),
             "flipped" => self.flipped = new_value.is_some(),
             "matched" => self.matched = new_value.is_some(),
@@ -164,11 +172,12 @@ impl CustomElement for MemoryCard {
         }
 
         render_to_shadow(this, &self.render_html());
-        self.setup_click_handler(this);
+        // Don't re-setup click handler on attribute changes - it's set once in inject_children
     }
 
     fn inject_children(&mut self, this: &HtmlElement) {
         render_to_shadow(this, &self.render_html());
+        // Only set up click handler once during initial render
         self.setup_click_handler(this);
     }
 }
@@ -214,7 +223,7 @@ const COMPONENT_STYLES: &str = scss_inline!(
         }
 
         &--matched &__inner {
-            box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
         }
 
         &__inner {
@@ -300,8 +309,8 @@ const COMPONENT_STYLES: &str = scss_inline!(
             z-index: 1;
         }
 
-        // Nested image-card styling
-        &__back image-card {
+        // Nested asset-card styling
+        &__back asset-card {
             display: block;
             width: 100%;
             height: 100%;
@@ -325,13 +334,13 @@ const COMPONENT_STYLES: &str = scss_inline!(
         }
     }
 
-    // Matched card glow animation
+    // Matched card glow animation - subtle pulse
     @keyframes matched-glow {
         0%, 100% {
-            box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+            box-shadow: 0 0 6px rgba(255, 215, 0, 0.2);
         }
         50% {
-            box-shadow: 0 0 25px rgba(255, 215, 0, 0.7);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
         }
     }
 

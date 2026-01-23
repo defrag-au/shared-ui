@@ -1,5 +1,6 @@
 //! UI Components for the flow-demo frontend
 
+mod admin;
 mod chat;
 mod counter;
 mod game_board;
@@ -8,6 +9,7 @@ mod lobby;
 mod player_list;
 mod presence;
 
+pub use admin::AdminPanel;
 pub use chat::Chat;
 pub use counter::Counter;
 pub use game_board::{CardView, GameBoard};

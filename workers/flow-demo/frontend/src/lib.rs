@@ -158,7 +158,7 @@ pub fn main() {
     tracing_wasm::set_as_global_default();
 
     // Register shared UI web components
-    ::components::define_all();
+    ::ui_components::define_all();
 
     // Mount the app
     mount_to_body(RootApp);

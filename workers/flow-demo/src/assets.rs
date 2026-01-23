@@ -11,37 +11,53 @@ use worker::*;
 
 const API_BASE_URL: &str = "https://a2.pfp.city";
 
-/// Asset details from PFP City API
+/// Asset ID from PFP City API
+#[derive(Deserialize, Debug, Clone)]
+pub struct AssetId {
+    pub policy_id: String,
+    pub asset_name_hex: String,
+}
+
+impl AssetId {
+    /// Get the full asset ID (policy_id + asset_name_hex)
+    pub fn full_id(&self) -> String {
+        format!("{}{}", self.policy_id, self.asset_name_hex)
+    }
+}
+
+/// Asset details from PFP City API (V3)
 #[derive(Deserialize, Debug, Clone)]
 pub struct AssetDetails {
-    pub asset_id: String,
-    #[serde(default)]
-    pub asset_name: String,
+    /// Asset ID object
+    pub id: AssetId,
+    /// Human-readable name
     pub name: String,
+    /// Image URL (IPFS or HTTP)
+    #[serde(default)]
+    pub image: Option<String>,
+}
+
+/// Pagination info from API
+#[derive(Deserialize, Debug, Clone)]
+pub struct PaginationInfo {
+    pub limit: u32,
+    pub offset: u32,
+    pub has_more: bool,
+    pub total_available: Option<u32>,
+}
+
+/// Inner data from API response
+#[derive(Deserialize, Debug, Clone)]
+pub struct CollectionAssetsData {
+    pub assets: Vec<AssetDetails>,
+    pub pagination: PaginationInfo,
 }
 
 /// Response from /v3/api/collections/{policy_id}/assets endpoint
 #[derive(Deserialize, Debug, Clone)]
 pub struct CollectionAssetsResponse {
-    pub assets: Vec<AssetDetails>,
-    pub total: u32,
-    pub limit: u32,
-    pub offset: u32,
-}
-
-/// Fetch collection metadata to get total asset count
-pub async fn get_collection_total(policy_id: &str) -> Result<u32> {
-    let url = format!("{API_BASE_URL}/v3/api/collections/{policy_id}/assets?limit=1&offset=0");
-
-    let mut response = Fetch::Url(Url::parse(&url)?).send().await?;
-
-    let status = response.status_code();
-    if !(200..300).contains(&status) {
-        return Err(Error::from(format!("PFP City API error: {status}")));
-    }
-
-    let data: CollectionAssetsResponse = response.json().await?;
-    Ok(data.total)
+    pub success: bool,
+    pub data: CollectionAssetsData,
 }
 
 /// Fetch a batch of assets from a collection at a specific offset
@@ -54,15 +70,28 @@ pub async fn fetch_assets_batch(
         "{API_BASE_URL}/v3/api/collections/{policy_id}/assets?limit={limit}&offset={offset}"
     );
 
+    tracing::debug!("Fetching assets from: {}", url);
+
     let mut response = Fetch::Url(Url::parse(&url)?).send().await?;
 
     let status = response.status_code();
+    tracing::debug!("Response status: {}", status);
+
     if !(200..300).contains(&status) {
         return Err(Error::from(format!("PFP City API error: {status}")));
     }
 
-    let data: CollectionAssetsResponse = response.json().await?;
-    Ok(data.assets)
+    let text = response.text().await?;
+    tracing::debug!(
+        "Response body (first 500 chars): {}",
+        &text[..text.len().min(500)]
+    );
+
+    let resp: CollectionAssetsResponse =
+        serde_json::from_str(&text).map_err(|e| Error::from(format!("Serde Error: {e}")))?;
+
+    tracing::debug!("Parsed {} assets", resp.data.assets.len());
+    Ok(resp.data.assets)
 }
 
 /// Generate image URL for an asset
@@ -71,7 +100,7 @@ pub fn image_url(policy_id: &str, asset_id: &str) -> String {
     format!("https://img.pfp.city/{policy_id}/img/thumb/{asset_id}.png")
 }
 
-/// Fetch random assets and create card pairs for the memory game.
+/// Fetch assets and create card pairs for the memory game.
 ///
 /// # Arguments
 /// * `policy_id` - The Cardano policy ID for the NFT collection
@@ -81,50 +110,13 @@ pub fn image_url(policy_id: &str, asset_id: &str) -> String {
 /// # Returns
 /// A shuffled vector of cards (2 * pair_count cards total)
 pub async fn fetch_game_cards(policy_id: &str, pair_count: u8, seed: u64) -> Result<Vec<Card>> {
-    // Get total assets in collection
-    let total = get_collection_total(policy_id).await?;
-
-    if total < pair_count as u32 {
-        return Err(Error::from(format!(
-            "Collection only has {} assets, need at least {} for {} pairs",
-            total, pair_count, pair_count
-        )));
-    }
-
-    // Create RNG from seed
+    // Create RNG from seed for shuffling
     let mut rng = rand::rngs::SmallRng::seed_from_u64(seed);
 
-    // Generate random offsets to fetch diverse assets
-    // We'll fetch from multiple random positions in the collection
-    let mut all_assets: Vec<AssetDetails> = Vec::with_capacity(pair_count as usize);
-
-    // Fetch assets in batches, picking random offsets
-    let batch_size = 20u32;
-    let mut attempts = 0;
-    let max_attempts = 10;
-
-    while all_assets.len() < pair_count as usize && attempts < max_attempts {
-        let max_offset = total.saturating_sub(batch_size);
-        let offset = if max_offset > 0 {
-            rand::Rng::gen_range(&mut rng, 0..max_offset)
-        } else {
-            0
-        };
-
-        let batch = fetch_assets_batch(policy_id, batch_size, offset).await?;
-
-        for asset in batch {
-            // Avoid duplicates
-            if !all_assets.iter().any(|a| a.asset_id == asset.asset_id) {
-                all_assets.push(asset);
-                if all_assets.len() >= pair_count as usize {
-                    break;
-                }
-            }
-        }
-
-        attempts += 1;
-    }
+    // Fetch enough assets from the start of the collection
+    // We request more than needed in case of duplicates
+    let limit = (pair_count as u32).max(50);
+    let mut all_assets = fetch_assets_batch(policy_id, limit, 0).await?;
 
     if all_assets.len() < pair_count as usize {
         return Err(Error::from(format!(
@@ -141,10 +133,18 @@ pub async fn fetch_game_cards(policy_id: &str, pair_count: u8, seed: u64) -> Res
     let mut cards: Vec<Card> = Vec::with_capacity(pair_count as usize * 2);
 
     for (pair_id, asset) in all_assets.into_iter().enumerate() {
+        let full_id = asset.id.full_id();
+
+        // Use image from API if available, otherwise generate from asset ID
+        let img_url = asset
+            .image
+            .clone()
+            .unwrap_or_else(|| image_url(policy_id, &full_id));
+
         let card = Card {
-            asset_id: asset.asset_id.clone(),
+            asset_id: full_id,
             name: asset.name.clone(),
-            image_url: image_url(policy_id, &asset.asset_id),
+            image_url: img_url,
             matched: false,
             matched_by: None,
             pair_id: pair_id as u8,

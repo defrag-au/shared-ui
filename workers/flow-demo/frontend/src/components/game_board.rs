@@ -11,8 +11,8 @@ pub struct CardView {
     pub index: usize,
     /// Whether the card face is visible
     pub visible: bool,
-    /// Asset image URL (if visible)
-    pub image_url: Option<String>,
+    /// Asset ID (policy_id + asset_name_hex) for IIIF URL generation
+    pub asset_id: Option<String>,
     /// Asset name (if visible)
     pub name: Option<String>,
     /// Whether this card has been matched
@@ -69,7 +69,7 @@ pub fn GameBoard(
 
                         view! {
                             <memory-card
-                                attr:image-url=card.image_url.clone().unwrap_or_default()
+                                attr:asset-id=card.asset_id.clone().unwrap_or_default()
                                 attr:name=card.name.clone().unwrap_or_default()
                                 attr:flipped=if is_flipped { "true" } else { "" }
                                 attr:matched=if card.matched { "true" } else { "" }

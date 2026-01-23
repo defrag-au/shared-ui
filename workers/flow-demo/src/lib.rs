@@ -22,12 +22,14 @@ mod types;
 pub use memory_session::MemoryGameSessionDO;
 pub use session::FlowDemoSessionDO;
 
+use tracing::Level;
 use worker::*;
 
 /// Initialize tracing and panic hook
 #[event(start)]
 fn start() {
-    console_error_panic_hook::set_once();
+    worker_utils::init_tracing(Some(Level::DEBUG));
+    worker_utils::set_panic_hook();
 }
 
 /// Main fetch handler

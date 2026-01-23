@@ -1,6 +1,6 @@
 //! Game Lobby Component
 //!
-//! Displays the pre-game lobby where players wait and the host can configure settings.
+//! Displays the pre-game lobby where players wait and anyone can configure settings.
 
 use leptos::*;
 
@@ -29,9 +29,6 @@ pub fn Lobby(
     /// Current user's ID
     #[prop(into)]
     current_user_id: Signal<String>,
-    /// Whether current user is the host
-    #[prop(into)]
-    is_host: Signal<bool>,
     /// Current game mode setting
     #[prop(into)]
     game_mode: Signal<GameMode>,
@@ -59,15 +56,12 @@ pub fn Lobby(
                     {move || {
                         let players_vec = players.get();
                         let my_id = current_user_id.get();
-                        let host = is_host.get();
 
-                        players_vec.into_iter().enumerate().map(|(idx, (user_id, user_name))| {
+                        players_vec.into_iter().map(|(user_id, user_name)| {
                             let is_me = user_id == my_id;
-                            let is_first = idx == 0;
 
                             view! {
                                 <li>
-                                    {if is_first { "👑 " } else { "" }}
                                     {user_name}
                                     {if is_me { " (you)" } else { "" }}
                                 </li>
@@ -77,69 +71,61 @@ pub fn Lobby(
                 </ul>
             </div>
 
-            {move || {
-                if is_host.get() {
-                    let on_mode = on_mode_change.clone();
-                    let on_grid = on_grid_change.clone();
-                    let on_start_click = on_start.clone();
+            {
+                let on_mode = on_mode_change.clone();
+                let on_grid = on_grid_change.clone();
+                let on_start_click = on_start.clone();
 
-                    view! {
-                        <div class="lobby-settings">
-                            <h3>"Game Settings"</h3>
+                view! {
+                    <div class="lobby-settings">
+                        <h3>"Game Settings"</h3>
 
-                            <div class="setting-row">
-                                <label>"Mode:"</label>
-                                <select on:change=move |ev| {
-                                    let value = event_target_value(&ev);
-                                    let mode = if value == "race" { GameMode::Race } else { GameMode::TurnTaking };
-                                    on_mode(mode);
-                                }>
-                                    <option value="turn_taking" selected=move || game_mode.get() == GameMode::TurnTaking>
-                                        "Turn Taking (Classic)"
-                                    </option>
-                                    <option value="race" selected=move || game_mode.get() == GameMode::Race>
-                                        "Race (Simultaneous)"
-                                    </option>
-                                </select>
-                            </div>
-
-                            <div class="setting-row">
-                                <label>"Grid Size:"</label>
-                                <select on:change=move |ev| {
-                                    let value = event_target_value(&ev);
-                                    let size = match value.as_str() {
-                                        "4x4" => (4, 4),
-                                        "6x6" => (6, 6),
-                                        "8x8" => (8, 8),
-                                        _ => (8, 8),
-                                    };
-                                    on_grid(size);
-                                }>
-                                    <option value="4x4" selected=move || grid_size.get() == (4, 4)>
-                                        "4x4 (8 pairs) - Quick"
-                                    </option>
-                                    <option value="6x6" selected=move || grid_size.get() == (6, 6)>
-                                        "6x6 (18 pairs) - Medium"
-                                    </option>
-                                    <option value="8x8" selected=move || grid_size.get() == (8, 8)>
-                                        "8x8 (32 pairs) - Full"
-                                    </option>
-                                </select>
-                            </div>
-
-                            <button class="start-button" on:click=move |_| on_start_click()>
-                                "Start Game"
-                            </button>
+                        <div class="setting-row">
+                            <label>"Mode:"</label>
+                            <select on:change=move |ev| {
+                                let value = event_target_value(&ev);
+                                let mode = if value == "race" { GameMode::Race } else { GameMode::TurnTaking };
+                                on_mode(mode);
+                            }>
+                                <option value="turn_taking" selected=move || game_mode.get() == GameMode::TurnTaking>
+                                    "Turn Taking (Classic)"
+                                </option>
+                                <option value="race" selected=move || game_mode.get() == GameMode::Race>
+                                    "Race (Simultaneous)"
+                                </option>
+                            </select>
                         </div>
-                    }.into_view()
-                } else {
-                    view! {
-                        <div class="lobby-waiting">
-                            <p>"Waiting for host to start the game..."</p>
+
+                        <div class="setting-row">
+                            <label>"Grid Size:"</label>
+                            <select on:change=move |ev| {
+                                let value = event_target_value(&ev);
+                                let size = match value.as_str() {
+                                    "4x4" => (4, 4),
+                                    "6x6" => (6, 6),
+                                    "8x8" => (8, 8),
+                                    _ => (8, 8),
+                                };
+                                on_grid(size);
+                            }>
+                                <option value="4x4" selected=move || grid_size.get() == (4, 4)>
+                                    "4x4 (8 pairs) - Quick"
+                                </option>
+                                <option value="6x6" selected=move || grid_size.get() == (6, 6)>
+                                    "6x6 (18 pairs) - Medium"
+                                </option>
+                                <option value="8x8" selected=move || grid_size.get() == (8, 8)>
+                                    "8x8 (32 pairs) - Full"
+                                </option>
+                            </select>
                         </div>
-                    }.into_view()
+
+                        <button class="start-button" on:click=move |_| on_start_click()>
+                            "Start Game"
+                        </button>
+                    </div>
                 }
-            }}
+            }
         </div>
     }
 }

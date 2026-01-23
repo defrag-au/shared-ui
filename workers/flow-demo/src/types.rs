@@ -121,9 +121,9 @@ pub struct GameConfig {
 impl Default for GameConfig {
     fn default() -> Self {
         Self {
-            grid_size: (8, 8),
+            grid_size: (6, 6),
             mode: GameMode::TurnTaking,
-            policy_id: "5ac825392b7608d6e92a4e5c528fe9b8fadd6eaa3e36a685e37175d1".to_string(), // Black Flag
+            policy_id: "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6".to_string(), // Black Flag
             flip_delay_ms: 1500,
             shuffle_seed: 0,
         }
@@ -334,17 +334,19 @@ pub enum MemoryAction {
     JoinGame { user_name: String },
     /// Leave the game
     LeaveGame,
-    /// Update game config (host only, lobby phase only)
+    /// Update game config (lobby phase only)
     SetConfig {
         mode: Option<GameMode>,
         grid_size: Option<(u8, u8)>,
     },
-    /// Start the game (host only, lobby phase only)
+    /// Start the game (lobby phase only)
     StartGame,
     /// Flip a card at the given index
     FlipCard { index: usize },
     /// Request a rematch after game ends
     RequestRematch,
+    /// Reset entire game state (admin)
+    ResetGame,
 }
 
 /// Type aliases for memory game protocol

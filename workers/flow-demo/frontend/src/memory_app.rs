@@ -3,7 +3,7 @@
 //! The main entry point for the Black Flag memory game frontend.
 
 use crate::components::{
-    CardView, GameBoard, GameMode, GameResults, Lobby, PlayerInfo, PlayerList,
+    AdminPanel, CardView, GameBoard, GameMode, GameResults, Lobby, PlayerInfo, PlayerList,
 };
 use crate::{get_or_create_user_id, ConnectionStatus};
 use leptos::*;
@@ -218,6 +218,7 @@ pub enum MemoryAction {
         index: usize,
     },
     RequestRematch,
+    ResetGame,
 }
 
 type ServerMsg = ServerMessage<MemoryGameState, MemoryDelta, MemoryEvent>;
@@ -339,6 +340,7 @@ pub fn MemoryApp() -> impl IntoView {
             }
         }
     });
+    let send_action_for_admin = send_action.clone();
 
     // Auto-connect on mount
     let connect_effect = connect.clone();
@@ -364,14 +366,6 @@ pub fn MemoryApp() -> impl IntoView {
     });
 
     // Derived signals
-    let is_host = {
-        let current_user_id = current_user_id;
-        Signal::derive(move || {
-            let state = game_state.get();
-            state.host.as_ref() == Some(&current_user_id.get())
-        })
-    };
-
     let game_mode = Signal::derive(move || game_state.get().config.mode.into());
     let grid_size = Signal::derive(move || game_state.get().config.grid_size);
 
@@ -424,11 +418,11 @@ pub fn MemoryApp() -> impl IntoView {
     };
 
     let cards_view = {
-        let current_user_id = current_user_id;
+        let _current_user_id = current_user_id;
         Signal::derive(move || {
             let state = game_state.get();
             let revealed = revealed_faces.get();
-            let my_id = current_user_id.get();
+            let _my_id = _current_user_id.get();
             let local = local_flipped.get();
 
             state
@@ -449,12 +443,12 @@ pub fn MemoryApp() -> impl IntoView {
                     let visible =
                         is_matched || is_revealed || is_shared_flipped || is_local_flipped;
 
-                    // Get face data if visible
-                    let (image_url, name) = if visible {
+                    // Get face data if visible - use asset_id for IIIF URL generation
+                    let (asset_id, name) = if visible {
                         if let Some(face) = revealed.get(&idx) {
-                            (Some(face.image_url.clone()), Some(face.name.clone()))
+                            (Some(face.asset_id.clone()), Some(face.name.clone()))
                         } else if is_matched {
-                            (Some(card.image_url.clone()), Some(card.name.clone()))
+                            (Some(card.asset_id.clone()), Some(card.name.clone()))
                         } else {
                             (None, None)
                         }
@@ -465,7 +459,7 @@ pub fn MemoryApp() -> impl IntoView {
                     CardView {
                         index: idx,
                         visible,
-                        image_url,
+                        asset_id,
                         name,
                         matched: is_matched,
                         matched_by: card.matched_by.clone(),
@@ -522,7 +516,6 @@ pub fn MemoryApp() -> impl IntoView {
                             <Lobby
                                 players=players_for_lobby
                                 current_user_id=current_user_id
-                                is_host=is_host
                                 game_mode=game_mode
                                 grid_size=grid_size
                                 on_mode_change=move |mode: GameMode| {
@@ -605,6 +598,16 @@ pub fn MemoryApp() -> impl IntoView {
                     }
                 }
             }}
+
+            // Admin panel
+            {
+                let send_reset = send_action_for_admin.clone();
+                view! {
+                    <AdminPanel on_reset=move || {
+                        send_reset(MemoryAction::ResetGame);
+                    } />
+                }
+            }
         </div>
     }
 }

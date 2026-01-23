@@ -69,6 +69,9 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 # Logging
 tracing = "0.1"
 
+# Worker utilities
+worker_utils = { git = "https://github.com/defrag-au/shared-crates", package = "worker_utils", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
+
 # Custom elements
 custom-elements = "0.2"
 

@@ -264,6 +264,9 @@ impl MemoryGameSessionDO {
             MemoryAction::RequestRematch => {
                 self.handle_request_rematch(ws, conn, op_id).await?;
             }
+            MemoryAction::ResetGame => {
+                self.handle_reset_game(ws, op_id).await?;
+            }
         }
         Ok(())
     }
@@ -377,13 +380,6 @@ impl MemoryGameSessionDO {
     ) -> Result<()> {
         let mut state = self.get_game_state().await;
 
-        // Only host can change config
-        if state.host.as_deref() != Some(&conn.user_id) {
-            self.send_action_error(ws, op_id, "Only the host can change settings")
-                .await;
-            return Ok(());
-        }
-
         // Only in lobby
         if !matches!(state.phase, GamePhase::Lobby { .. }) {
             self.send_action_error(ws, op_id, "Can only change settings in lobby")
@@ -416,13 +412,6 @@ impl MemoryGameSessionDO {
         op_id: OpId,
     ) -> Result<()> {
         let mut state = self.get_game_state().await;
-
-        // Only host can start
-        if state.host.as_deref() != Some(&conn.user_id) {
-            self.send_action_error(ws, op_id, "Only the host can start the game")
-                .await;
-            return Ok(());
-        }
 
         // Must be in lobby
         if !matches!(state.phase, GamePhase::Lobby { .. }) {
@@ -801,6 +790,34 @@ impl MemoryGameSessionDO {
 
         let delta = MemoryDelta::GameEnded { winner, rankings };
         self.broadcast_delta(delta).await;
+    }
+
+    async fn handle_reset_game(&self, ws: &WebSocket, op_id: OpId) -> Result<()> {
+        // Delete all storage and reset to fresh default state
+        self.state.storage().delete_all().await?;
+
+        let state = MemoryGameState::default();
+        self.save_game_state(&state).await;
+
+        // Send full snapshot to resync everyone
+        let seq = 0u64;
+        self.state
+            .storage()
+            .put("seq", seq)
+            .await
+            .map_err(|e| Error::from(format!("Failed to save seq: {e}")))?;
+
+        let snapshot_msg: MemoryServerMsg = ServerMessage::snapshot(state, seq, now());
+        if let Ok(bytes) = encode(&snapshot_msg) {
+            for ws in self.state.get_websockets() {
+                let _ = ws.send_with_bytes(&bytes);
+            }
+        }
+
+        self.send_action_ok(ws, op_id).await;
+        tracing::info!("Game state reset by admin");
+
+        Ok(())
     }
 
     async fn handle_request_rematch(
