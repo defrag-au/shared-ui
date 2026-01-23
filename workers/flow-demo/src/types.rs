@@ -91,18 +91,15 @@ pub type ClientMsg = ui_flow_protocol::ClientMessage<DemoAction>;
 /// Game mode determines how players interact with the board
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum GameMode {
     /// Classic turn-taking with shared board view - all players see all flips
+    #[default]
     TurnTaking,
     /// Simultaneous race with independent views - only see own flips until match
     Race,
 }
 
-impl Default for GameMode {
-    fn default() -> Self {
-        Self::TurnTaking
-    }
-}
 
 /// Game configuration set by the host
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -209,8 +206,10 @@ impl Default for GamePhase {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "state", rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TurnState {
     /// Waiting for the current player to flip their first card
+    #[default]
     AwaitingFirst,
 
     /// First card has been flipped, waiting for ACK and/or second flip
@@ -234,11 +233,6 @@ pub enum TurnState {
     },
 }
 
-impl Default for TurnState {
-    fn default() -> Self {
-        Self::AwaitingFirst
-    }
-}
 
 impl TurnState {
     /// Handle a card flip action. Returns the new state, or None if invalid.

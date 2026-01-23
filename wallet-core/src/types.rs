@@ -83,7 +83,9 @@ impl Network {
 
 /// Wallet connection state
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub enum ConnectionState {
+    #[default]
     Disconnected,
     Connecting,
     Connected {
@@ -94,8 +96,3 @@ pub enum ConnectionState {
     Error(String),
 }
 
-impl Default for ConnectionState {
-    fn default() -> Self {
-        ConnectionState::Disconnected
-    }
-}

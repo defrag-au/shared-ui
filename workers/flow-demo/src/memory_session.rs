@@ -386,7 +386,7 @@ impl MemoryGameSessionDO {
 
             // Adjust current turn if needed
             if !state.turn_order.is_empty() {
-                state.current_turn = state.current_turn % state.turn_order.len();
+                state.current_turn %= state.turn_order.len();
             }
 
             self.save_game_state(&state).await;
