@@ -18,3 +18,4 @@ web-sys = { workspace = true, features = [
 js-sys = { workspace = true }
 futures-signals = { workspace = true }
 custom-elements = { workspace = true }
+phf = { workspace = true }

@@ -1,12 +1,12 @@
 //! Memory Card Web Component
 //!
 //! A flippable card for the memory matching game. Shows a card back when
-//! face-down and an NFT asset image when face-up.
+//! face-down and wraps an `<image-card>` when face-up.
 //!
 //! ## Attributes
 //!
-//! - `image-url` - URL of the asset image (shown when face-up)
-//! - `name` - Asset name (shown in tooltip/overlay)
+//! - `image-url` - URL of the image (shown when face-up)
+//! - `name` - Name shown in overlay when flipped
 //! - `flipped` - Whether the card is face-up (present = face-up)
 //! - `matched` - Whether the card has been matched (stays revealed, shows glow)
 //! - `matched-by` - Name of player who matched this card
@@ -29,7 +29,7 @@ use primitives::{dispatch_event, on_click};
 use scss_macros::scss_inline;
 use web_sys::HtmlElement;
 
-/// Memory card custom element
+/// Memory card custom element - a flippable wrapper around image-card
 #[derive(Default)]
 pub struct MemoryCard {
     image_url: String,
@@ -49,7 +49,8 @@ impl MemoryCard {
     /// Render HTML string for the component
     fn render_html(&self) -> String {
         let card_classes = self.build_card_classes();
-        let inner_html = self.build_inner_html();
+        let image_card = self.build_image_card();
+        let matched_overlay = self.build_matched_overlay();
 
         format!(
             r#"<style>{COMPONENT_STYLES}</style>
@@ -61,7 +62,8 @@ impl MemoryCard {
             </div>
         </div>
         <div class="memory-card__back">
-            {inner_html}
+            {image_card}
+            {matched_overlay}
         </div>
     </div>
 </div>"#
@@ -84,36 +86,26 @@ impl MemoryCard {
         classes.join(" ")
     }
 
-    fn build_inner_html(&self) -> String {
-        let name_overlay = if !self.name.is_empty() {
-            format!(
-                r#"<div class="memory-card__name">{}</div>"#,
-                html_escape(&self.name)
-            )
-        } else {
-            String::new()
-        };
+    fn build_image_card(&self) -> String {
+        let attrs = vec![
+            format!(r#"image-url="{}""#, html_escape(&self.image_url)),
+            format!(r#"name="{}""#, html_escape(&self.name)),
+            "show-name".to_string(),
+            "static".to_string(), // Memory card handles its own click events
+        ];
 
-        let matched_overlay = if let Some(by) = &self.matched_by {
+        format!("<image-card {}></image-card>", attrs.join(" "))
+    }
+
+    fn build_matched_overlay(&self) -> String {
+        if let Some(by) = &self.matched_by {
             format!(
                 r#"<div class="memory-card__matched-by">{}</div>"#,
                 html_escape(by)
             )
         } else {
             String::new()
-        };
-
-        let image_html = if !self.image_url.is_empty() {
-            format!(
-                r#"<img class="memory-card__image" src="{}" alt="{}" />"#,
-                html_escape(&self.image_url),
-                html_escape(&self.name)
-            )
-        } else {
-            r#"<div class="memory-card__placeholder"></div>"#.to_string()
-        };
-
-        format!("{image_html}{name_overlay}{matched_overlay}")
+        }
     }
 
     /// Setup click handler after rendering
@@ -257,6 +249,7 @@ const COMPONENT_STYLES: &str = scss_inline!(
             background: #1a1a2e;
             border: 2px solid #2a2a4e;
             transform: rotateY(180deg);
+            position: relative;
         }
 
         // Card back design - Black Flag themed
@@ -307,35 +300,12 @@ const COMPONENT_STYLES: &str = scss_inline!(
             z-index: 1;
         }
 
-        // Asset image
-        &__image {
+        // Nested image-card styling
+        &__back image-card {
+            display: block;
             width: 100%;
             height: 100%;
-            object-fit: cover;
-        }
-
-        &__placeholder {
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #2a2a3e 0%, #1a1a2e 100%);
-        }
-
-        // Name overlay
-        &__name {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 0.35rem 0.5rem;
-            background: rgba(0, 0, 0, 0.75);
-            color: white;
-            font-size: 0.7rem;
-            font-weight: 500;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            text-align: center;
+            max-width: none;
         }
 
         // Matched by overlay
@@ -351,6 +321,7 @@ const COMPONENT_STYLES: &str = scss_inline!(
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             border-radius: 4px;
             white-space: nowrap;
+            z-index: 10;
         }
     }
 

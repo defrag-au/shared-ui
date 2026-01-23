@@ -27,6 +27,8 @@ enum Story {
     DomHelpers,
     EventHandlers,
     // Components
+    ImageCardComponent,
+    AssetCardComponent,
     ConnectionStatusComponent,
     MemoryCardComponent,
     // Wallet Core
@@ -52,6 +54,8 @@ impl Story {
             Story::ReactiveBindings,
             Story::DomHelpers,
             Story::EventHandlers,
+            Story::ImageCardComponent,
+            Story::AssetCardComponent,
             Story::ConnectionStatusComponent,
             Story::MemoryCardComponent,
             Story::WalletProviders,
@@ -73,6 +77,8 @@ impl Story {
             Story::ReactiveBindings => "Reactive Bindings",
             Story::DomHelpers => "DOM Helpers",
             Story::EventHandlers => "Event Handlers",
+            Story::ImageCardComponent => "Image Card",
+            Story::AssetCardComponent => "Asset Card",
             Story::ConnectionStatusComponent => "Connection Status",
             Story::MemoryCardComponent => "Memory Card",
             Story::WalletProviders => "Wallet Providers",
@@ -94,7 +100,10 @@ impl Story {
             | Story::ReactiveBindings
             | Story::DomHelpers
             | Story::EventHandlers => "Primitives",
-            Story::ConnectionStatusComponent | Story::MemoryCardComponent => "Components",
+            Story::ImageCardComponent
+            | Story::AssetCardComponent
+            | Story::ConnectionStatusComponent
+            | Story::MemoryCardComponent => "Components",
             Story::WalletProviders | Story::ConnectionStates => "Wallet Core",
             Story::FlowOverview | Story::FlowState | Story::FlowOperations => "UI Flow",
             Story::LoadingStates | Story::LoaderConfig => "UI Loader",
@@ -218,6 +227,8 @@ fn render_story(story: Story) {
         Story::ReactiveBindings => render_reactive_bindings_story(),
         Story::DomHelpers => render_dom_helpers_story(),
         Story::EventHandlers => render_event_handlers_story(),
+        Story::ImageCardComponent => render_image_card_story(),
+        Story::AssetCardComponent => render_asset_card_story(),
         Story::ConnectionStatusComponent => render_connection_status_story(),
         Story::MemoryCardComponent => render_memory_card_story(),
         Story::WalletProviders => render_wallet_providers_story(),
@@ -662,6 +673,457 @@ on_change(&select, |event: Event| {
 }
 
 // ============================================================================
+// Image Card Component Story
+// ============================================================================
+
+fn render_image_card_story() -> Element {
+    // Register components
+    components::define_all();
+
+    let container = create_element("div", &[]);
+
+    let header = create_element("div", &["story-header"]);
+    let h2 = create_element("h2", &[]);
+    h2.set_text_content(Some("Image Card"));
+    header.append(&h2);
+
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(
+        "A basic card component for displaying images with optional name overlay and accent color. Foundation for other card components.",
+    ));
+    header.append(&desc);
+    container.append(&header);
+
+    // Basic Examples section
+    let section = create_element("div", &["story-section"]);
+    let h3 = create_element("h3", &[]);
+    h3.set_text_content(Some("Examples"));
+    section.append(&h3);
+
+    let canvas = create_element("div", &["story-canvas"]);
+    let grid = create_element("div", &[]);
+    grid.set_attribute(
+        "style",
+        "display: grid; grid-template-columns: repeat(4, 120px); gap: 1rem;",
+    )
+    .unwrap();
+
+    // Basic card
+    let card1 = document().create_element("image-card").unwrap();
+    card1.set_attribute("image-url", "https://iiif.hodlcroft.com/iiif/3/b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6:506972617465313839/full/400,/0/default.jpg").unwrap();
+    card1.set_attribute("name", "Basic Card").unwrap();
+    grid.append_child(&card1).unwrap();
+
+    // Card with name shown
+    let card2 = document().create_element("image-card").unwrap();
+    card2.set_attribute("image-url", "https://iiif.hodlcroft.com/iiif/3/b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6:506972617465323030/full/400,/0/default.jpg").unwrap();
+    card2.set_attribute("name", "With Name").unwrap();
+    card2.set_attribute("show-name", "").unwrap();
+    grid.append_child(&card2).unwrap();
+
+    // Card with accent color
+    let card3 = document().create_element("image-card").unwrap();
+    card3.set_attribute("image-url", "https://iiif.hodlcroft.com/iiif/3/b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6:506972617465333333/full/400,/0/default.jpg").unwrap();
+    card3.set_attribute("name", "Gold Accent").unwrap();
+    card3.set_attribute("show-name", "").unwrap();
+    card3.set_attribute("accent-color", "#FFD700").unwrap();
+    grid.append_child(&card3).unwrap();
+
+    // Static card
+    let card4 = document().create_element("image-card").unwrap();
+    card4.set_attribute("image-url", "https://iiif.hodlcroft.com/iiif/3/b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6:506972617465343434/full/400,/0/default.jpg").unwrap();
+    card4.set_attribute("name", "Static").unwrap();
+    card4.set_attribute("show-name", "").unwrap();
+    card4.set_attribute("static", "").unwrap();
+    grid.append_child(&card4).unwrap();
+
+    canvas.append(&grid);
+    section.append(&canvas);
+    container.append(&section);
+
+    // Attributes section
+    let section2 = create_element("div", &["story-section"]);
+    let h3_2 = create_element("h3", &[]);
+    h3_2.set_text_content(Some("Attributes"));
+    section2.append(&h3_2);
+
+    let canvas2 = create_element("div", &["story-canvas"]);
+    let grid2 = create_element("div", &["story-grid"]);
+
+    let attr1 = render_attribute_card("image-url", "URL string", "URL of the image to display");
+    grid2.append(&attr1);
+
+    let attr2 = render_attribute_card("name", "string", "Name shown in overlay and as tooltip");
+    grid2.append(&attr2);
+
+    let attr3 = render_attribute_card("show-name", "boolean", "If present, shows the name overlay");
+    grid2.append(&attr3);
+
+    let attr4 = render_attribute_card(
+        "accent-color",
+        "CSS color",
+        "Color for the accent bar at top",
+    );
+    grid2.append(&attr4);
+
+    let attr5 = render_attribute_card(
+        "static",
+        "boolean",
+        "If present, disables hover effects and clicks",
+    );
+    grid2.append(&attr5);
+
+    canvas2.append(&grid2);
+    section2.append(&canvas2);
+    container.append(&section2);
+
+    // Code example
+    let code_section = create_element("div", &["story-section"]);
+    let code_h3 = create_element("h3", &[]);
+    code_h3.set_text_content(Some("Usage"));
+    code_section.append(&code_h3);
+
+    let code = create_element("pre", &["code-block"]);
+    code.set_text_content(Some(
+        r##"// Register components at app startup
+components::define_all();
+
+// Basic image card
+<image-card
+    image-url="https://example.com/image.png"
+    name="My Image"
+></image-card>
+
+// With name overlay and accent color
+<image-card
+    image-url="https://..."
+    name="Featured"
+    show-name
+    accent-color="#FFD700"
+></image-card>
+
+// Listen for clicks
+<image-card
+    attr:image-url=url
+    attr:name=name
+    on:card-click=move |_| { handle_click(); }
+/>
+
+// Static (non-interactive)
+<image-card
+    image-url="https://..."
+    name="Display Only"
+    static
+></image-card>"##,
+    ));
+    code_section.append(&code);
+    container.append(&code_section);
+
+    container
+}
+
+// ============================================================================
+// Asset Card Component Story
+// ============================================================================
+
+fn render_asset_card_story() -> Element {
+    // Register components
+    components::define_all();
+
+    let container = create_element("div", &[]);
+
+    let header = create_element("div", &["story-header"]);
+    let h2 = create_element("h2", &[]);
+    h2.set_text_content(Some("Asset Card"));
+    header.append(&h2);
+
+    let desc = create_element("p", &[]);
+    desc.set_text_content(Some(
+        "Cardano NFT asset card with automatic IIIF URL generation. Wraps <image-card> and derives image URLs from asset IDs.",
+    ));
+    header.append(&desc);
+    container.append(&header);
+
+    // Examples section
+    let section = create_element("div", &["story-section"]);
+    let h3 = create_element("h3", &[]);
+    h3.set_text_content(Some("Examples"));
+    section.append(&h3);
+
+    let canvas = create_element("div", &["story-canvas"]);
+    let grid = create_element("div", &[]);
+    grid.set_attribute(
+        "style",
+        "display: grid; grid-template-columns: repeat(4, 120px); gap: 1rem;",
+    )
+    .unwrap();
+
+    // Thumbnail (default size)
+    let card1 = document().create_element("asset-card").unwrap();
+    card1
+        .set_attribute(
+            "asset-id",
+            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839",
+        )
+        .unwrap();
+    card1.set_attribute("name", "Pirate #189").unwrap();
+    card1.set_attribute("show-name", "").unwrap();
+    grid.append_child(&card1).unwrap();
+
+    // Another thumbnail
+    let card2 = document().create_element("asset-card").unwrap();
+    card2
+        .set_attribute(
+            "asset-id",
+            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465323030",
+        )
+        .unwrap();
+    card2.set_attribute("name", "Pirate #200").unwrap();
+    card2.set_attribute("show-name", "").unwrap();
+    grid.append_child(&card2).unwrap();
+
+    // Large size
+    let card3 = document().create_element("asset-card").unwrap();
+    card3
+        .set_attribute(
+            "asset-id",
+            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465333333",
+        )
+        .unwrap();
+    card3.set_attribute("size", "large").unwrap();
+    card3.set_attribute("name", "Large (1686px)").unwrap();
+    card3.set_attribute("show-name", "").unwrap();
+    grid.append_child(&card3).unwrap();
+
+    // With accent color
+    let card4 = document().create_element("asset-card").unwrap();
+    card4
+        .set_attribute(
+            "asset-id",
+            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465343434",
+        )
+        .unwrap();
+    card4.set_attribute("name", "Gold Tier").unwrap();
+    card4.set_attribute("show-name", "").unwrap();
+    card4.set_attribute("accent-color", "#FFD700").unwrap();
+    grid.append_child(&card4).unwrap();
+
+    canvas.append(&grid);
+    section.append(&canvas);
+    container.append(&section);
+
+    // Interactive Demo section
+    let section2 = create_element("div", &["story-section"]);
+    let h3_2 = create_element("h3", &[]);
+    h3_2.set_text_content(Some("Interactive Demo"));
+    section2.append(&h3_2);
+
+    let canvas2 = create_element("div", &["story-canvas"]);
+
+    let demo_row = create_element("div", &[]);
+    demo_row
+        .set_attribute("style", "display: flex; align-items: center; gap: 1rem;")
+        .unwrap();
+
+    // Interactive card
+    let asset_id = "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465353535";
+    let demo_card: web_sys::HtmlElement = document()
+        .create_element("asset-card")
+        .unwrap()
+        .unchecked_into();
+    demo_card.set_attribute("asset-id", asset_id).unwrap();
+    demo_card.set_attribute("name", "Click me!").unwrap();
+    demo_card.set_attribute("show-name", "").unwrap();
+    demo_card.style().set_property("width", "140px").unwrap();
+    demo_row.append_child(&demo_card).unwrap();
+
+    // Click counter
+    let click_count = Mutable::new(0u32);
+    let last_asset_id = Mutable::new(String::new());
+
+    let status_label = create_element("span", &["status-indicator", "status-indicator--connected"]);
+    {
+        let click_count = click_count.clone();
+        bind_text_content(
+            &status_label,
+            click_count.signal().map(move |c| {
+                if c == 0 {
+                    "Click the card!".to_string()
+                } else {
+                    format!("Clicks: {c}")
+                }
+            }),
+        );
+    }
+    demo_row.append(&status_label);
+
+    let asset_label = create_element("span", &["status-indicator"]);
+    bind_text_content(
+        &asset_label,
+        last_asset_id.signal_cloned().map(|id| {
+            if id.is_empty() {
+                String::new()
+            } else {
+                // Show truncated asset ID
+                let truncated = if id.len() > 20 {
+                    format!("{}...{}", &id[..10], &id[id.len() - 10..])
+                } else {
+                    id
+                };
+                format!("ID: {truncated}")
+            }
+        }),
+    );
+    demo_row.append(&asset_label);
+
+    // Listen for card-click events
+    {
+        let click_count = click_count.clone();
+        let last_asset_id = last_asset_id.clone();
+        let closure =
+            wasm_bindgen::closure::Closure::wrap(Box::new(move |e: web_sys::CustomEvent| {
+                click_count.replace_with(|c| *c + 1);
+                if let Some(detail) = e.detail().as_string() {
+                    last_asset_id.set(detail);
+                }
+            }) as Box<dyn Fn(_)>);
+        demo_card
+            .add_event_listener_with_callback("card-click", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+
+    canvas2.append(&demo_row);
+    section2.append(&canvas2);
+    container.append(&section2);
+
+    // Attributes section
+    let section3 = create_element("div", &["story-section"]);
+    let h3_3 = create_element("h3", &[]);
+    h3_3.set_text_content(Some("Attributes"));
+    section3.append(&h3_3);
+
+    let canvas3 = create_element("div", &["story-canvas"]);
+    let grid3 = create_element("div", &["story-grid"]);
+
+    let attr1 = render_attribute_card(
+        "asset-id",
+        "string",
+        "Cardano asset ID (policy_id + asset_name hex). Used for IIIF lookup and click events.",
+    );
+    grid3.append(&attr1);
+
+    let attr2 = render_attribute_card(
+        "size",
+        "thumb | large",
+        "IIIF image size: thumb (400px, default) or large (1686px)",
+    );
+    grid3.append(&attr2);
+
+    let attr3 = render_attribute_card(
+        "image-url",
+        "URL string",
+        "Direct image URL (overrides IIIF lookup if both specified)",
+    );
+    grid3.append(&attr3);
+
+    let attr4 = render_attribute_card(
+        "name",
+        "string",
+        "Asset name (used for title tooltip and overlay)",
+    );
+    grid3.append(&attr4);
+
+    let attr5 = render_attribute_card(
+        "show-name",
+        "boolean (present/absent)",
+        "Whether to show the name overlay at the bottom",
+    );
+    grid3.append(&attr5);
+
+    let attr6 = render_attribute_card(
+        "accent-color",
+        "CSS color string",
+        "Color for the accent bar at the top (e.g., tier color)",
+    );
+    grid3.append(&attr6);
+
+    let attr7 = render_attribute_card(
+        "static",
+        "boolean (present/absent)",
+        "If present, disables hover effects and click events",
+    );
+    grid3.append(&attr7);
+
+    canvas3.append(&grid3);
+    section3.append(&canvas3);
+    container.append(&section3);
+
+    // Code example
+    let code_section = create_element("div", &["story-section"]);
+    let code_h3 = create_element("h3", &[]);
+    code_h3.set_text_content(Some("Usage"));
+    code_section.append(&code_h3);
+
+    let code = create_element("pre", &["code-block"]);
+    code.set_text_content(Some(
+        r##"// Register components at app startup
+components::define_all();
+
+// IIIF lookup (recommended) - auto-generates URL from asset ID
+<asset-card
+    asset-id="{policy_id}{asset_name_hex}"
+    name="Pirate #189"
+    show-name
+></asset-card>
+
+// IIIF with large size (1686px instead of default 400px)
+<asset-card
+    asset-id="{policy_id}{asset_name_hex}"
+    size="large"
+    name="High Resolution"
+></asset-card>
+
+// Direct URL (overrides IIIF lookup)
+<asset-card
+    image-url="https://example.com/custom-image.png"
+    name="Custom Image"
+    show-name
+></asset-card>
+
+// With accent color for tier indication
+<asset-card
+    asset-id="{asset_id}"
+    name="Gold Tier Asset"
+    show-name
+    accent-color="#FFD700"
+></asset-card>
+
+// Listen for clicks (Leptos example)
+<asset-card
+    attr:asset-id=asset_id
+    attr:name=name
+    on:card-click=move |e: web_sys::CustomEvent| {
+        if let Some(id) = e.detail().as_string() {
+            handle_asset_click(id);
+        }
+    }
+/>
+
+// Static display (no interaction)
+<asset-card
+    asset-id="{asset_id}"
+    name="Display Only"
+    static
+></asset-card>"##,
+    ));
+    code_section.append(&code);
+    container.append(&code_section);
+
+    container
+}
+
+// ============================================================================
 // Connection Status Component Story
 // ============================================================================
 
@@ -923,7 +1385,7 @@ fn render_memory_card_story() -> Element {
 
     let desc = create_element("p", &[]);
     desc.set_text_content(Some(
-        "A flippable card component for the memory matching game. Shows card back when face-down, asset image when flipped.",
+        "A flippable card component for the memory matching game. Wraps <asset-card> internally. Shows card back when face-down, asset image when flipped.",
     ));
     header.append(&desc);
     container.append(&header);
