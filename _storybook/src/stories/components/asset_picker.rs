@@ -150,7 +150,7 @@ pub fn AssetPickerStory() -> impl IntoView {
     };
 
     let on_select_basic = {
-        let set_selected = set_selected_asset.clone();
+        let set_selected = set_selected_asset;
         Callback::new(move |id: String| {
             set_selected.set(Some(id));
             set_show_basic.set(false);
@@ -158,7 +158,7 @@ pub fn AssetPickerStory() -> impl IntoView {
     };
 
     let on_select_mixed = {
-        let set_selected = set_selected_asset.clone();
+        let set_selected = set_selected_asset;
         Callback::new(move |id: String| {
             set_selected.set(Some(id));
             set_show_with_disabled.set(false);
@@ -215,7 +215,7 @@ pub fn AssetPickerStory() -> impl IntoView {
                 assets=sample_assets
                 on_select=on_select_basic
                 on_close=Callback::new(move |()| set_show_basic.set(false))
-                render_asset=render_basic.clone()
+                render_asset=render_basic
             />
 
             // Picker with disabled items
@@ -226,7 +226,7 @@ pub fn AssetPickerStory() -> impl IntoView {
                 empty_message="No crew members available"
                 on_select=on_select_mixed
                 on_close=Callback::new(move |()| set_show_with_disabled.set(false))
-                render_asset=render_with_badges.clone()
+                render_asset=render_with_badges
             />
 
             // Live API Demo Modal
@@ -234,7 +234,7 @@ pub fn AssetPickerStory() -> impl IntoView {
                 open=Signal::derive(move || show_live.get())
                 on_close=Callback::new(move |()| set_show_live.set(false))
                 on_select=Callback::new({
-                    let set_selected = set_selected_asset.clone();
+                    let set_selected = set_selected_asset;
                     move |id: String| {
                         set_selected.set(Some(id));
                         set_show_live.set(false);

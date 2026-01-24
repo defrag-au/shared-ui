@@ -67,7 +67,6 @@ pub fn Tabs(
                 {tabs.into_iter().map(|(value, label)| {
                     let value_for_class = value.clone();
                     let value_for_click = value.clone();
-                    let on_change = on_change.clone();
 
                     view! {
                         <button

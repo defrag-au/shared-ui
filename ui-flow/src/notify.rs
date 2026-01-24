@@ -55,6 +55,7 @@ pub struct NoAction;
 ///
 /// This is a convenience wrapper around `FlowConnectionBuilder` that uses
 /// unit types for State and Delta, simplifying the API for notification-only use cases.
+#[allow(clippy::type_complexity)]
 pub struct NotifyConnectionBuilder<Event, Action = NoAction> {
     url: Option<String>,
     reconnect_config: ReconnectConfig,
