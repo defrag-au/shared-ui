@@ -1,7 +1,15 @@
 //! Drop Editor Component
 //!
-//! An editor for configuring reward drops (tips and wallet sends).
+//! A compact horizontal editor for configuring reward drops (tips and wallet sends).
 //! Used for raffle prizes, achievement rewards, giveaways, etc.
+//!
+//! ## Features
+//!
+//! - Horizontal stack of AssetCards showing prizes
+//! - Drag-and-drop reordering
+//! - Modal for adding new drops (tips or CNFTs)
+//! - Remove button on hover
+//! - Skeleton loading for NFT images
 //!
 //! # Example
 //!
@@ -11,7 +19,7 @@
 //!
 //! let (drops, set_drops) = signal(vec![
 //!     Drop::tip("ADA", 100.0),
-//!     Drop::tip("ADA", 50.0),
+//!     Drop::wallet_send_single(asset_id),
 //! ]);
 //!
 //! view! {
@@ -22,12 +30,12 @@
 //! }
 //! ```
 
-use crate::{AssetCard, Button, ButtonVariant, CardSize};
+use crate::{AssetCard, Button, ButtonVariant, CardSize, Modal, Select, SelectOption};
 use asset_intents::{AssetId, Drop};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
-/// Editor for a list of reward drops
+/// Editor for a list of reward drops - horizontal compact layout
 #[component]
 pub fn DropEditor(
     /// The current list of drops
@@ -36,83 +44,73 @@ pub fn DropEditor(
     /// Called when drops are modified
     #[prop(into)]
     on_change: Callback<Vec<Drop>>,
-    /// If true, disables editing
+    /// If true, disables editing (no add/remove/reorder)
     #[prop(into, optional)]
     readonly: Signal<bool>,
+    /// Card size for drop items
+    #[prop(optional, default = CardSize::Sm)]
+    size: CardSize,
 ) -> impl IntoView {
-    // State for the CNFT input section
-    let (show_cnft_input, set_show_cnft_input) = signal(false);
-    let (cnft_input_value, set_cnft_input_value) = signal(String::new());
-    let (cnft_error, set_cnft_error) = signal(Option::<String>::None);
+    // Modal state
+    let (show_add_modal, set_show_add_modal) = signal(false);
 
-    // Helper to update drops and notify parent
+    // Drag state
+    let (drag_index, set_drag_index) = signal(Option::<usize>::None);
+    let (drag_over_index, set_drag_over_index) = signal(Option::<usize>::None);
+
+    // Helper to update drops
     let update_drops = move |new_drops: Vec<Drop>| {
         on_change.run(new_drops);
     };
 
-    // Add a tip drop
-    let add_tip = move |_| {
+    // Remove a drop at index
+    let remove_drop = move |idx: usize| {
         let mut new_drops = drops.get();
-        new_drops.push(Drop::tip("ADA", 100.0));
-        update_drops(new_drops);
-    };
-
-    // Show CNFT input
-    let show_cnft = move |_| {
-        set_show_cnft_input.set(true);
-        set_cnft_error.set(None);
-    };
-
-    // Cancel CNFT input
-    let cancel_cnft = move |_| {
-        set_show_cnft_input.set(false);
-        set_cnft_input_value.set(String::new());
-        set_cnft_error.set(None);
-    };
-
-    // Handle CNFT input change - auto-add on valid paste
-    let on_cnft_input = move |ev: web_sys::Event| {
-        let target = ev.target().unwrap();
-        let input: web_sys::HtmlInputElement = target.unchecked_into();
-        let value = input.value();
-        let trimmed = value.trim();
-
-        if trimmed.is_empty() {
-            set_cnft_input_value.set(value);
-            set_cnft_error.set(None);
-            return;
+        if idx < new_drops.len() {
+            new_drops.remove(idx);
+            update_drops(new_drops);
         }
+    };
 
-        match AssetId::parse_smart(trimmed) {
-            Ok(asset_id) => {
-                // Valid asset ID - add it
+    // Handle drop reorder from drag
+    let handle_drop = move |target_idx: usize| {
+        if let Some(source_idx) = drag_index.get() {
+            if source_idx != target_idx {
                 let mut new_drops = drops.get();
-                new_drops.push(Drop::wallet_send(asset_id, 1));
+                let item = new_drops.remove(source_idx);
+                // Adjust target index if we removed before it
+                let adjusted_target = if source_idx < target_idx {
+                    target_idx - 1
+                } else {
+                    target_idx
+                };
+                new_drops.insert(adjusted_target, item);
                 update_drops(new_drops);
-
-                // Reset input
-                set_show_cnft_input.set(false);
-                set_cnft_input_value.set(String::new());
-                set_cnft_error.set(None);
-            }
-            Err(_) => {
-                // Not valid yet - just update value
-                set_cnft_input_value.set(value);
             }
         }
+        set_drag_index.set(None);
+        set_drag_over_index.set(None);
+    };
+
+    // Add a new drop from modal
+    let add_drop = move |drop: Drop| {
+        let mut new_drops = drops.get();
+        new_drops.push(drop);
+        update_drops(new_drops);
+        set_show_add_modal.set(false);
     };
 
     view! {
         <div class="drop-editor">
-            // Drop items list
+            // Horizontal stack of drop items
             <div class="drop-editor__items">
                 <Show
                     when=move || !drops.get().is_empty()
                     fallback=move || {
                         view! {
-                            <Show when=move || !show_cnft_input.get()>
+                            <Show when=move || !readonly.get()>
                                 <div class="drop-editor__empty">
-                                    "No prizes configured. Add a prize below."
+                                    "No prizes yet"
                                 </div>
                             </Show>
                         }
@@ -120,295 +118,348 @@ pub fn DropEditor(
                 >
                     <For
                         each={move || drops.get().into_iter().enumerate().collect::<Vec<_>>()}
-                        key=|(idx, _)| *idx
+                        key=|(idx, drop)| format!("{}-{}", idx, drop_key(drop))
                         let:item
                     >
                         {
                             let (idx, drop) = item;
-                            let drops_len = drops.get().len();
+                            let is_dragging = move || drag_index.get() == Some(idx);
+                            let is_drag_over = move || drag_over_index.get() == Some(idx);
+
                             view! {
                                 <DropItem
                                     index=idx
                                     drop=drop
-                                    total=drops_len
+                                    size=size
                                     readonly=readonly
-                                    on_update=move |new_drop| {
-                                        let mut new_drops = drops.get();
-                                        new_drops[idx] = new_drop;
-                                        update_drops(new_drops);
+                                    is_dragging=is_dragging
+                                    is_drag_over=is_drag_over
+                                    on_remove=move || remove_drop(idx)
+                                    on_drag_start=move || set_drag_index.set(Some(idx))
+                                    on_drag_end=move || {
+                                        set_drag_index.set(None);
+                                        set_drag_over_index.set(None);
                                     }
-                                    on_remove=move || {
-                                        let mut new_drops = drops.get();
-                                        new_drops.remove(idx);
-                                        update_drops(new_drops);
-                                    }
-                                    on_move_up=move || {
-                                        if idx > 0 {
-                                            let mut new_drops = drops.get();
-                                            new_drops.swap(idx, idx - 1);
-                                            update_drops(new_drops);
-                                        }
-                                    }
-                                    on_move_down=move || {
-                                        if idx < drops_len - 1 {
-                                            let mut new_drops = drops.get();
-                                            new_drops.swap(idx, idx + 1);
-                                            update_drops(new_drops);
-                                        }
-                                    }
+                                    on_drag_over=move || set_drag_over_index.set(Some(idx))
+                                    on_drop=move || handle_drop(idx)
                                 />
                             }
                         }
                     </For>
                 </Show>
+
+                // Add button (hidden in readonly mode)
+                <Show when=move || !readonly.get()>
+                    <button
+                        class="drop-editor__add-btn"
+                        on:click=move |_| set_show_add_modal.set(true)
+                        title="Add prize"
+                    >
+                        <span class="drop-editor__add-icon">"+"</span>
+                    </button>
+                </Show>
             </div>
 
-            // CNFT input section (shown when adding CNFT)
-            <Show when=move || show_cnft_input.get() && !readonly.get()>
-                <div class="drop-editor__cnft-input">
-                    <input
-                        type="text"
-                        placeholder="Paste asset ID..."
-                        prop:value=cnft_input_value
-                        on:input=on_cnft_input
-                        class="drop-editor__input"
-                    />
-                    <Button
-                        variant=ButtonVariant::Secondary
-                        on_click=cancel_cnft
-                    >
-                        "Cancel"
-                    </Button>
-                    <Show when=move || cnft_error.get().is_some()>
-                        <span class="drop-editor__error">{move || cnft_error.get()}</span>
-                    </Show>
-                </div>
-            </Show>
-
-            // Add buttons (hidden in readonly mode)
-            <Show when=move || !readonly.get() && !show_cnft_input.get()>
-                <div class="drop-editor__actions">
-                    <Button
-                        variant=ButtonVariant::Secondary
-                        on_click=add_tip
-                    >
-                        "+ Add Tip Prize"
-                    </Button>
-                    <Button
-                        variant=ButtonVariant::Secondary
-                        on_click=show_cnft
-                    >
-                        "+ Add CNFT Prize"
-                    </Button>
-                </div>
-            </Show>
+            // Add drop modal
+            <AddDropModal
+                open=show_add_modal
+                on_close=move || set_show_add_modal.set(false)
+                on_add=add_drop
+            />
         </div>
     }
 }
 
-/// Position suffix (1st, 2nd, 3rd, 4th...)
-fn position_suffix(index: usize) -> &'static str {
-    match index + 1 {
-        1 => "st",
-        2 => "nd",
-        3 => "rd",
-        _ => "th",
+/// Generate a unique key for a drop (for list rendering)
+fn drop_key(drop: &Drop) -> String {
+    match drop {
+        Drop::Tip { token, amount } => format!("tip-{token}-{amount}"),
+        Drop::WalletSend { asset_id, amount } => {
+            format!("ws-{}-{amount}", asset_id.concatenated())
+        }
     }
 }
 
-/// A single drop item in the editor
+/// Format drop display name for AssetCard
+fn drop_display_name(drop: &Drop) -> String {
+    match drop {
+        Drop::Tip { token, amount } => {
+            if *amount == amount.floor() {
+                format!("{} {}", *amount as i64, token)
+            } else {
+                format!("{} {}", amount, token)
+            }
+        }
+        Drop::WalletSend { asset_id, amount } => {
+            let name = asset_id.asset_name();
+            if *amount > 1 {
+                format!("{} x{}", name, amount)
+            } else {
+                name
+            }
+        }
+    }
+}
+
+/// A single drop item in the horizontal list
 #[component]
 fn DropItem(
-    /// Zero-based index
     index: usize,
-    /// The drop to display/edit
     drop: Drop,
-    /// Total number of drops (for move button state)
-    total: usize,
-    /// Readonly mode
-    #[prop(into)]
-    readonly: Signal<bool>,
-    /// Called when the drop is updated
-    on_update: impl Fn(Drop) + Send + Sync + 'static + Copy,
-    /// Called when the drop should be removed
+    size: CardSize,
+    #[prop(into)] readonly: Signal<bool>,
+    #[prop(into)] is_dragging: Signal<bool>,
+    #[prop(into)] is_drag_over: Signal<bool>,
     on_remove: impl Fn() + Send + Sync + 'static + Copy,
-    /// Called when the drop should move up
-    on_move_up: impl Fn() + Send + Sync + 'static + Copy,
-    /// Called when the drop should move down
-    on_move_down: impl Fn() + Send + Sync + 'static + Copy,
+    on_drag_start: impl Fn() + Send + Sync + 'static + Copy,
+    on_drag_end: impl Fn() + Send + Sync + 'static + Copy,
+    on_drag_over: impl Fn() + Send + Sync + 'static + Copy,
+    on_drop: impl Fn() + Send + Sync + 'static + Copy,
 ) -> impl IntoView {
-    let is_readonly = move || readonly.get();
-    let can_move_up = index > 0;
-    let can_move_down = index < total - 1;
+    let display_name = drop_display_name(&drop);
+
+    // Get asset_id for NFTs
+    let asset_id = match &drop {
+        Drop::WalletSend { asset_id, .. } => Some(asset_id.concatenated()),
+        Drop::Tip { .. } => None,
+    };
+
+    let item_class = move || {
+        let mut classes = vec!["drop-item"];
+        if is_dragging.get() {
+            classes.push("drop-item--dragging");
+        }
+        if is_drag_over.get() {
+            classes.push("drop-item--drag-over");
+        }
+        classes.join(" ")
+    };
 
     view! {
-        <div class="drop-item">
-            // Position badge
-            <div class="drop-item__position">
-                {index + 1}{position_suffix(index)}
-            </div>
+        <div
+            class=item_class
+            draggable=move || if readonly.get() { "false" } else { "true" }
+            on:dragstart=move |ev| {
+                if !readonly.get() {
+                    ev.data_transfer()
+                        .map(|dt| dt.set_effect_allowed("move"));
+                    on_drag_start();
+                }
+            }
+            on:dragend=move |_| on_drag_end()
+            on:dragover=move |ev| {
+                if !readonly.get() {
+                    ev.prevent_default();
+                    on_drag_over();
+                }
+            }
+            on:dragleave=move |_| {}
+            on:drop=move |ev| {
+                ev.prevent_default();
+                on_drop();
+            }
+        >
+            // Position indicator
+            <div class="drop-item__position">{index + 1}</div>
 
-            // Content (varies by drop type)
-            <div class="drop-item__content">
-                {match drop.clone() {
-                    Drop::Tip { token, amount } => {
-                        view! {
-                            <TipDropContent
-                                token=token
-                                amount=amount
-                                readonly=readonly
-                                on_update=on_update
-                            />
-                        }.into_any()
-                    }
-                    Drop::WalletSend { asset_id, amount } => {
-                        view! {
-                            <WalletSendDropContent
-                                asset_id=asset_id
-                                amount=amount
-                                readonly=readonly
-                                on_update=on_update
-                            />
-                        }.into_any()
-                    }
+            // Card display
+            <div class="drop-item__card">
+                {match asset_id {
+                    Some(id) => view! {
+                        <AssetCard
+                            asset_id=id
+                            name=display_name.clone()
+                            size=size
+                            show_name=true
+                            is_static=true
+                        />
+                    }.into_any(),
+                    None => view! {
+                        // Tip display - text card
+                        <div class="drop-item__tip-card" style=format!(
+                            "width: {}px; height: {}px;",
+                            size.pixels().unwrap_or(120),
+                            size.pixels().unwrap_or(120)
+                        )>
+                            <div class="drop-item__tip-icon">"$"</div>
+                            <div class="drop-item__tip-name">{display_name.clone()}</div>
+                        </div>
+                    }.into_any(),
                 }}
             </div>
 
-            // Action buttons (hidden in readonly mode)
-            <Show when=move || !is_readonly()>
-                <div class="drop-item__actions">
-                    <button
-                        class="drop-item__move"
-                        disabled=!can_move_up
-                        on:click=move |_| on_move_up()
-                        title="Move up"
-                    >
-                        {"\u{2191}"} // ↑
-                    </button>
-                    <button
-                        class="drop-item__move"
-                        disabled=!can_move_down
-                        on:click=move |_| on_move_down()
-                        title="Move down"
-                    >
-                        {"\u{2193}"} // ↓
-                    </button>
-                    <button
-                        class="drop-item__remove"
-                        on:click=move |_| on_remove()
-                        title="Remove"
-                    >
-                        {"\u{00D7}"} // ×
-                    </button>
-                </div>
+            // Remove button (shown on hover, hidden in readonly)
+            <Show when=move || !readonly.get()>
+                <button
+                    class="drop-item__remove"
+                    on:click=move |ev| {
+                        ev.stop_propagation();
+                        on_remove();
+                    }
+                    title="Remove"
+                >
+                    {"\u{00D7}"} // ×
+                </button>
             </Show>
         </div>
     }
 }
 
-/// Content for a Tip drop
+/// Modal for adding a new drop
 #[component]
-fn TipDropContent(
-    token: String,
-    amount: f64,
-    #[prop(into)] readonly: Signal<bool>,
-    on_update: impl Fn(Drop) + 'static + Copy,
+fn AddDropModal(
+    #[prop(into)] open: Signal<bool>,
+    on_close: impl Fn() + Send + Sync + 'static + Copy,
+    on_add: impl Fn(Drop) + Send + Sync + 'static + Copy,
 ) -> impl IntoView {
-    let (current_token, set_current_token) = signal(token);
-    let (current_amount, set_current_amount) = signal(amount);
+    // Form state
+    let (drop_type, set_drop_type) = signal("tip".to_string());
+    let (tip_token, set_tip_token) = signal("ADA".to_string());
+    let (tip_amount, set_tip_amount) = signal(100.0f64);
+    let (cnft_input, set_cnft_input) = signal(String::new());
+    let (cnft_error, set_cnft_error) = signal(Option::<String>::None);
 
-    // Update parent when values change
-    let notify_update = move || {
-        on_update(Drop::tip(current_token.get(), current_amount.get()));
-    };
+    // Reset form when modal opens
+    Effect::new(move |_| {
+        if open.get() {
+            set_drop_type.set("tip".to_string());
+            set_tip_token.set("ADA".to_string());
+            set_tip_amount.set(100.0);
+            set_cnft_input.set(String::new());
+            set_cnft_error.set(None);
+        }
+    });
 
-    let on_amount_input = move |ev: web_sys::Event| {
-        let target = ev.target().unwrap();
-        let input: web_sys::HtmlInputElement = target.unchecked_into();
-        if let Ok(val) = input.value().parse::<f64>() {
-            set_current_amount.set(val);
-            notify_update();
+    let handle_add = move |_| {
+        let dtype = drop_type.get();
+        if dtype == "tip" {
+            let drop = Drop::tip(tip_token.get(), tip_amount.get());
+            on_add(drop);
+        } else {
+            // CNFT - parse asset ID
+            let input = cnft_input.get();
+            match AssetId::parse_smart(input.trim()) {
+                Ok(asset_id) => {
+                    let drop = Drop::wallet_send_single(asset_id);
+                    on_add(drop);
+                }
+                Err(_) => {
+                    set_cnft_error.set(Some("Invalid asset ID format".to_string()));
+                }
+            }
         }
     };
 
-    let on_token_input = move |ev: web_sys::Event| {
-        let target = ev.target().unwrap();
-        let input: web_sys::HtmlInputElement = target.unchecked_into();
-        set_current_token.set(input.value());
-        notify_update();
-    };
+    let type_options = Signal::derive(|| {
+        vec![
+            SelectOption::new("tip", "Tip (Fungible Token)"),
+            SelectOption::new("cnft", "CNFT (NFT Transfer)"),
+        ]
+    });
 
-    view! {
-        <span class="drop-item__badge drop-item__badge--tip">"Tip"</span>
-        <input
-            type="number"
-            class="drop-item__input drop-item__input--amount"
-            prop:value=move || current_amount.get().to_string()
-            on:input=on_amount_input
-            min="0"
-            step="0.01"
-            disabled=readonly
-        />
-        <span class="drop-item__separator">{"\u{00D7}"}</span> // ×
-        <input
-            type="text"
-            class="drop-item__input drop-item__input--token"
-            prop:value=current_token
-            on:input=on_token_input
-            placeholder="ADA"
-            disabled=readonly
-        />
-    }
-}
-
-/// Content for a WalletSend drop
-#[component]
-fn WalletSendDropContent(
-    asset_id: AssetId,
-    amount: u64,
-    #[prop(into)] readonly: Signal<bool>,
-    on_update: impl Fn(Drop) + 'static + Copy,
-) -> impl IntoView {
-    let (current_amount, set_current_amount) = signal(amount);
-    let asset_id_clone = asset_id.clone();
-
-    let on_amount_input = move |ev: web_sys::Event| {
-        let target = ev.target().unwrap();
-        let input: web_sys::HtmlInputElement = target.unchecked_into();
-        if let Ok(val) = input.value().parse::<u64>() {
-            set_current_amount.set(val);
-            on_update(Drop::wallet_send(asset_id_clone.clone(), val));
+    let can_add = move || {
+        let dtype = drop_type.get();
+        if dtype == "tip" {
+            tip_amount.get() > 0.0 && !tip_token.get().is_empty()
+        } else {
+            !cnft_input.get().trim().is_empty()
         }
     };
 
-    // Short display of asset ID
-    let short_id = format!(
-        "{}...{}",
-        &asset_id.policy_id()[..8],
-        &asset_id.asset_name_hex()[asset_id.asset_name_hex().len().saturating_sub(6)..]
-    );
-
     view! {
-        <span class="drop-item__badge drop-item__badge--cnft">"CNFT"</span>
-        <input
-            type="number"
-            class="drop-item__input drop-item__input--qty"
-            prop:value=move || current_amount.get().to_string()
-            on:input=on_amount_input
-            min="1"
-            disabled=readonly
-        />
-        <span class="drop-item__separator">{"\u{00D7}"}</span> // ×
-        <div class="drop-item__asset">
-            <AssetCard
-                asset_id=asset_id.concatenated()
-                name=asset_id.asset_name()
-                size=CardSize::Xs
-            />
-            <div class="drop-item__asset-info">
-                <div class="drop-item__asset-name">{asset_id.asset_name()}</div>
-                <div class="drop-item__asset-id" title=asset_id.concatenated()>{short_id}</div>
+        <Modal
+            open=open
+            title="Add Prize"
+            on_close=on_close
+        >
+            <div class="add-drop-modal">
+                <div class="add-drop-modal__field">
+                    <label>"Prize Type"</label>
+                    <Select
+                        value=drop_type
+                        options=type_options
+                        on_change=move |v| set_drop_type.set(v)
+                    />
+                </div>
+
+                // Tip fields
+                <Show when=move || drop_type.get() == "tip">
+                    <div class="add-drop-modal__row">
+                        <div class="add-drop-modal__field add-drop-modal__field--amount">
+                            <label>"Amount"</label>
+                            <input
+                                type="number"
+                                class="add-drop-modal__input"
+                                prop:value=move || tip_amount.get().to_string()
+                                on:input=move |ev| {
+                                    let target = ev.target().unwrap();
+                                    let input: web_sys::HtmlInputElement = target.unchecked_into();
+                                    if let Ok(val) = input.value().parse::<f64>() {
+                                        set_tip_amount.set(val);
+                                    }
+                                }
+                                min="0"
+                                step="0.01"
+                            />
+                        </div>
+                        <div class="add-drop-modal__field add-drop-modal__field--token">
+                            <label>"Token"</label>
+                            <input
+                                type="text"
+                                class="add-drop-modal__input"
+                                prop:value=tip_token
+                                on:input=move |ev| {
+                                    let target = ev.target().unwrap();
+                                    let input: web_sys::HtmlInputElement = target.unchecked_into();
+                                    set_tip_token.set(input.value());
+                                }
+                                placeholder="ADA"
+                            />
+                        </div>
+                    </div>
+                </Show>
+
+                // CNFT fields
+                <Show when=move || drop_type.get() == "cnft">
+                    <div class="add-drop-modal__field">
+                        <label>"Asset ID"</label>
+                        <input
+                            type="text"
+                            class="add-drop-modal__input"
+                            prop:value=cnft_input
+                            on:input=move |ev| {
+                                let target = ev.target().unwrap();
+                                let input: web_sys::HtmlInputElement = target.unchecked_into();
+                                set_cnft_input.set(input.value());
+                                set_cnft_error.set(None);
+                            }
+                            placeholder="Paste asset ID (policy + asset name hex)"
+                        />
+                        <Show when=move || cnft_error.get().is_some()>
+                            <span class="add-drop-modal__error">{move || cnft_error.get()}</span>
+                        </Show>
+                        <span class="add-drop-modal__hint">
+                            "Formats: policy_id + asset_name_hex, or policy_id.asset_name_hex"
+                        </span>
+                    </div>
+                </Show>
+
+                <div class="add-drop-modal__actions">
+                    <Button
+                        variant=ButtonVariant::Secondary
+                        on_click=move |()| on_close()
+                    >
+                        "Cancel"
+                    </Button>
+                    <Button
+                        variant=ButtonVariant::Primary
+                        on_click=handle_add
+                        disabled=Signal::derive(move || !can_add())
+                    >
+                        "Add Prize"
+                    </Button>
+                </div>
             </div>
-        </div>
+        </Modal>
     }
 }

@@ -1,229 +1,246 @@
 // Drop Editor Component Styles
+// Compact horizontal layout with drag-and-drop reordering
 
 .drop-editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md, 1rem);
-
-  &__items {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm, 0.5rem);
-  }
 
-  &__empty {
-    padding: var(--space-md, 1rem);
-    text-align: center;
-    color: var(--color-text-muted, #888);
-    background: var(--color-surface, #1a1a2e);
-    border: 1px dashed var(--color-border, #333);
-    border-radius: var(--border-radius, 4px);
-    font-size: 0.875rem;
-  }
-
-  &__cnft-input {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm, 0.5rem);
-    padding: var(--space-sm, 0.5rem);
-    background: var(--color-surface, #1a1a2e);
-    border: 1px solid var(--color-border, #333);
-    border-radius: var(--border-radius, 4px);
-  }
-
-  &__input {
-    flex: 1;
-    padding: var(--space-xs, 0.25rem) var(--space-sm, 0.5rem);
-    background: var(--color-input-bg, #0a0a14);
-    border: 1px solid var(--color-border, #333);
-    border-radius: var(--border-radius, 4px);
-    color: var(--color-text, #fff);
-    font-size: 0.875rem;
-
-    &::placeholder {
-      color: var(--color-text-muted, #888);
+    &__items {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-sm, 0.5rem);
+        align-items: flex-start;
     }
 
-    &:focus {
-      outline: none;
-      border-color: var(--color-primary, #6366f1);
+    &__empty {
+        padding: var(--space-md, 1rem) var(--space-lg, 1.5rem);
+        color: var(--color-text-muted, #888);
+        font-size: 0.875rem;
+        font-style: italic;
     }
-  }
 
-  &__error {
-    color: var(--color-danger, #ef4444);
-    font-size: 0.75rem;
-  }
+    &__add-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 120px;
+        height: 120px;
+        background: var(--color-surface, #1a1a2e);
+        border: 2px dashed var(--color-border, #333);
+        border-radius: var(--border-radius, 4px);
+        color: var(--color-text-muted, #888);
+        cursor: pointer;
+        transition:
+            border-color 0.15s,
+            color 0.15s,
+            background 0.15s;
 
-  &__actions {
-    display: flex;
-    gap: var(--space-sm, 0.5rem);
-    flex-wrap: wrap;
-  }
+        &:hover {
+            border-color: var(--color-primary, #6366f1);
+            color: var(--color-primary, #6366f1);
+            background: rgba(99, 102, 241, 0.05);
+        }
+    }
+
+    &__add-icon {
+        font-size: 2rem;
+        font-weight: 300;
+        line-height: 1;
+    }
 }
 
 .drop-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm, 0.5rem);
-  padding: var(--space-sm, 0.5rem) var(--space-md, 1rem);
-  background: var(--color-surface, #1a1a2e);
-  border: 1px solid var(--color-border, #333);
-  border-radius: var(--border-radius, 4px);
+    position: relative;
+    cursor: grab;
+    transition:
+        transform 0.15s,
+        opacity 0.15s;
 
-  &__position {
-    min-width: 2.5rem;
-    padding: var(--space-xs, 0.25rem) var(--space-sm, 0.5rem);
-    background: var(--color-bg, #0a0a14);
-    border-radius: var(--border-radius, 4px);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-align: center;
-    color: var(--color-text-muted, #888);
-  }
-
-  &__content {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm, 0.5rem);
-    flex: 1;
-    min-width: 0;
-  }
-
-  &__badge {
-    padding: var(--space-xs, 0.25rem) var(--space-sm, 0.5rem);
-    border-radius: var(--border-radius, 4px);
-    font-size: 0.625rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-
-    &--tip {
-      background: var(--color-success, #22c55e);
-      color: #000;
+    &:active {
+        cursor: grabbing;
     }
 
-    &--cnft {
-      background: var(--color-info, #3b82f6);
-      color: #fff;
-    }
-  }
-
-  &__input {
-    padding: var(--space-xs, 0.25rem) var(--space-sm, 0.5rem);
-    background: var(--color-input-bg, #0a0a14);
-    border: 1px solid var(--color-border, #333);
-    border-radius: var(--border-radius, 4px);
-    color: var(--color-text, #fff);
-    font-size: 0.875rem;
-
-    &:focus {
-      outline: none;
-      border-color: var(--color-primary, #6366f1);
+    &--dragging {
+        opacity: 0.5;
+        transform: scale(0.95);
     }
 
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
+    &--drag-over {
+        &::before {
+            content: "";
+            position: absolute;
+            left: -4px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--color-primary, #6366f1);
+            border-radius: 2px;
+            z-index: 10;
+        }
     }
 
-    &--amount {
-      width: 5rem;
-      text-align: right;
+    &__position {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        min-width: 1.25rem;
+        height: 1.25rem;
+        padding: 0 0.25rem;
+        background: rgba(0, 0, 0, 0.75);
+        border-radius: var(--border-radius, 4px);
+        font-size: 0.625rem;
+        font-weight: 700;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 5;
     }
 
-    &--qty {
-      width: 3.5rem;
-      text-align: right;
+    &__card {
+        position: relative;
     }
 
-    &--token {
-      width: 5rem;
+    &__tip-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, #1a472a 0%, #0d2818 100%);
+        border-radius: var(--border-radius, 4px);
+        color: #fff;
+        overflow: hidden;
     }
-  }
 
-  &__separator {
-    color: var(--color-text-muted, #888);
-    font-weight: 300;
-  }
-
-  &__asset {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm, 0.5rem);
-    flex: 1;
-    min-width: 0;
-
-    // Constrain the AssetCard within the drop item
-    .asset-card {
-      flex-shrink: 0;
+    &__tip-icon {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #22c55e;
+        opacity: 0.8;
     }
-  }
 
-  &__asset-info {
+    &__tip-name {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-align: center;
+        padding: 0 0.5rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 0.25rem 0.5rem;
+        width: 100%;
+        position: absolute;
+        bottom: 0;
+    }
+
+    &__remove {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 1.5rem;
+        height: 1.5rem;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: rgba(239, 68, 68, 0.9);
+        color: #fff;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition:
+            opacity 0.15s,
+            transform 0.15s;
+        z-index: 10;
+
+        &:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+    }
+
+    &:hover &__remove {
+        opacity: 1;
+    }
+}
+
+// Add Drop Modal styles
+.add-drop-modal {
     display: flex;
     flex-direction: column;
-    min-width: 0;
-    flex: 1;
-  }
+    gap: var(--space-md, 1rem);
+    min-width: 320px;
 
-  &__asset-name {
-    font-size: 0.875rem;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--color-text, #fff);
-  }
+    &__field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs, 0.25rem);
 
-  &__asset-id {
-    font-size: 0.625rem;
-    color: var(--color-text-muted, #888);
-    font-family: var(--font-mono, monospace);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+        label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--color-text-muted, #888);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
 
-  &__actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs, 0.25rem);
-    margin-left: auto;
-    flex-shrink: 0;
-  }
+        &--amount {
+            flex: 1;
+        }
 
-  &__move,
-  &__remove {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.5rem;
-    height: 1.5rem;
-    padding: 0;
-    border: none;
-    border-radius: var(--border-radius, 4px);
-    background: transparent;
-    color: var(--color-text-muted, #888);
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition: background 0.15s, color 0.15s;
-
-    &:hover:not(:disabled) {
-      background: var(--color-bg, #0a0a14);
-      color: var(--color-text, #fff);
+        &--token {
+            width: 100px;
+        }
     }
 
-    &:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
+    &__row {
+        display: flex;
+        gap: var(--space-sm, 0.5rem);
     }
-  }
 
-  &__remove {
-    &:hover:not(:disabled) {
-      background: var(--color-danger, #ef4444);
-      color: #fff;
+    &__input {
+        padding: var(--space-sm, 0.5rem);
+        background: var(--color-input-bg, #0a0a14);
+        border: 1px solid var(--color-border, #333);
+        border-radius: var(--border-radius, 4px);
+        color: var(--color-text, #fff);
+        font-size: 0.875rem;
+        width: 100%;
+
+        &::placeholder {
+            color: var(--color-text-muted, #888);
+        }
+
+        &:focus {
+            outline: none;
+            border-color: var(--color-primary, #6366f1);
+        }
     }
-  }
+
+    &__error {
+        color: var(--color-danger, #ef4444);
+        font-size: 0.75rem;
+    }
+
+    &__hint {
+        color: var(--color-text-muted, #888);
+        font-size: 0.75rem;
+    }
+
+    &__actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--space-sm, 0.5rem);
+        margin-top: var(--space-sm, 0.5rem);
+        padding-top: var(--space-md, 1rem);
+        border-top: 1px solid var(--color-border, #333);
+    }
 }
