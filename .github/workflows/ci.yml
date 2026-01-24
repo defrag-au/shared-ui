@@ -54,8 +54,7 @@ jobs:
             -p ui-flow-protocol \
             -p ui-loader \
             -p ui-toast \
-            -p wallet-core \
-            -p primitives
+            -p wallet-core
 
       - name: Build worker for WASM
         run: |
