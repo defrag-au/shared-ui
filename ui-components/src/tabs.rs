@@ -34,6 +34,12 @@ use leptos::prelude::*;
 /// Tab definition: (value, label)
 pub type TabDef = (String, String);
 
+/// Context for active tab state - provided by Tabs, used by TabPanel
+#[derive(Clone)]
+pub struct TabsContext {
+    pub active: Signal<String>,
+}
+
 /// Tabs container component
 #[component]
 pub fn Tabs(
@@ -49,7 +55,10 @@ pub fn Tabs(
     /// Tab panel content
     children: Children,
 ) -> impl IntoView {
-    // Eagerly render children once
+    // Provide context for TabPanel children
+    provide_context(TabsContext { active });
+
+    // Eagerly render children once (after context is provided)
     let panels_content = children();
 
     view! {
@@ -86,39 +95,9 @@ pub fn Tabs(
     }
 }
 
-/// Individual tab panel - visibility controlled by CSS based on data attribute
+/// Individual tab panel - visibility controlled via context from parent Tabs
 #[component]
 pub fn TabPanel(
-    /// Value that matches the tab to show this panel
-    #[prop(into)]
-    value: String,
-    /// Panel content
-    children: Children,
-) -> impl IntoView {
-    // Render content eagerly
-    let content = children();
-
-    view! {
-        <div
-            class="ui-tabs__panel"
-            data-tab-value=value
-            role="tabpanel"
-        >
-            {content}
-        </div>
-    }
-}
-
-/// Context for active tab state - used by TabPanelControlled
-#[derive(Clone)]
-pub struct TabsContext {
-    pub active: Signal<String>,
-}
-
-/// Tab panel that uses context for visibility control
-/// Must be used inside a TabsWithContext provider
-#[component]
-pub fn TabPanelControlled(
     /// Value that matches the tab to show this panel
     #[prop(into)]
     value: String,
@@ -128,7 +107,7 @@ pub fn TabPanelControlled(
     let ctx = expect_context::<TabsContext>();
     let content = children();
 
-    // Control visibility via style
+    // Control visibility via style based on context
     let panel_style = move || {
         if ctx.active.get() == value {
             "display: block;"
@@ -147,3 +126,6 @@ pub fn TabPanelControlled(
         </div>
     }
 }
+
+/// Alias for TabPanel (for backwards compatibility with explicit naming)
+pub use TabPanel as TabPanelControlled;

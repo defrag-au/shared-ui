@@ -2,13 +2,10 @@
 
 use crate::stories::helpers::AttributeCard;
 use leptos::prelude::*;
-use ui_components::{TabPanel, TabPanelControlled, Tabs, TabsContext};
+use ui_components::{TabPanel, Tabs};
 
 #[component]
 pub fn TabsStory() -> impl IntoView {
-    // For controlled example
-    let (active_tab, set_active_tab) = signal("overview".to_string());
-
     view! {
         <div>
             <div class="story-header">
@@ -19,7 +16,7 @@ pub fn TabsStory() -> impl IntoView {
             // Basic Tabs section
             <div class="story-section">
                 <h3>"Basic Tabs"</h3>
-                <p style="color: #888; margin-bottom: 1rem;">"Tabs with TabPanel children. Panels are shown/hidden via CSS."</p>
+                <p style="color: #888; margin-bottom: 1rem;">"Tabs automatically provides context to TabPanel children for visibility control."</p>
                 <div class="story-canvas">
                     {
                         let (tab, set_tab) = signal("tab1".to_string());
@@ -42,14 +39,13 @@ pub fn TabsStory() -> impl IntoView {
                 </div>
             </div>
 
-            // Controlled with context
+            // External control
             <div class="story-section">
-                <h3>"With TabPanelControlled"</h3>
-                <p style="color: #888; margin-bottom: 1rem;">"Using context for visibility control. Current tab: "<code>{move || active_tab.get()}</code></p>
+                <h3>"External Control"</h3>
+                <p style="color: #888; margin-bottom: 1rem;">"Tab state can be controlled externally via signals."</p>
                 <div class="story-canvas">
                     {
-                        // Provide context for TabPanelControlled
-                        provide_context(TabsContext { active: active_tab.into() });
+                        let (active_tab, set_active_tab) = signal("overview".to_string());
                         view! {
                             <Tabs
                                 active=active_tab
@@ -60,18 +56,18 @@ pub fn TabsStory() -> impl IntoView {
                                     ("logs".to_string(), "Logs".to_string()),
                                 ]
                             >
-                                <TabPanelControlled value="overview">"Overview panel content"</TabPanelControlled>
-                                <TabPanelControlled value="settings">"Settings panel content"</TabPanelControlled>
-                                <TabPanelControlled value="logs">"Logs panel content"</TabPanelControlled>
+                                <TabPanel value="overview">"Overview panel content - shows dashboard and stats"</TabPanel>
+                                <TabPanel value="settings">"Settings panel content - configure your preferences"</TabPanel>
+                                <TabPanel value="logs">"Logs panel content - view activity history"</TabPanel>
                             </Tabs>
+
+                            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                                <button class="btn btn--secondary btn--sm" on:click=move |_| set_active_tab.set("overview".into())>"Go to Overview"</button>
+                                <button class="btn btn--secondary btn--sm" on:click=move |_| set_active_tab.set("settings".into())>"Go to Settings"</button>
+                                <button class="btn btn--secondary btn--sm" on:click=move |_| set_active_tab.set("logs".into())>"Go to Logs"</button>
+                            </div>
                         }
                     }
-
-                    <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                        <button class="btn btn--secondary btn--sm" on:click=move |_| set_active_tab.set("overview".into())>"Go to Overview"</button>
-                        <button class="btn btn--secondary btn--sm" on:click=move |_| set_active_tab.set("settings".into())>"Go to Settings"</button>
-                        <button class="btn btn--secondary btn--sm" on:click=move |_| set_active_tab.set("logs".into())>"Go to Logs"</button>
-                    </div>
                 </div>
             </div>
 
@@ -99,6 +95,24 @@ pub fn TabsStory() -> impl IntoView {
                             name="children"
                             values="Children"
                             description="TabPanel components for content"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div class="story-section">
+                <h3>"Props - TabPanel"</h3>
+                <div class="story-canvas">
+                    <div class="story-grid">
+                        <AttributeCard
+                            name="value"
+                            values="String"
+                            description="Value that matches the tab to show this panel"
+                        />
+                        <AttributeCard
+                            name="children"
+                            values="Children"
+                            description="Panel content"
                         />
                     </div>
                 </div>
