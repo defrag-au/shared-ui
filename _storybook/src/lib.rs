@@ -2,6 +2,7 @@
 //!
 //! Development-only showcase for shared-ui components using Leptos.
 
+pub mod api;
 mod stories;
 
 use leptos::prelude::*;
@@ -15,12 +16,28 @@ use wasm_bindgen::JsCast;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Story {
     Welcome,
-    // Components
+    // Components - Layout
+    CardComponent,
+    ModalComponent,
+    TabsComponent,
+    HeaderComponent,
+    // Components - Data Display
     ImageCardComponent,
     AssetCardComponent,
+    AssetGridComponent,
+    AssetPickerComponent,
+    AssetDetailCardComponent,
     AssetCacheComponent,
     ConnectionStatusComponent,
     MemoryCardComponent,
+    StatPillComponent,
+    BadgeComponent,
+    EmptyStateComponent,
+    ProgressBarComponent,
+    // Components - Forms
+    ButtonComponent,
+    ButtonGroupComponent,
+    SelectComponent,
     // Wallet Core
     WalletProviders,
     ConnectionStates,
@@ -40,11 +57,29 @@ impl Story {
     fn all() -> &'static [Story] {
         &[
             Story::Welcome,
+            // Layout
+            Story::CardComponent,
+            Story::ModalComponent,
+            Story::TabsComponent,
+            Story::HeaderComponent,
+            // Data Display
             Story::ImageCardComponent,
             Story::AssetCardComponent,
+            Story::AssetGridComponent,
+            Story::AssetPickerComponent,
+            Story::AssetDetailCardComponent,
             Story::AssetCacheComponent,
             Story::ConnectionStatusComponent,
             Story::MemoryCardComponent,
+            Story::StatPillComponent,
+            Story::BadgeComponent,
+            Story::EmptyStateComponent,
+            Story::ProgressBarComponent,
+            // Forms
+            Story::ButtonComponent,
+            Story::ButtonGroupComponent,
+            Story::SelectComponent,
+            // Wallet
             Story::WalletProviders,
             Story::ConnectionStates,
             Story::FlowOverview,
@@ -60,11 +95,29 @@ impl Story {
     fn label(&self) -> &'static str {
         match self {
             Story::Welcome => "Welcome",
+            // Layout
+            Story::CardComponent => "Card",
+            Story::ModalComponent => "Modal",
+            Story::TabsComponent => "Tabs",
+            Story::HeaderComponent => "Page Header",
+            // Data Display
             Story::ImageCardComponent => "Image Card",
             Story::AssetCardComponent => "Asset Card",
+            Story::AssetGridComponent => "Asset Grid",
+            Story::AssetPickerComponent => "Asset Picker",
+            Story::AssetDetailCardComponent => "Asset Detail Card",
             Story::AssetCacheComponent => "Asset Cache",
             Story::ConnectionStatusComponent => "Connection Status",
             Story::MemoryCardComponent => "Memory Card",
+            Story::StatPillComponent => "Stat Pill",
+            Story::BadgeComponent => "Badge",
+            Story::EmptyStateComponent => "Empty State",
+            Story::ProgressBarComponent => "Progress Bar",
+            // Forms
+            Story::ButtonComponent => "Button",
+            Story::ButtonGroupComponent => "Button Group",
+            Story::SelectComponent => "Select",
+            // Wallet
             Story::WalletProviders => "Wallet Providers",
             Story::ConnectionStates => "Connection States",
             Story::FlowOverview => "Overview",
@@ -80,11 +133,28 @@ impl Story {
     fn category(&self) -> &'static str {
         match self {
             Story::Welcome => "Getting Started",
+            // Layout components
+            Story::CardComponent
+            | Story::ModalComponent
+            | Story::TabsComponent
+            | Story::HeaderComponent => "Layout",
+            // Data display components
             Story::ImageCardComponent
             | Story::AssetCardComponent
+            | Story::AssetGridComponent
+            | Story::AssetPickerComponent
+            | Story::AssetDetailCardComponent
             | Story::AssetCacheComponent
             | Story::ConnectionStatusComponent
-            | Story::MemoryCardComponent => "Components",
+            | Story::MemoryCardComponent
+            | Story::StatPillComponent
+            | Story::BadgeComponent
+            | Story::EmptyStateComponent
+            | Story::ProgressBarComponent => "Data Display",
+            // Form components
+            Story::ButtonComponent | Story::ButtonGroupComponent | Story::SelectComponent => {
+                "Forms"
+            }
             Story::WalletProviders | Story::ConnectionStates => "Wallet Core",
             Story::FlowOverview | Story::FlowState | Story::FlowOperations => "UI Flow",
             Story::LoadingStates | Story::LoaderConfig => "UI Loader",
@@ -188,11 +258,34 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         <Show when=move || story.get() == Story::Welcome fallback=|| ()>
             <stories::WelcomeStory />
         </Show>
+        // Layout
+        <Show when=move || story.get() == Story::CardComponent fallback=|| ()>
+            <stories::CardStory />
+        </Show>
+        <Show when=move || story.get() == Story::ModalComponent fallback=|| ()>
+            <stories::ModalStory />
+        </Show>
+        <Show when=move || story.get() == Story::TabsComponent fallback=|| ()>
+            <stories::TabsStory />
+        </Show>
+        <Show when=move || story.get() == Story::HeaderComponent fallback=|| ()>
+            <stories::HeaderStory />
+        </Show>
+        // Data Display
         <Show when=move || story.get() == Story::ImageCardComponent fallback=|| ()>
             <stories::ImageCardStory />
         </Show>
         <Show when=move || story.get() == Story::AssetCardComponent fallback=|| ()>
             <stories::AssetCardStory />
+        </Show>
+        <Show when=move || story.get() == Story::AssetGridComponent fallback=|| ()>
+            <stories::AssetGridStory />
+        </Show>
+        <Show when=move || story.get() == Story::AssetPickerComponent fallback=|| ()>
+            <stories::AssetPickerStory />
+        </Show>
+        <Show when=move || story.get() == Story::AssetDetailCardComponent fallback=|| ()>
+            <stories::AssetDetailCardStory />
         </Show>
         <Show when=move || story.get() == Story::AssetCacheComponent fallback=|| ()>
             <stories::AssetCacheStory />
@@ -203,6 +296,29 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         <Show when=move || story.get() == Story::MemoryCardComponent fallback=|| ()>
             <stories::MemoryCardStory />
         </Show>
+        <Show when=move || story.get() == Story::StatPillComponent fallback=|| ()>
+            <stories::StatPillStory />
+        </Show>
+        <Show when=move || story.get() == Story::BadgeComponent fallback=|| ()>
+            <stories::BadgeStory />
+        </Show>
+        <Show when=move || story.get() == Story::EmptyStateComponent fallback=|| ()>
+            <stories::EmptyStateStory />
+        </Show>
+        <Show when=move || story.get() == Story::ProgressBarComponent fallback=|| ()>
+            <stories::ProgressBarStory />
+        </Show>
+        // Forms
+        <Show when=move || story.get() == Story::ButtonComponent fallback=|| ()>
+            <stories::ButtonStory />
+        </Show>
+        <Show when=move || story.get() == Story::ButtonGroupComponent fallback=|| ()>
+            <stories::ButtonGroupStory />
+        </Show>
+        <Show when=move || story.get() == Story::SelectComponent fallback=|| ()>
+            <stories::SelectStory />
+        </Show>
+        // Wallet
         <Show when=move || story.get() == Story::WalletProviders fallback=|| ()>
             <stories::WalletProvidersStory />
         </Show>

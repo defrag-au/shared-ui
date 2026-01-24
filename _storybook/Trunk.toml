@@ -4,14 +4,13 @@ dist = "dist"
 
 [serve]
 address = "127.0.0.1"
-port = 8081
+port = 8091
 open = false
 
 [watch]
 ignore = ["dist"]
 watch = [
     "src",
-    "../primitives/src",
     "../wallet-core/src",
     "../ui-components/src",
     "../ui-components/src/styles",

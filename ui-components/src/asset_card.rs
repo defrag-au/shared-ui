@@ -1,7 +1,8 @@
 //! Asset Card Leptos Component
 //!
 //! A card for displaying Cardano NFT assets. Wraps `ImageCard` and adds
-//! automatic IIIF URL generation from asset IDs.
+//! automatic IIIF URL generation from asset IDs. Supports overlay slots
+//! for additional content like stats, badges, and actions.
 //!
 //! ## Image URL Resolution
 //!
@@ -12,6 +13,15 @@
 //! The IIIF image size is automatically selected based on card size:
 //! - xs, sm, md, lg (≤400px): uses 400px IIIF image (cached, fast)
 //! - xl (>400px): uses 1686px IIIF image (high resolution)
+//!
+//! ## Overlay Slots
+//!
+//! The card supports overlay content at four corners and a footer:
+//! - `top_left` - Content positioned at top-left (e.g., status indicators)
+//! - `top_right` - Content positioned at top-right (e.g., power pills)
+//! - `bottom_left` - Content positioned at bottom-left (e.g., role badges)
+//! - `bottom_right` - Content positioned at bottom-right
+//! - `footer` - Content below the image (e.g., action buttons)
 //!
 //! ## Props
 //!
@@ -24,10 +34,13 @@
 //! - `show_name` - If true, show name overlay
 //! - `on_click` - Callback when card is clicked, receives asset_id
 //! - `on_load` - Callback when image has loaded
+//! - `top_left`, `top_right`, `bottom_left`, `bottom_right` - Overlay slot content
+//! - `footer` - Footer slot content
 //!
 //! ## Usage
 //!
 //! ```ignore
+//! // Basic usage
 //! <AssetCard
 //!     asset_id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839"
 //!     name="Pirate #189"
@@ -35,9 +48,19 @@
 //!     show_name=true
 //!     on_click=move |id| { log!("clicked: {}", id); }
 //! />
+//!
+//! // With overlay slots
+//! <AssetCard
+//!     asset_id=asset_id
+//!     name=name
+//!     top_right=view! { <StatPill value="350" icon="⚡" /> }
+//!     bottom_left=view! { <RoleBadges roles=roles /> }
+//!     footer=view! { <Button on_click=hire>"Hire"</Button> }
+//! />
 //! ```
 
 use crate::image_card::{CardSize, ImageCard};
+use leptos::children::ChildrenFn;
 use leptos::prelude::*;
 
 /// IIIF base URL for image lookups
@@ -65,10 +88,9 @@ impl IiifSize {
     /// Select appropriate IIIF size for a given card size
     /// Uses thumb (400px) for cards up to 400px, large for bigger cards
     pub fn for_card_size(card_size: CardSize) -> Self {
-        if card_size.pixels() > 400 {
-            IiifSize::Large
-        } else {
-            IiifSize::Thumb
+        match card_size.pixels() {
+            Some(px) if px > 400 => IiifSize::Large,
+            _ => IiifSize::Thumb,
         }
     }
 }
@@ -99,7 +121,7 @@ pub fn generate_iiif_url(asset_id: &str, size: IiifSize) -> Option<String> {
     ))
 }
 
-/// Asset card component - wraps ImageCard with IIIF URL generation
+/// Asset card component - wraps ImageCard with IIIF URL generation and overlay slots
 #[component]
 pub fn AssetCard(
     /// Cardano asset ID (policy_id + asset_name hex)
@@ -129,10 +151,38 @@ pub fn AssetCard(
     /// Image loaded callback
     #[prop(into, optional)]
     on_load: Option<Callback<()>>,
+    /// Top-left overlay slot (e.g., status indicators)
+    #[prop(optional)]
+    top_left: Option<ChildrenFn>,
+    /// Top-right overlay slot (e.g., power pills)
+    #[prop(optional)]
+    top_right: Option<ChildrenFn>,
+    /// Bottom-left overlay slot (e.g., role badges)
+    #[prop(optional)]
+    bottom_left: Option<ChildrenFn>,
+    /// Bottom-right overlay slot
+    #[prop(optional)]
+    bottom_right: Option<ChildrenFn>,
+    /// Footer slot (e.g., action buttons)
+    #[prop(optional)]
+    footer: Option<ChildrenFn>,
 ) -> impl IntoView {
     // Clone for use in closures
     let asset_id_for_url = asset_id;
     let asset_id_for_click = asset_id;
+
+    // Eagerly render overlay content
+    let top_left_content = top_left.map(|c| c());
+    let top_right_content = top_right.map(|c| c());
+    let bottom_left_content = bottom_left.map(|c| c());
+    let bottom_right_content = bottom_right.map(|c| c());
+    let footer_content = footer.map(|c| c());
+
+    let has_overlays = top_left_content.is_some()
+        || top_right_content.is_some()
+        || bottom_left_content.is_some()
+        || bottom_right_content.is_some();
+    let has_footer = footer_content.is_some();
 
     // Resolve image URL - prefer direct URL, fall back to IIIF generation
     let resolved_url: Memo<String> = Memo::new(move |_| {
@@ -157,6 +207,7 @@ pub fn AssetCard(
 
         String::new()
     });
+
     let handle_click = move |()| {
         if let Some(cb) = on_click {
             let id = asset_id_for_click
@@ -181,17 +232,69 @@ pub fn AssetCard(
         }
     };
 
-    view! {
-        <ImageCard
-            image_url=Signal::derive(move || resolved_url.get())
-            name=Signal::derive(move || name_memo.get())
-            size=size
-            accent_color=Signal::derive(move || accent_memo.get())
-            is_static=is_static
-            show_name=show_name
-            on_click=handle_click
-            on_load=handle_load
-        />
+    let size_class = format!("asset-card--{}", size.class_suffix());
+    let wrapper_class = if has_overlays || has_footer {
+        format!("asset-card {size_class}")
+    } else {
+        // No wrapper needed if no overlays
+        String::new()
+    };
+
+    // If we have overlays or footer, wrap the ImageCard in our container
+    if has_overlays || has_footer {
+        view! {
+            <div class=wrapper_class>
+                <div class="asset-card__image-container">
+                    <ImageCard
+                        image_url=Signal::derive(move || resolved_url.get())
+                        name=Signal::derive(move || name_memo.get())
+                        size=size
+                        accent_color=Signal::derive(move || accent_memo.get())
+                        is_static=is_static
+                        show_name=show_name
+                        on_click=handle_click
+                        on_load=handle_load
+                    />
+
+                    {has_overlays.then(|| view! {
+                        <div class="asset-card__overlays">
+                            {top_left_content.map(|c| view! {
+                                <div class="asset-card__overlay asset-card__overlay--top-left">{c}</div>
+                            })}
+                            {top_right_content.map(|c| view! {
+                                <div class="asset-card__overlay asset-card__overlay--top-right">{c}</div>
+                            })}
+                            {bottom_left_content.map(|c| view! {
+                                <div class="asset-card__overlay asset-card__overlay--bottom-left">{c}</div>
+                            })}
+                            {bottom_right_content.map(|c| view! {
+                                <div class="asset-card__overlay asset-card__overlay--bottom-right">{c}</div>
+                            })}
+                        </div>
+                    })}
+                </div>
+
+                {footer_content.map(|c| view! {
+                    <div class="asset-card__footer">{c}</div>
+                })}
+            </div>
+        }
+        .into_any()
+    } else {
+        // No overlays - render ImageCard directly
+        view! {
+            <ImageCard
+                image_url=Signal::derive(move || resolved_url.get())
+                name=Signal::derive(move || name_memo.get())
+                size=size
+                accent_color=Signal::derive(move || accent_memo.get())
+                is_static=is_static
+                show_name=show_name
+                on_click=handle_click
+                on_load=handle_load
+            />
+        }
+        .into_any()
     }
 }
 
