@@ -17,10 +17,18 @@ use wasm_bindgen::JsCast;
 pub enum Story {
     Welcome,
     // Components - Layout
+    AccordionComponent,
     CardComponent,
     ModalComponent,
     TabsComponent,
     HeaderComponent,
+    // Components - Feedback
+    LoadingOverlayComponent,
+    SkeletonComponent,
+    // Components - User
+    UserAvatarComponent,
+    RoleDotsComponent,
+    PlayerCardComponent,
     // Components - Data Display
     ImageCardComponent,
     AssetCardComponent,
@@ -58,10 +66,18 @@ impl Story {
         &[
             Story::Welcome,
             // Layout
+            Story::AccordionComponent,
             Story::CardComponent,
             Story::ModalComponent,
             Story::TabsComponent,
             Story::HeaderComponent,
+            // Feedback
+            Story::LoadingOverlayComponent,
+            Story::SkeletonComponent,
+            // User
+            Story::UserAvatarComponent,
+            Story::RoleDotsComponent,
+            Story::PlayerCardComponent,
             // Data Display
             Story::ImageCardComponent,
             Story::AssetCardComponent,
@@ -96,10 +112,18 @@ impl Story {
         match self {
             Story::Welcome => "Welcome",
             // Layout
+            Story::AccordionComponent => "Accordion",
             Story::CardComponent => "Card",
             Story::ModalComponent => "Modal",
             Story::TabsComponent => "Tabs",
             Story::HeaderComponent => "Page Header",
+            // Feedback
+            Story::LoadingOverlayComponent => "Loading Overlay",
+            Story::SkeletonComponent => "Skeleton",
+            // User
+            Story::UserAvatarComponent => "User Avatar",
+            Story::RoleDotsComponent => "Role Dots",
+            Story::PlayerCardComponent => "Player Card",
             // Data Display
             Story::ImageCardComponent => "Image Card",
             Story::AssetCardComponent => "Asset Card",
@@ -134,10 +158,17 @@ impl Story {
         match self {
             Story::Welcome => "Getting Started",
             // Layout components
-            Story::CardComponent
+            Story::AccordionComponent
+            | Story::CardComponent
             | Story::ModalComponent
             | Story::TabsComponent
             | Story::HeaderComponent => "Layout",
+            // Feedback components
+            Story::LoadingOverlayComponent | Story::SkeletonComponent => "Feedback",
+            // User components
+            Story::UserAvatarComponent | Story::RoleDotsComponent | Story::PlayerCardComponent => {
+                "User"
+            }
             // Data display components
             Story::ImageCardComponent
             | Story::AssetCardComponent
@@ -259,6 +290,9 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
             <stories::WelcomeStory />
         </Show>
         // Layout
+        <Show when=move || story.get() == Story::AccordionComponent fallback=|| ()>
+            <stories::AccordionStory />
+        </Show>
         <Show when=move || story.get() == Story::CardComponent fallback=|| ()>
             <stories::CardStory />
         </Show>
@@ -270,6 +304,23 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         </Show>
         <Show when=move || story.get() == Story::HeaderComponent fallback=|| ()>
             <stories::HeaderStory />
+        </Show>
+        // Feedback
+        <Show when=move || story.get() == Story::LoadingOverlayComponent fallback=|| ()>
+            <stories::LoadingOverlayStory />
+        </Show>
+        <Show when=move || story.get() == Story::SkeletonComponent fallback=|| ()>
+            <stories::SkeletonStory />
+        </Show>
+        // User
+        <Show when=move || story.get() == Story::UserAvatarComponent fallback=|| ()>
+            <stories::UserAvatarStory />
+        </Show>
+        <Show when=move || story.get() == Story::RoleDotsComponent fallback=|| ()>
+            <stories::RoleDotsStory />
+        </Show>
+        <Show when=move || story.get() == Story::PlayerCardComponent fallback=|| ()>
+            <stories::PlayerCardStory />
         </Show>
         // Data Display
         <Show when=move || story.get() == Story::ImageCardComponent fallback=|| ()>

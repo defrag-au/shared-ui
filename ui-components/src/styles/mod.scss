@@ -11,6 +11,7 @@
 @use "image_card";
 @use "memory_card";
 @use "connection_status";
+@use "accordion";
 
 // Layout components
 @use "card";
@@ -37,3 +38,10 @@
 
 // Feedback components
 @use "toast";
+@use "loading_overlay";
+@use "skeleton";
+
+// User components
+@use "user_avatar";
+@use "role_dots";
+@use "player_card";

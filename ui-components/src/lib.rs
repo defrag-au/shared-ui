@@ -61,6 +61,7 @@
 //! />
 //! ```
 
+mod accordion;
 mod asset_cache;
 mod asset_card;
 mod asset_detail_card;
@@ -76,15 +77,21 @@ mod header;
 mod helpers;
 pub mod image_cache;
 mod image_card;
+mod loading_overlay;
 mod memory_card;
 mod modal;
+mod player_card;
 mod progress_bar;
+mod role_dots;
 mod select;
+mod skeleton;
 mod stat_pill;
 mod styles;
 mod tabs;
 mod toast;
+mod user_avatar;
 
+pub use accordion::{Accordion, AccordionItem};
 pub use asset_cache::{AssetCache, PreloadAsset};
 pub use asset_card::{generate_iiif_url, AssetCard, IiifSize};
 pub use asset_detail_card::AssetDetailCard;
@@ -99,10 +106,14 @@ pub use empty_state::EmptyState;
 pub use header::PageHeader;
 pub use helpers::children_fn;
 pub use image_card::{parse_card_size, CardSize, ImageCard};
+pub use loading_overlay::{LoadingOverlay, Spinner, SpinnerSize};
 pub use memory_card::MemoryCard;
 pub use modal::Modal;
+pub use player_card::PlayerCard;
 pub use progress_bar::ProgressBar;
+pub use role_dots::{RoleDot, RoleDots};
 pub use select::{Select, SelectOption};
+pub use skeleton::{Skeleton, SkeletonVariant};
 pub use stat_pill::{StatPill, StatPillColor, StatPillColorInput, StatPillSize};
 pub use styles::STYLES;
 pub use tabs::{TabDef, TabPanel, TabPanelControlled, Tabs, TabsContext};
@@ -110,3 +121,4 @@ pub use toast::{
     try_use_toasts, use_toasts, Toast, ToastContainer, ToastContext, ToastKind, ToastProvider,
     DEFAULT_TOAST_DURATION_MS,
 };
+pub use user_avatar::{AvatarSize, UserAvatar};

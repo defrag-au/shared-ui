@@ -19,29 +19,12 @@
 //! let details = fetch_asset_details(policy_id, asset_name_hex).await?;
 //! ```
 
+pub use cardano_assets::AssetId;
 use gloo_net::http::Request;
 use serde::Deserialize;
 use std::collections::HashMap;
 
 const API_BASE_URL: &str = "https://a2.pfp.city";
-
-// ============================================================================
-// Common Types
-// ============================================================================
-
-/// Asset ID from PFP City API
-#[derive(Deserialize, Debug, Clone)]
-pub struct AssetId {
-    pub policy_id: String,
-    pub asset_name_hex: String,
-}
-
-impl AssetId {
-    /// Get concatenated asset ID (policy_id + asset_name_hex)
-    pub fn concatenated(&self) -> String {
-        format!("{}{}", self.policy_id, self.asset_name_hex)
-    }
-}
 
 // ============================================================================
 // Collection Assets API

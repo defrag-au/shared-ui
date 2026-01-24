@@ -31,6 +31,9 @@ gloo-net = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
+# Cardano types
+cardano-assets = { workspace = true }
+
 # Web APIs
 web-sys = { version = "0.3", features = [
     "Window",

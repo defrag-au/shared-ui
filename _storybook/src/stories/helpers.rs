@@ -1,6 +1,31 @@
 //! Shared helper components for rendering story cards
 
+use cardano_assets::AssetId;
 use leptos::prelude::*;
+
+// ============================================================================
+// IIIF Image URL Helper
+// ============================================================================
+
+const IIIF_BASE_URL: &str = "https://iiif.hodlcroft.com/iiif/3";
+
+/// Generate an IIIF image URL for an asset
+///
+/// # Arguments
+/// * `asset_id` - The asset identifier (policy_id + asset_name_hex)
+/// * `size` - Image width in pixels (height scales proportionally)
+///
+/// # Example
+/// ```ignore
+/// let url = resolve_iiif_image(&asset_id, 256);
+/// // Returns: https://iiif.hodlcroft.com/iiif/3/{policy_id}:{asset_name_hex}/full/256,/0/default.jpg
+/// ```
+pub fn resolve_iiif_image(asset_id: &AssetId, size: u16) -> String {
+    format!(
+        "{IIIF_BASE_URL}/{}:{}/full/{size},/0/default.jpg",
+        asset_id.policy_id, asset_id.asset_name_hex
+    )
+}
 
 /// Render an attribute documentation card
 #[component]
