@@ -1,7 +1,9 @@
 //! Asset Grid component story
 
 use crate::stories::helpers::AttributeCard;
+use gloo_net::http::Request;
 use leptos::prelude::*;
+use serde::Deserialize;
 use ui_components::{AssetCard, AssetGrid, CardSize, ImageCard, StatPill};
 
 // Sample Black Flag pirate asset IDs for demos
@@ -32,6 +34,95 @@ const SAMPLE_ASSETS: &[(&str, &str)] = &[
     ),
 ];
 
+// Known collection policy IDs for the demo
+const COLLECTIONS: &[(&str, &str)] = &[
+    (
+        "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6",
+        "Black Flag Pirates",
+    ),
+    (
+        "5ac825392b7608d6e92a4e5c528fe9b8fadd6eaa3e36a685e37175d1",
+        "Rotten Ape",
+    ),
+    (
+        "d5e6bf0500378d4f0da4e8dde6becec7621cd8cbf5cbb9b87013d4cc",
+        "Spacebudz",
+    ),
+];
+
+// ============================================================================
+// PFP City API Types (unauthenticated collection endpoint)
+// ============================================================================
+
+#[derive(Deserialize, Debug, Clone)]
+struct AssetId {
+    policy_id: String,
+    asset_name_hex: String,
+}
+
+impl AssetId {
+    fn concatenated(&self) -> String {
+        format!("{}{}", self.policy_id, self.asset_name_hex)
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct PfpCityAsset {
+    id: AssetId,
+    name: String,
+    #[allow(dead_code)]
+    #[serde(default)]
+    image: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct PaginationInfo {
+    #[allow(dead_code)]
+    limit: u32,
+    #[allow(dead_code)]
+    offset: u32,
+    #[allow(dead_code)]
+    has_more: bool,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct CollectionAssetsData {
+    assets: Vec<PfpCityAsset>,
+    #[allow(dead_code)]
+    pagination: PaginationInfo,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct CollectionAssetsResponse {
+    #[allow(dead_code)]
+    success: bool,
+    data: CollectionAssetsData,
+}
+
+/// Fetch assets from PFP City collection API (unauthenticated)
+async fn fetch_collection_assets(policy_id: &str, limit: u32) -> Result<Vec<PfpCityAsset>, String> {
+    let url = format!(
+        "https://a2.pfp.city/v3/api/collections/{}/assets?limit={}&offset=0",
+        policy_id, limit
+    );
+
+    let response = Request::get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {e}"))?;
+
+    if !response.ok() {
+        return Err(format!("API error: {}", response.status()));
+    }
+
+    let data: CollectionAssetsResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Parse error: {e}"))?;
+
+    Ok(data.data.assets)
+}
+
 #[component]
 pub fn AssetGridStory() -> impl IntoView {
     // Signals for interactive demos
@@ -46,6 +137,15 @@ pub fn AssetGridStory() -> impl IntoView {
             <div class="story-header">
                 <h2>"Asset Grid"</h2>
                 <p>"A responsive grid layout for displaying asset cards. Supports loading states, empty states, and flexible content including mixed card types."</p>
+            </div>
+
+            // Live API Demo - first!
+            <div class="story-section">
+                <h3>"Live API Demo"</h3>
+                <p class="story-description">"Fetches real NFT assets from PFP City API (unauthenticated). Select a collection to load assets."</p>
+                <div class="story-canvas">
+                    <LiveApiDemo />
+                </div>
             </div>
 
             // Basic Usage
@@ -321,7 +421,144 @@ view! {
                     top: 0.25rem;
                     right: 0.25rem;
                 }
+                .live-demo-controls {
+                    display: flex;
+                    gap: 1rem;
+                    align-items: center;
+                    margin-bottom: 1rem;
+                    flex-wrap: wrap;
+                }
+                .live-demo-controls select {
+                    padding: 0.5rem;
+                    border-radius: 4px;
+                    background: var(--bg-secondary, #333);
+                    color: var(--text-primary, #fff);
+                    border: 1px solid var(--border-color, #555);
+                }
+                .live-demo-status {
+                    font-size: 0.875rem;
+                    color: var(--text-muted, #888);
+                }
+                .live-demo-error {
+                    color: var(--danger, #dc3545);
+                    padding: 0.5rem;
+                    background: rgba(220, 53, 69, 0.1);
+                    border-radius: 4px;
+                    margin-bottom: 1rem;
+                }
             "#}</style>
+        </div>
+    }
+}
+
+/// Live API demo component that fetches real assets
+#[component]
+fn LiveApiDemo() -> impl IntoView {
+    let (selected_collection, set_selected_collection) = signal(0usize);
+    let (assets, set_assets) = signal(Vec::<PfpCityAsset>::new());
+    let (loading, set_loading) = signal(false);
+    let (error, set_error) = signal(None::<String>);
+    let (asset_count, set_asset_count) = signal(12u32);
+
+    // Fetch assets when collection changes
+    let fetch_assets = move || {
+        let collection_idx = selected_collection.get();
+        let (policy_id, _name) = COLLECTIONS[collection_idx];
+        let limit = asset_count.get();
+
+        set_loading.set(true);
+        set_error.set(None);
+
+        wasm_bindgen_futures::spawn_local(async move {
+            match fetch_collection_assets(policy_id, limit).await {
+                Ok(fetched) => {
+                    set_assets.set(fetched);
+                    set_error.set(None);
+                }
+                Err(e) => {
+                    set_error.set(Some(e));
+                    set_assets.set(Vec::new());
+                }
+            }
+            set_loading.set(false);
+        });
+    };
+
+    // Initial fetch
+    Effect::new(move |_| {
+        fetch_assets();
+    });
+
+    let is_empty = Signal::derive(move || assets.get().is_empty());
+
+    view! {
+        <div>
+            <div class="live-demo-controls">
+                <select on:change=move |ev| {
+                    use wasm_bindgen::JsCast;
+                    let target = ev.target().unwrap();
+                    let select = target.dyn_ref::<web_sys::HtmlSelectElement>().unwrap();
+                    set_selected_collection.set(select.selected_index() as usize);
+                    fetch_assets();
+                }>
+                    {COLLECTIONS.iter().enumerate().map(|(i, (_, name))| {
+                        view! {
+                            <option value=i.to_string() selected=move || selected_collection.get() == i>
+                                {*name}
+                            </option>
+                        }
+                    }).collect_view()}
+                </select>
+
+                <select on:change=move |ev| {
+                    use wasm_bindgen::JsCast;
+                    let target = ev.target().unwrap();
+                    let select = target.dyn_ref::<web_sys::HtmlSelectElement>().unwrap();
+                    let count: u32 = select.value().parse().unwrap_or(12);
+                    set_asset_count.set(count);
+                    fetch_assets();
+                }>
+                    <option value="6">"6 assets"</option>
+                    <option value="12" selected>"12 assets"</option>
+                    <option value="24">"24 assets"</option>
+                    <option value="48">"48 assets"</option>
+                </select>
+
+                <button class="btn btn-secondary" on:click=move |_| fetch_assets()>
+                    "Refresh"
+                </button>
+
+                <span class="live-demo-status">
+                    {move || format!("{} assets loaded", assets.get().len())}
+                </span>
+            </div>
+
+            {move || error.get().map(|e| view! {
+                <div class="live-demo-error">{e}</div>
+            })}
+
+            <AssetGrid
+                loading=Signal::derive(move || loading.get())
+                is_empty=is_empty
+                empty_message="No assets in this collection"
+                min_column_width="140px"
+            >
+                <For
+                    each=move || assets.get()
+                    key=|a| a.id.concatenated()
+                    let:asset
+                >
+                    <AssetCard
+                        asset_id=asset.id.concatenated()
+                        name=Signal::derive({
+                            let name = asset.name.clone();
+                            move || name.clone()
+                        })
+                        size=CardSize::Sm
+                        show_name=true
+                    />
+                </For>
+            </AssetGrid>
         </div>
     }
 }
