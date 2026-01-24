@@ -28,10 +28,19 @@ pub fn AssetDetailCardStory() -> impl IntoView {
                 </div>
             </div>
 
+            // Grid Example
+            <div class="story-section">
+                <h3>"Grid Layout"</h3>
+                <p class="story-description">"Multiple AssetDetailCards in a grid layout."</p>
+                <div class="story-canvas">
+                    <GridExample />
+                </div>
+            </div>
+
             // Static Example
             <div class="story-section">
                 <h3>"Static Example"</h3>
-                <p class="story-description">"AssetDetailCard with sample trait data."</p>
+                <p class="story-description">"Single AssetDetailCard with sample trait data."</p>
                 <div class="story-canvas">
                     <StaticDetailExample />
                 </div>
@@ -288,6 +297,7 @@ fn CollectionViewer() -> impl IntoView {
             <Modal
                 open=show_modal
                 on_close=close_modal
+                flush=true
             >
                 {move || {
                     if loading_details.get() {
@@ -376,6 +386,63 @@ fn CollectionViewer() -> impl IntoView {
                 }
             "#}</style>
         </div>
+    }
+}
+
+/// Grid example with multiple cards
+#[component]
+fn GridExample() -> impl IntoView {
+    let pirates = vec![
+        (
+            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f650697261746531333334",
+            "Pirate #1334",
+            734,
+            "#4a9eff",
+        ),
+        (
+            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f650697261746531393430",
+            "Pirate #1940",
+            1229,
+            "#28a745",
+        ),
+        (
+            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465343134",
+            "Pirate #414",
+            953,
+            "#f4a460",
+        ),
+    ];
+
+    let sample_traits = HashMap::from([
+        ("Background".to_string(), vec!["Ocean Storm".to_string()]),
+        ("Clothes".to_string(), vec!["Captain's Coat".to_string()]),
+        ("Eyes".to_string(), vec!["Amber".to_string()]),
+        ("Weapon".to_string(), vec!["Cutlass".to_string()]),
+    ]);
+
+    view! {
+        <div class="detail-card-grid">
+            {pirates.into_iter().map(|(asset_id, name, rank, color)| {
+                let traits = sample_traits.clone();
+                view! {
+                    <AssetDetailCard
+                        asset_id=Signal::derive(move || asset_id.to_string())
+                        name=Signal::derive(move || name.to_string())
+                        traits=Signal::derive(move || traits.clone())
+                        rarity_rank=Signal::derive(move || Some(rank))
+                        accent_color=Signal::derive(move || color.to_string())
+                    />
+                }
+            }).collect_view()}
+        </div>
+        <style>{r#"
+            .detail-card-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 320px));
+                gap: 1.5rem;
+                justify-content: center;
+            }
+        "#}</style>
     }
 }
 

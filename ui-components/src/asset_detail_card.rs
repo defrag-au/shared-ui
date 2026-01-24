@@ -218,12 +218,10 @@ pub fn AssetDetailCard(
                     </For>
                 </div>
 
-                // Actions slot
-                {actions_content.map(|content| view! {
-                    <div class="asset-detail-card__actions">
-                        {content}
-                    </div>
-                })}
+                // Footer (always present for visual balance, contains actions if provided)
+                <div class="asset-detail-card__footer">
+                    {actions_content}
+                </div>
             </div>
         </div>
     }

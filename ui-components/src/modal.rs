@@ -40,6 +40,9 @@ pub fn Modal(
     /// Callback when modal should close
     #[prop(into, optional)]
     on_close: Option<Callback<()>>,
+    /// Remove body padding (for full-bleed content like cards)
+    #[prop(optional)]
+    flush: bool,
     /// Modal body content
     children: Children,
 ) -> impl IntoView {
@@ -110,7 +113,7 @@ pub fn Modal(
                 aria-hidden=move || (!open.get()).to_string()
             >
                 {header_content}
-                <div class="ui-modal__body">
+                <div class="ui-modal__body" class:flush=flush>
                     {body_content}
                 </div>
             </div>

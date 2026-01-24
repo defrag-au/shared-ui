@@ -8,8 +8,14 @@
     background: var(--bg-secondary, #1a1a2e);
     border-radius: 0.75rem;
     overflow: hidden;
-    max-width: 400px;
+    width: 100%;
+    max-width: 320px; // Constrain width when used inline
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+
+    // In flush modal, allow full width
+    .ui-modal__body.flush & {
+        max-width: 100%;
+    }
 
     // Accent bar at top
     &__accent {
@@ -107,18 +113,19 @@
 
     // Info section
     &__info {
-        padding: 1rem;
         display: flex;
         flex-direction: column;
-        gap: 1rem;
-        overflow-y: auto;
+        overflow: hidden;
     }
 
-    // Header with name
+    // Header with name - sticky at top
     &__header {
         display: flex;
         align-items: baseline;
         gap: 0.5rem;
+        padding: 1rem;
+        padding-bottom: 0.75rem;
+        flex-shrink: 0;
     }
 
     &__name {
@@ -128,11 +135,14 @@
         color: var(--text-primary, #fff);
     }
 
-    // Traits section
+    // Traits section - scrollable
     &__traits {
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
+        padding: 0 1rem 1rem;
+        overflow-y: auto;
+        flex: 1;
     }
 
     &__trait {
@@ -160,44 +170,100 @@
         word-break: break-word;
     }
 
-    // Actions section
-    &__actions {
+    // Footer section (always present for visual balance)
+    &__footer {
         display: flex;
         gap: 0.5rem;
-        margin-top: 0.5rem;
-        padding-top: 1rem;
+        padding: 1rem;
+        padding-top: 0.75rem;
         border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+        flex-shrink: 0;
+        min-height: 1rem; // Ensures footer has height even when empty
 
-        // Make buttons full width by default
+        // Make action buttons full width
         > * {
             flex: 1;
+        }
+
+        // When empty, just show the border for balance
+        &:empty {
+            padding-bottom: 0.75rem;
         }
     }
 }
 
-// Responsive adjustments
-@media (min-width: 768px) {
+// Mobile: full height with scrollable traits
+@media (max-width: 575px) {
     .asset-detail-card {
-        // Side-by-side layout on larger screens
-        flex-direction: row;
-        max-width: 700px;
+        height: 100%;
+        border-radius: 0;
+        box-shadow: none;
 
         &__image {
-            width: 280px;
-            min-width: 280px;
-            height: 280px;
+            // Limit image height on mobile to leave room for traits
+            max-height: 50vh;
+            aspect-ratio: 1;
+            width: auto;
+            margin: 0 auto;
+        }
+
+        &__info {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
+    }
+}
+
+// Tablet and up: side-by-side layout
+@media (min-width: 576px) {
+    .asset-detail-card {
+        flex-direction: row;
+
+        &__image {
+            width: 320px;
+            min-width: 320px;
+            height: 320px;
             aspect-ratio: 1;
         }
 
         &__info {
             flex: 1;
+            max-height: 320px;
+        }
+
+        &__header {
             padding: 1.5rem;
-            max-height: 280px;
+            padding-bottom: 0.75rem;
+        }
+
+        &__traits {
+            padding: 0 1.5rem 1.5rem;
+        }
+
+        &__footer {
+            padding: 1.5rem;
+            padding-top: 0.75rem;
         }
 
         &__close {
             top: 1rem;
             right: 1rem;
+        }
+    }
+}
+
+// Larger screens: bigger image
+@media (min-width: 768px) {
+    .asset-detail-card {
+        &__image {
+            width: 400px;
+            min-width: 400px;
+            height: 400px;
+        }
+
+        &__info {
+            max-height: 400px;
         }
     }
 }
