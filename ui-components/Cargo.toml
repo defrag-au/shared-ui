@@ -8,6 +8,10 @@ description = "Reusable Leptos components for Cardano applications"
 # Leptos framework
 leptos = { version = "0.8", features = ["csr"] }
 
+# Asset types
+asset-intents = { workspace = true }
+cardano-assets = { workspace = true }
+
 # Styling
 scss-macros = { path = "../scss-macros" }
 

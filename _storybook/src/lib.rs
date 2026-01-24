@@ -46,6 +46,8 @@ pub enum Story {
     ButtonComponent,
     ButtonGroupComponent,
     SelectComponent,
+    // Components - Editors
+    DropEditorComponent,
     // Wallet Core
     WalletProviders,
     ConnectionStates,
@@ -95,6 +97,8 @@ impl Story {
             Story::ButtonComponent,
             Story::ButtonGroupComponent,
             Story::SelectComponent,
+            // Editors
+            Story::DropEditorComponent,
             // Wallet
             Story::WalletProviders,
             Story::ConnectionStates,
@@ -141,6 +145,8 @@ impl Story {
             Story::ButtonComponent => "Button",
             Story::ButtonGroupComponent => "Button Group",
             Story::SelectComponent => "Select",
+            // Editors
+            Story::DropEditorComponent => "Drop Editor",
             // Wallet
             Story::WalletProviders => "Wallet Providers",
             Story::ConnectionStates => "Connection States",
@@ -186,6 +192,8 @@ impl Story {
             Story::ButtonComponent | Story::ButtonGroupComponent | Story::SelectComponent => {
                 "Forms"
             }
+            // Editor components
+            Story::DropEditorComponent => "Editors",
             Story::WalletProviders | Story::ConnectionStates => "Wallet Core",
             Story::FlowOverview | Story::FlowState | Story::FlowOperations => "UI Flow",
             Story::LoadingStates | Story::LoaderConfig => "UI Loader",
@@ -368,6 +376,10 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         </Show>
         <Show when=move || story.get() == Story::SelectComponent fallback=|| ()>
             <stories::SelectStory />
+        </Show>
+        // Editors
+        <Show when=move || story.get() == Story::DropEditorComponent fallback=|| ()>
+            <stories::DropEditorStory />
         </Show>
         // Wallet
         <Show when=move || story.get() == Story::WalletProviders fallback=|| ()>

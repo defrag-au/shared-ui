@@ -89,3 +89,4 @@ maud = "0.26"
 
 [patch."https://github.com/defrag-au/shared-crates"]
 asset-intents = { path = "../shared-crates/asset-intents" }
+cardano-assets = { path = "../shared-crates/cardano-assets" }
