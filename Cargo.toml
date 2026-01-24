@@ -69,10 +69,9 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 # Logging
 tracing = "0.1"
 
-# Worker utilities
+# shared-crates
+asset-intents = { git = "https://github.com/defrag-au/shared-crates", package = "asset-intents", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
 worker_utils = { git = "https://github.com/defrag-au/shared-crates", package = "worker_utils", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
-
-# Cardano assets
 cardano-assets = { git = "https://github.com/defrag-au/shared-crates", package = "cardano-assets", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
 
 # Error handling
@@ -88,11 +87,5 @@ phf = { version = "0.11", features = ["macros"] }
 # HTML templating
 maud = "0.26"
 
-# Internal crates
-scss-macros = { path = "scss-macros" }
-ui-core = { path = "ui-core" }
-ui-flow = { path = "ui-flow" }
-ui-loader = { path = "ui-loader" }
-ui-toast = { path = "ui-toast" }
-wallet-core = { path = "wallet-core" }
-ui-components = { path = "ui-components" }
+[patch."https://github.com/defrag-au/shared-crates"]
+asset-intents = { path = "../shared-crates/asset-intents" }
