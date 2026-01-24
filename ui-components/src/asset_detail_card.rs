@@ -73,9 +73,9 @@ pub fn AssetDetailCard(
     /// Accent color for header bar
     #[prop(into, optional)]
     accent_color: Option<Signal<String>>,
-    /// Action buttons slot
+    /// Footer content slot (power stats, action buttons, etc.)
     #[prop(optional)]
-    actions: Option<Children>,
+    children: Option<Children>,
     /// Close callback - shows X button when set
     #[prop(into, optional)]
     on_close: Option<Callback<()>>,
@@ -142,8 +142,8 @@ pub fn AssetDetailCard(
             .map(|c| format!("background-color: {c};"))
     };
 
-    // Render actions slot
-    let actions_content = actions.map(|c| c());
+    // Render children slot (footer content)
+    let footer_content = children.map(|c| c());
 
     view! {
         <div class="asset-detail-card">
@@ -218,9 +218,9 @@ pub fn AssetDetailCard(
                     </For>
                 </div>
 
-                // Footer (always present for visual balance, contains actions if provided)
+                // Footer (always present for visual balance, contains children if provided)
                 <div class="asset-detail-card__footer">
-                    {actions_content}
+                    {footer_content}
                 </div>
             </div>
         </div>

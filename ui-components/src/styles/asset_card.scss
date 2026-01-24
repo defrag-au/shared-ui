@@ -58,13 +58,13 @@
         }
 
         &--bottom-left {
-            bottom: calc(1.75rem + 5px); // Above name area
+            bottom: 1.5rem; // Above name area
             left: 0;
             align-items: flex-end;
         }
 
         &--bottom-right {
-            bottom: calc(1.75rem + 5px); // Above name area
+            bottom: 1.5rem; // Above name area
             right: 0;
             align-items: flex-end;
         }
