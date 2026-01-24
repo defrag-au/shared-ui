@@ -26,6 +26,10 @@
     }
 
     // Modifier: size variants
+    &--auto {
+        // Auto fills container, no max-width constraint
+        max-width: none;
+    }
     &--xs {
         max-width: 80px;
         border-radius: v.$card-radius-xs;

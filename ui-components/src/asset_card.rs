@@ -87,10 +87,9 @@ impl IiifSize {
     /// Select appropriate IIIF size for a given card size
     /// Uses thumb (400px) for cards up to 400px, large for bigger cards
     pub fn for_card_size(card_size: CardSize) -> Self {
-        if card_size.pixels() > 400 {
-            IiifSize::Large
-        } else {
-            IiifSize::Thumb
+        match card_size.pixels() {
+            Some(px) if px > 400 => IiifSize::Large,
+            _ => IiifSize::Thumb,
         }
     }
 }

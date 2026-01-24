@@ -31,6 +31,8 @@ use phf::phf_map;
 /// Card size variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CardSize {
+    /// Auto - fills container width, maintains square aspect ratio
+    Auto,
     /// 80px - Extra small, for dense grids
     Xs,
     /// 120px - Small, default size
@@ -45,20 +47,22 @@ pub enum CardSize {
 }
 
 impl CardSize {
-    /// Get the pixel width for this size
-    pub fn pixels(&self) -> u16 {
+    /// Get the pixel width for this size (None for Auto)
+    pub fn pixels(&self) -> Option<u16> {
         match self {
-            CardSize::Xs => 80,
-            CardSize::Sm => 120,
-            CardSize::Md => 240,
-            CardSize::Lg => 400,
-            CardSize::Xl => 800,
+            CardSize::Auto => None,
+            CardSize::Xs => Some(80),
+            CardSize::Sm => Some(120),
+            CardSize::Md => Some(240),
+            CardSize::Lg => Some(400),
+            CardSize::Xl => Some(800),
         }
     }
 
     /// Get the CSS class suffix for this size
     pub fn class_suffix(&self) -> &'static str {
         match self {
+            CardSize::Auto => "auto",
             CardSize::Xs => "xs",
             CardSize::Sm => "sm",
             CardSize::Md => "md",
@@ -70,6 +74,7 @@ impl CardSize {
 
 /// Map from attribute string to CardSize variant
 static CARD_SIZE_MAP: phf::Map<&'static str, CardSize> = phf_map! {
+    "auto" => CardSize::Auto,
     "xs" => CardSize::Xs,
     "extra-small" => CardSize::Xs,
     "sm" => CardSize::Sm,
