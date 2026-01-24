@@ -389,58 +389,91 @@ fn CollectionViewer() -> impl IntoView {
     }
 }
 
-/// Grid example with multiple cards
+/// Grid example fetching one asset from each collection
 #[component]
 fn GridExample() -> impl IntoView {
-    let pirates = vec![
-        (
-            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f650697261746531333334",
-            "Pirate #1334",
-            734,
-            "#4a9eff",
-        ),
-        (
-            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f650697261746531393430",
-            "Pirate #1940",
-            1229,
-            "#28a745",
-        ),
-        (
-            "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465343134",
-            "Pirate #414",
-            953,
-            "#f4a460",
-        ),
-    ];
+    let (assets, set_assets) = signal(Vec::<(
+        String,
+        String,
+        Option<u32>,
+        HashMap<String, Vec<String>>,
+    )>::new());
+    let (loading, set_loading) = signal(true);
 
-    let sample_traits = HashMap::from([
-        ("Background".to_string(), vec!["Ocean Storm".to_string()]),
-        ("Clothes".to_string(), vec!["Captain's Coat".to_string()]),
-        ("Eyes".to_string(), vec!["Amber".to_string()]),
-        ("Weapon".to_string(), vec!["Cutlass".to_string()]),
-    ]);
+    // Accent colors for each collection
+    let colors = ["#4a9eff", "#8b5cf6", "#ef4444"];
+
+    // Fetch one asset from each collection
+    Effect::new(move |_| {
+        set_loading.set(true);
+        wasm_bindgen_futures::spawn_local(async move {
+            let mut fetched = Vec::new();
+
+            for (policy_id, _name) in KNOWN_COLLECTIONS.iter() {
+                // Get first asset from collection
+                if let Ok((collection_assets, _)) = fetch_collection_assets(policy_id, 1, 0).await {
+                    if let Some(asset) = collection_assets.first() {
+                        // Fetch full details with traits
+                        if let Ok(details) =
+                            fetch_asset_details(policy_id, &asset.id.asset_name_hex).await
+                        {
+                            fetched.push((
+                                asset.id.concatenated(),
+                                details.name,
+                                details.rarity_rank,
+                                details.traits,
+                            ));
+                        }
+                    }
+                }
+            }
+
+            set_assets.set(fetched);
+            set_loading.set(false);
+        });
+    });
 
     view! {
         <div class="detail-card-grid">
-            {pirates.into_iter().map(|(asset_id, name, rank, color)| {
-                let traits = sample_traits.clone();
+            {move || if loading.get() {
                 view! {
-                    <AssetDetailCard
-                        asset_id=Signal::derive(move || asset_id.to_string())
-                        name=Signal::derive(move || name.to_string())
-                        traits=Signal::derive(move || traits.clone())
-                        rarity_rank=Signal::derive(move || Some(rank))
-                        accent_color=Signal::derive(move || color.to_string())
-                    />
-                }
-            }).collect_view()}
+                    <div class="grid-loading">"Loading assets from collections..."</div>
+                }.into_any()
+            } else {
+                view! {
+                    <For
+                        each=move || assets.get().into_iter().enumerate()
+                        key=|(_, (id, _, _, _))| id.clone()
+                        let:item
+                    >
+                        {
+                            let (idx, (asset_id, name, rank, traits)) = item;
+                            let color = colors.get(idx).copied().unwrap_or("#666");
+                            view! {
+                                <AssetDetailCard
+                                    asset_id=Signal::derive(move || asset_id.clone())
+                                    name=Signal::derive(move || name.clone())
+                                    traits=Signal::derive(move || traits.clone())
+                                    rarity_rank=Signal::derive(move || rank)
+                                    accent_color=Signal::derive(move || color.to_string())
+                                />
+                            }
+                        }
+                    </For>
+                }.into_any()
+            }}
         </div>
         <style>{r#"
             .detail-card-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(280px, 320px));
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
                 gap: 1.5rem;
-                justify-content: center;
+            }
+            .grid-loading {
+                grid-column: 1 / -1;
+                text-align: center;
+                padding: 2rem;
+                color: var(--text-muted, #888);
             }
         "#}</style>
     }

@@ -190,11 +190,11 @@ pub const KNOWN_COLLECTIONS: &[(&str, &str)] = &[
         "Black Flag Pirates",
     ),
     (
-        "5ac825392b7608d6e92a4e5c528fe9b8fadd6eaa3e36a685e37175d1",
-        "Rotten Ape",
+        "8972aab912aed2cf44b65916e206324c6bdcb6fbd3dc4eb634fdbd28",
+        "Ug",
     ),
     (
-        "d5e6bf0500378d4f0da4e8dde6becec7621cd8cbf5cbb9b87013d4cc",
-        "Spacebudz",
+        "e6ba9c0ff27be029442c32533c6efd956a60d15ecb976acbb64c4de0",
+        "Perps",
     ),
 ];

@@ -9,13 +9,7 @@
     border-radius: 0.75rem;
     overflow: hidden;
     width: 100%;
-    max-width: 320px; // Constrain width when used inline
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-
-    // In flush modal, allow full width
-    .ui-modal__body.flush & {
-        max-width: 100%;
-    }
 
     // Accent bar at top
     &__accent {
@@ -215,54 +209,54 @@
     }
 }
 
-// Tablet and up: side-by-side layout
-@media (min-width: 576px) {
-    .asset-detail-card {
+// Side-by-side layout - only in flush modal context (not grid/inline)
+.ui-modal__body.flush .asset-detail-card {
+    @media (min-width: 576px) {
         flex-direction: row;
 
-        &__image {
+        .asset-detail-card__image {
             width: 320px;
             min-width: 320px;
             height: 320px;
             aspect-ratio: 1;
         }
 
-        &__info {
+        .asset-detail-card__info {
             flex: 1;
             max-height: 320px;
         }
 
-        &__header {
+        .asset-detail-card__header {
             padding: 1.5rem;
             padding-bottom: 0.75rem;
         }
 
-        &__traits {
+        .asset-detail-card__traits {
             padding: 0 1.5rem 1.5rem;
         }
 
-        &__footer {
+        .asset-detail-card__footer {
             padding: 1.5rem;
             padding-top: 0.75rem;
         }
 
-        &__close {
+        .asset-detail-card__close {
             top: 1rem;
             right: 1rem;
         }
     }
 }
 
-// Larger screens: bigger image
-@media (min-width: 768px) {
-    .asset-detail-card {
-        &__image {
+// Larger screens: bigger image (only in modal context)
+.ui-modal__body.flush .asset-detail-card {
+    @media (min-width: 768px) {
+        .asset-detail-card__image {
             width: 400px;
             min-width: 400px;
             height: 400px;
         }
 
-        &__info {
+        .asset-detail-card__info {
             max-height: 400px;
         }
     }
