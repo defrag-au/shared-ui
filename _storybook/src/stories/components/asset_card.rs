@@ -2,7 +2,7 @@
 
 use crate::stories::helpers::AttributeCard;
 use leptos::prelude::*;
-use ui_components::{AssetCard, CardSize};
+use ui_components::{children_fn, AssetCard, Badge, CardSize, StatPill};
 
 #[component]
 pub fn AssetCardStory() -> impl IntoView {
@@ -46,6 +46,51 @@ pub fn AssetCardStory() -> impl IntoView {
                             name="lg (400px) - 400px IIIF"
                             size=CardSize::Lg
                             show_name=true
+                        />
+                    </div>
+                </div>
+            </div>
+
+            // Overlay Slots section
+            <div class="story-section">
+                <h3>"Overlay Slots"</h3>
+                <p class="story-description">"AssetCard supports overlay slots at each corner and a footer slot for additional content like stats, badges, and actions."</p>
+                <div class="story-canvas">
+                    <div style="display: flex; align-items: flex-start; gap: 1.5rem; flex-wrap: wrap;">
+                        // Card with power stat in top-right
+                        <AssetCard
+                            asset_id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839"
+                            name="With Power"
+                            size=CardSize::Md
+                            show_name=true
+                            top_right=children_fn(|| view! {
+                                <StatPill value=Signal::derive(|| "285".to_string()) icon="⚡".to_string() />
+                            })
+                        />
+
+                        // Card with badge in bottom-left
+                        <AssetCard
+                            asset_id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465323030"
+                            name="With Badge"
+                            size=CardSize::Md
+                            show_name=true
+                            bottom_left=children_fn(|| view! {
+                                <Badge label="Deployed".to_string() />
+                            })
+                        />
+
+                        // Card with multiple overlays
+                        <AssetCard
+                            asset_id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465333333"
+                            name="Multiple Overlays"
+                            size=CardSize::Md
+                            show_name=true
+                            top_right=children_fn(|| view! {
+                                <StatPill value=Signal::derive(|| "350".to_string()) icon="⚡".to_string() />
+                            })
+                            bottom_left=children_fn(|| view! {
+                                <Badge label="Captain".to_string() />
+                            })
                         />
                     </div>
                 </div>

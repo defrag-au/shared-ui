@@ -60,6 +60,7 @@
 //! ```
 
 use crate::image_card::{CardSize, ImageCard};
+use leptos::children::ChildrenFn;
 use leptos::prelude::*;
 
 /// IIIF base URL for image lookups
@@ -152,19 +153,19 @@ pub fn AssetCard(
     on_load: Option<Callback<()>>,
     /// Top-left overlay slot (e.g., status indicators)
     #[prop(optional)]
-    top_left: Option<Children>,
+    top_left: Option<ChildrenFn>,
     /// Top-right overlay slot (e.g., power pills)
     #[prop(optional)]
-    top_right: Option<Children>,
+    top_right: Option<ChildrenFn>,
     /// Bottom-left overlay slot (e.g., role badges)
     #[prop(optional)]
-    bottom_left: Option<Children>,
+    bottom_left: Option<ChildrenFn>,
     /// Bottom-right overlay slot
     #[prop(optional)]
-    bottom_right: Option<Children>,
+    bottom_right: Option<ChildrenFn>,
     /// Footer slot (e.g., action buttons)
     #[prop(optional)]
-    footer: Option<Children>,
+    footer: Option<ChildrenFn>,
 ) -> impl IntoView {
     // Clone for use in closures
     let asset_id_for_url = asset_id;

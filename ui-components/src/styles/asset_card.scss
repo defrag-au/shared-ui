@@ -9,15 +9,24 @@
     background: v.$bg-secondary;
 
     // Size variants match image-card sizes
-    &--xs { width: 80px; }
-    &--sm { width: 120px; }
-    &--md { width: 240px; }
-    &--lg { width: 400px; }
-    &--xl { width: 800px; }
+    &--xs {
+        width: 80px;
+    }
+    &--sm {
+        width: 120px;
+    }
+    &--md {
+        width: 240px;
+    }
+    &--lg {
+        width: 400px;
+    }
+    &--xl {
+        width: 800px;
+    }
 
     &__image-container {
         position: relative;
-        line-height: 0; // Remove inline spacing from image
     }
 
     &__overlays {
@@ -34,7 +43,9 @@
     &__overlay {
         position: absolute;
         padding: 0.25rem;
-        z-index: 1;
+        z-index: 2; // Above name overlay (z-index: 1)
+        display: inline-flex;
+        align-items: flex-start;
 
         &--top-left {
             top: 0;
@@ -47,13 +58,15 @@
         }
 
         &--bottom-left {
-            bottom: 0;
+            bottom: calc(1.75rem + 5px); // Above name area
             left: 0;
+            align-items: flex-end;
         }
 
         &--bottom-right {
-            bottom: 0;
+            bottom: calc(1.75rem + 5px); // Above name area
             right: 0;
+            align-items: flex-end;
         }
     }
 
