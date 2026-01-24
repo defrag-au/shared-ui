@@ -164,7 +164,7 @@ pub fn RoleDotsStory() -> impl IntoView {
             // In AssetCard
             <div class="story-section">
                 <h3>"In AssetCard"</h3>
-                <p class="story-description">"Role dots in the bottom-left slot of an AssetCard."</p>
+                <p class="story-description">"Role dots in the bottom-left slot of an AssetCard. Tooltip is disabled to avoid clipping issues."</p>
                 <div class="story-canvas">
                     <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
                         <AssetCard
@@ -174,7 +174,7 @@ pub fn RoleDotsStory() -> impl IntoView {
                             size=CardSize::Sm
                             bottom_left=children_fn({
                                 let roles = card_roles_1.clone();
-                                move || view! { <RoleDots roles=Signal::derive({ let r = roles.clone(); move || r.clone() }) /> }
+                                move || view! { <RoleDots roles=Signal::derive({ let r = roles.clone(); move || r.clone() }) show_tooltip=false /> }
                             })
                         />
                         <AssetCard
@@ -184,7 +184,7 @@ pub fn RoleDotsStory() -> impl IntoView {
                             size=CardSize::Sm
                             bottom_left=children_fn({
                                 let roles = card_roles_2.clone();
-                                move || view! { <RoleDots roles=Signal::derive({ let r = roles.clone(); move || r.clone() }) /> }
+                                move || view! { <RoleDots roles=Signal::derive({ let r = roles.clone(); move || r.clone() }) show_tooltip=false /> }
                             })
                         />
                         <AssetCard
@@ -194,7 +194,7 @@ pub fn RoleDotsStory() -> impl IntoView {
                             size=CardSize::Sm
                             bottom_left=children_fn({
                                 let roles = card_roles_3.clone();
-                                move || view! { <RoleDots roles=Signal::derive({ let r = roles.clone(); move || r.clone() }) /> }
+                                move || view! { <RoleDots roles=Signal::derive({ let r = roles.clone(); move || r.clone() }) show_tooltip=false /> }
                             })
                         />
                     </div>
