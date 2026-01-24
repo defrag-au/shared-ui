@@ -25,6 +25,7 @@ pub enum Story {
     ImageCardComponent,
     AssetCardComponent,
     AssetGridComponent,
+    AssetPickerComponent,
     AssetDetailCardComponent,
     AssetCacheComponent,
     ConnectionStatusComponent,
@@ -65,6 +66,7 @@ impl Story {
             Story::ImageCardComponent,
             Story::AssetCardComponent,
             Story::AssetGridComponent,
+            Story::AssetPickerComponent,
             Story::AssetDetailCardComponent,
             Story::AssetCacheComponent,
             Story::ConnectionStatusComponent,
@@ -102,6 +104,7 @@ impl Story {
             Story::ImageCardComponent => "Image Card",
             Story::AssetCardComponent => "Asset Card",
             Story::AssetGridComponent => "Asset Grid",
+            Story::AssetPickerComponent => "Asset Picker",
             Story::AssetDetailCardComponent => "Asset Detail Card",
             Story::AssetCacheComponent => "Asset Cache",
             Story::ConnectionStatusComponent => "Connection Status",
@@ -139,6 +142,7 @@ impl Story {
             Story::ImageCardComponent
             | Story::AssetCardComponent
             | Story::AssetGridComponent
+            | Story::AssetPickerComponent
             | Story::AssetDetailCardComponent
             | Story::AssetCacheComponent
             | Story::ConnectionStatusComponent
@@ -276,6 +280,9 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         </Show>
         <Show when=move || story.get() == Story::AssetGridComponent fallback=|| ()>
             <stories::AssetGridStory />
+        </Show>
+        <Show when=move || story.get() == Story::AssetPickerComponent fallback=|| ()>
+            <stories::AssetPickerStory />
         </Show>
         <Show when=move || story.get() == Story::AssetDetailCardComponent fallback=|| ()>
             <stories::AssetDetailCardStory />
