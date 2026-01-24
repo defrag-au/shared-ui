@@ -23,6 +23,7 @@ pub enum Story {
     // Components - Data Display
     ImageCardComponent,
     AssetCardComponent,
+    AssetGridComponent,
     AssetCacheComponent,
     ConnectionStatusComponent,
     MemoryCardComponent,
@@ -61,6 +62,7 @@ impl Story {
             // Data Display
             Story::ImageCardComponent,
             Story::AssetCardComponent,
+            Story::AssetGridComponent,
             Story::AssetCacheComponent,
             Story::ConnectionStatusComponent,
             Story::MemoryCardComponent,
@@ -96,6 +98,7 @@ impl Story {
             // Data Display
             Story::ImageCardComponent => "Image Card",
             Story::AssetCardComponent => "Asset Card",
+            Story::AssetGridComponent => "Asset Grid",
             Story::AssetCacheComponent => "Asset Cache",
             Story::ConnectionStatusComponent => "Connection Status",
             Story::MemoryCardComponent => "Memory Card",
@@ -131,6 +134,7 @@ impl Story {
             // Data display components
             Story::ImageCardComponent
             | Story::AssetCardComponent
+            | Story::AssetGridComponent
             | Story::AssetCacheComponent
             | Story::ConnectionStatusComponent
             | Story::MemoryCardComponent
@@ -264,6 +268,9 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         </Show>
         <Show when=move || story.get() == Story::AssetCardComponent fallback=|| ()>
             <stories::AssetCardStory />
+        </Show>
+        <Show when=move || story.get() == Story::AssetGridComponent fallback=|| ()>
+            <stories::AssetGridStory />
         </Show>
         <Show when=move || story.get() == Story::AssetCacheComponent fallback=|| ()>
             <stories::AssetCacheStory />

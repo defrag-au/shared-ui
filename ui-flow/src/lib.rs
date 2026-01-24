@@ -106,6 +106,7 @@
 //! See the `examples` directory for framework-specific integration patterns.
 
 mod connection;
+pub mod notify;
 mod operation;
 mod state;
 mod status;
