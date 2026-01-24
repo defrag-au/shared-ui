@@ -13,19 +13,11 @@
         align-items: flex-start;
     }
 
-    &__empty {
-        padding: var(--space-md, 1rem) var(--space-lg, 1.5rem);
-        color: var(--color-text-muted, #888);
-        font-size: 0.875rem;
-        font-style: italic;
-    }
-
     &__add-btn {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 120px;
-        height: 120px;
+        // width/height set via inline style to match card size
         background: var(--color-surface, #1a1a2e);
         border: 2px dashed var(--color-border, #333);
         border-radius: var(--border-radius, 4px);

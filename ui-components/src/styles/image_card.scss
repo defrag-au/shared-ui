@@ -25,29 +25,35 @@
     }
 
     // Modifier: size variants
+    // Use explicit width (not just max-width) so skeleton has proper size
     &--auto {
-        // Auto fills container, no max-width constraint
+        // Auto fills container, no width constraint
         max-width: none;
     }
     &--xs {
+        width: 80px;
         max-width: 80px;
         border-radius: v.$card-radius-xs;
     }
     &--sm {
+        width: 120px;
         max-width: 120px;
         border-radius: v.$card-radius-sm;
     }
     &--md {
         --hover-scale: 1.025;
+        width: 240px;
         max-width: 240px;
     }
     &--lg {
         --hover-scale: 1.02;
+        width: 400px;
         max-width: 400px;
         border-radius: v.$card-radius-lg;
     }
     &--xl {
         --hover-scale: 1.015;
+        width: 800px;
         max-width: 800px;
         border-radius: 12px;
     }

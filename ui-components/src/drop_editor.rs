@@ -106,15 +106,7 @@ pub fn DropEditor(
             <div class="drop-editor__items">
                 <Show
                     when=move || !drops.get().is_empty()
-                    fallback=move || {
-                        view! {
-                            <Show when=move || !readonly.get()>
-                                <div class="drop-editor__empty">
-                                    "No prizes yet"
-                                </div>
-                            </Show>
-                        }
-                    }
+                    fallback=|| ()
                 >
                     <For
                         each={move || drops.get().into_iter().enumerate().collect::<Vec<_>>()}
@@ -150,13 +142,19 @@ pub fn DropEditor(
 
                 // Add button (hidden in readonly mode)
                 <Show when=move || !readonly.get()>
-                    <button
-                        class="drop-editor__add-btn"
-                        on:click=move |_| set_show_add_modal.set(true)
-                        title="Add prize"
-                    >
-                        <span class="drop-editor__add-icon">"+"</span>
-                    </button>
+                    {
+                        let btn_size = size.pixels().unwrap_or(120);
+                        view! {
+                            <button
+                                class="drop-editor__add-btn"
+                                style=format!("width: {btn_size}px; height: {btn_size}px;")
+                                on:click=move |_| set_show_add_modal.set(true)
+                                title="Add prize"
+                            >
+                                <span class="drop-editor__add-icon">"+"</span>
+                            </button>
+                        }
+                    }
                 </Show>
             </div>
 
