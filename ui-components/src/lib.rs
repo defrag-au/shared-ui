@@ -63,6 +63,7 @@
 
 mod asset_cache;
 mod asset_card;
+mod asset_detail_card;
 mod asset_grid;
 mod badge;
 mod button;
@@ -84,6 +85,7 @@ mod toast;
 
 pub use asset_cache::{AssetCache, PreloadAsset};
 pub use asset_card::{generate_iiif_url, AssetCard, IiifSize};
+pub use asset_detail_card::AssetDetailCard;
 pub use asset_grid::AssetGrid;
 pub use badge::{Badge, BadgeVariant};
 pub use button::{Button, ButtonSize, ButtonVariant};

@@ -1,9 +1,8 @@
 //! Asset Grid component story
 
+use crate::api::pfp_city::{fetch_collection_assets, CollectionAsset, KNOWN_COLLECTIONS};
 use crate::stories::helpers::AttributeCard;
-use gloo_net::http::Request;
 use leptos::prelude::*;
-use serde::Deserialize;
 use ui_components::{AssetCard, AssetGrid, CardSize, ImageCard, StatPill};
 
 // Sample Black Flag pirate asset IDs for demos
@@ -33,95 +32,6 @@ const SAMPLE_ASSETS: &[(&str, &str)] = &[
         "Pirate #636",
     ),
 ];
-
-// Known collection policy IDs for the demo
-const COLLECTIONS: &[(&str, &str)] = &[
-    (
-        "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6",
-        "Black Flag Pirates",
-    ),
-    (
-        "5ac825392b7608d6e92a4e5c528fe9b8fadd6eaa3e36a685e37175d1",
-        "Rotten Ape",
-    ),
-    (
-        "d5e6bf0500378d4f0da4e8dde6becec7621cd8cbf5cbb9b87013d4cc",
-        "Spacebudz",
-    ),
-];
-
-// ============================================================================
-// PFP City API Types (unauthenticated collection endpoint)
-// ============================================================================
-
-#[derive(Deserialize, Debug, Clone)]
-struct AssetId {
-    policy_id: String,
-    asset_name_hex: String,
-}
-
-impl AssetId {
-    fn concatenated(&self) -> String {
-        format!("{}{}", self.policy_id, self.asset_name_hex)
-    }
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct PfpCityAsset {
-    id: AssetId,
-    name: String,
-    #[allow(dead_code)]
-    #[serde(default)]
-    image: Option<String>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct PaginationInfo {
-    #[allow(dead_code)]
-    limit: u32,
-    #[allow(dead_code)]
-    offset: u32,
-    #[allow(dead_code)]
-    has_more: bool,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct CollectionAssetsData {
-    assets: Vec<PfpCityAsset>,
-    #[allow(dead_code)]
-    pagination: PaginationInfo,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct CollectionAssetsResponse {
-    #[allow(dead_code)]
-    success: bool,
-    data: CollectionAssetsData,
-}
-
-/// Fetch assets from PFP City collection API (unauthenticated)
-async fn fetch_collection_assets(policy_id: &str, limit: u32) -> Result<Vec<PfpCityAsset>, String> {
-    let url = format!(
-        "https://a2.pfp.city/v3/api/collections/{}/assets?limit={}&offset=0",
-        policy_id, limit
-    );
-
-    let response = Request::get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {e}"))?;
-
-    if !response.ok() {
-        return Err(format!("API error: {}", response.status()));
-    }
-
-    let data: CollectionAssetsResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Parse error: {e}"))?;
-
-    Ok(data.data.assets)
-}
 
 #[component]
 pub fn AssetGridStory() -> impl IntoView {
@@ -455,7 +365,7 @@ view! {
 #[component]
 fn LiveApiDemo() -> impl IntoView {
     let (selected_collection, set_selected_collection) = signal(0usize);
-    let (assets, set_assets) = signal(Vec::<PfpCityAsset>::new());
+    let (assets, set_assets) = signal(Vec::<CollectionAsset>::new());
     let (loading, set_loading) = signal(false);
     let (error, set_error) = signal(None::<String>);
     let (asset_count, set_asset_count) = signal(12u32);
@@ -463,15 +373,15 @@ fn LiveApiDemo() -> impl IntoView {
     // Fetch assets when collection changes
     let fetch_assets = move || {
         let collection_idx = selected_collection.get();
-        let (policy_id, _name) = COLLECTIONS[collection_idx];
+        let (policy_id, _name) = KNOWN_COLLECTIONS[collection_idx];
         let limit = asset_count.get();
 
         set_loading.set(true);
         set_error.set(None);
 
         wasm_bindgen_futures::spawn_local(async move {
-            match fetch_collection_assets(policy_id, limit).await {
-                Ok(fetched) => {
+            match fetch_collection_assets(policy_id, limit, 0).await {
+                Ok((fetched, _pagination)) => {
                     set_assets.set(fetched);
                     set_error.set(None);
                 }
@@ -501,7 +411,7 @@ fn LiveApiDemo() -> impl IntoView {
                     set_selected_collection.set(select.selected_index() as usize);
                     fetch_assets();
                 }>
-                    {COLLECTIONS.iter().enumerate().map(|(i, (_, name))| {
+                    {KNOWN_COLLECTIONS.iter().enumerate().map(|(i, (_, name))| {
                         view! {
                             <option value=i.to_string() selected=move || selected_collection.get() == i>
                                 {*name}

@@ -2,6 +2,7 @@
 
 mod asset_cache;
 mod asset_card;
+mod asset_detail_card;
 mod asset_grid;
 mod badge;
 mod button;
@@ -20,6 +21,7 @@ mod tabs;
 
 pub use asset_cache::*;
 pub use asset_card::*;
+pub use asset_detail_card::*;
 pub use asset_grid::*;
 pub use badge::*;
 pub use button::*;
