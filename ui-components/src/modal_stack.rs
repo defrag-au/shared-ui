@@ -9,6 +9,12 @@
 //! within a single modal container. Child views can push new views onto the stack,
 //! and the user can navigate back via breadcrumbs or a back button.
 //!
+//! ## Nested Modals
+//!
+//! When a `<Modal>` is rendered inside a ModalStack, it automatically detects
+//! the `ModalNavigation` context and coordinates with the stack. The Modal renders
+//! its content inline but the stack manages breadcrumbs and navigation.
+//!
 //! ## Usage
 //!
 //! ```ignore
@@ -35,23 +41,12 @@
 //!                 move |_| ctx.push(MyView::AddItem)
 //!             }>"Add"</button>
 //!         }.into_any(),
-//!         MyView::AddItem => view! {
-//!             <button on:click={
-//!                 let ctx = ctx.clone();
-//!                 move |_| ctx.push(MyView::SelectAsset { filter: "nft".into() })
-//!             }>"Select Asset"</button>
-//!         }.into_any(),
-//!         MyView::SelectAsset { filter } => view! {
-//!             <p>"Filtering by: " {filter}</p>
-//!             <button on:click={
-//!                 let ctx = ctx.clone();
-//!                 move |_| ctx.pop()
-//!             }>"Back"</button>
-//!         }.into_any(),
+//!         // ... etc
 //!     }
 //! />
 //! ```
 
+use crate::modal_context::{ModalNavigation, ModalViewId, MountedView};
 use leptos::prelude::*;
 use std::sync::Arc;
 
@@ -89,6 +84,31 @@ enum SlideDirection {
     Back,
 }
 
+/// Internal view representation that can be either typed or mounted
+#[derive(Clone)]
+enum StackEntry<V: Clone> {
+    /// A typed view from the view_content function
+    Typed(V),
+    /// A mounted view from a nested Modal (content renders inline in the Modal)
+    Mounted(MountedView),
+}
+
+impl<V: Clone> StackEntry<V> {
+    fn title<F: Fn(&V) -> String>(&self, typed_title_fn: &F) -> String {
+        match self {
+            StackEntry::Typed(v) => typed_title_fn(v),
+            StackEntry::Mounted(m) => m.title.clone(),
+        }
+    }
+
+    fn mounted_id(&self) -> Option<ModalViewId> {
+        match self {
+            StackEntry::Mounted(m) => Some(m.id),
+            _ => None,
+        }
+    }
+}
+
 /// Modal with view stack support
 ///
 /// Generic over `V` - the view enum type that defines possible views.
@@ -115,8 +135,8 @@ where
     TitleFn: Fn(&V) -> String + Send + Sync + Clone + 'static,
     ContentFn: Fn(V, ModalStackContext<V>) -> AnyView + Send + Sync + Clone + 'static,
 {
-    // View stack - stores all views for preservation
-    let (view_stack, set_view_stack) = signal(vec![initial_view.clone()]);
+    // View stack - stores all views (typed and mounted) for preservation
+    let (view_stack, set_view_stack) = signal(vec![StackEntry::Typed(initial_view.clone())]);
 
     // Animation state
     let (slide_direction, set_slide_direction) = signal(SlideDirection::None);
@@ -128,20 +148,20 @@ where
         let currently_open = open.get();
         if currently_open && prev_open == Some(false) {
             // Modal just opened - reset to initial view
-            set_view_stack.set(vec![initial_for_effect.clone()]);
+            set_view_stack.set(vec![StackEntry::Typed(initial_for_effect.clone())]);
             set_slide_direction.set(SlideDirection::None);
         }
         currently_open
     });
 
-    // Create the context for child views
-    let push_fn = Arc::new(move |view: V| {
+    // Create the context for child views (typed navigation)
+    let push_typed_fn = Arc::new(move |view: V| {
         if is_animating.get() {
             return;
         }
         set_slide_direction.set(SlideDirection::Forward);
         set_is_animating.set(true);
-        set_view_stack.update(|stack| stack.push(view));
+        set_view_stack.update(|stack| stack.push(StackEntry::Typed(view)));
     });
 
     let pop_fn = Arc::new(move || {
@@ -165,10 +185,53 @@ where
     });
 
     let ctx = ModalStackContext {
-        push_fn,
-        pop_fn,
+        push_fn: push_typed_fn,
+        pop_fn: pop_fn.clone(),
         close_fn: close_fn.clone(),
     };
+
+    // Create ModalNavigation context for nested Modals
+    let mount_fn = Arc::new(move |title: String| {
+        let id = ModalViewId::new();
+        let mounted = MountedView { id, title };
+
+        if !is_animating.get() {
+            set_slide_direction.set(SlideDirection::Forward);
+            set_is_animating.set(true);
+        }
+        set_view_stack.update(|stack| stack.push(StackEntry::Mounted(mounted)));
+
+        id
+    });
+
+    let unmount_fn = {
+        let pop_fn = pop_fn.clone();
+        Arc::new(move |id: ModalViewId| {
+            // Check if this ID is on the top of the stack
+            let stack = view_stack.get();
+            if let Some(entry) = stack.last() {
+                if entry.mounted_id() == Some(id) {
+                    // It's on top, just pop
+                    pop_fn();
+                    return;
+                }
+            }
+            // Not on top - remove from stack directly
+            if !is_animating.get() {
+                set_slide_direction.set(SlideDirection::Back);
+                set_is_animating.set(true);
+            }
+            set_view_stack.update(|stack| {
+                stack.retain(|entry| entry.mounted_id() != Some(id));
+            });
+        })
+    };
+
+    let modal_nav =
+        ModalNavigation::new(move |title| (mount_fn)(title), move |id| (unmount_fn)(id));
+
+    // Provide the context immediately
+    provide_context(modal_nav);
 
     // Clone for use in view
     let view_title_for_breadcrumbs = view_title.clone();
@@ -251,8 +314,8 @@ where
                         {move || {
                             let stack = view_stack.get();
                             let view_title = view_title_for_breadcrumbs.clone();
-                            stack.iter().enumerate().map(|(i, view)| {
-                                let title = view_title(view);
+                            stack.iter().enumerate().map(|(i, entry)| {
+                                let title = entry.title(&view_title);
                                 let is_last = i == stack.len() - 1;
                                 let target_depth = i + 1;
                                 view! {
@@ -315,9 +378,18 @@ where
 
                             // Render all views but only show the current one
                             // This preserves state for previous views
-                            stack.iter().enumerate().map(|(i, view)| {
+                            stack.iter().enumerate().map(|(i, entry)| {
                                 let is_current = i == stack.len() - 1;
-                                let content = content_fn(view.clone(), ctx.clone());
+                                let content = match entry {
+                                    StackEntry::Typed(v) => content_fn(v.clone(), ctx.clone()),
+                                    StackEntry::Mounted(_) => {
+                                        // Mounted content renders inline via the nested Modal
+                                        // We just provide a container that CSS will show/hide
+                                        view! {
+                                            <div class="ui-modal-stack__mounted-view"></div>
+                                        }.into_any()
+                                    }
+                                };
                                 view! {
                                     <div
                                         class="ui-modal-stack__view"

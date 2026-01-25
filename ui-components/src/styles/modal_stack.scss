@@ -132,3 +132,23 @@
         opacity: 1;
     }
 }
+
+// Nested Modal styles (when Modal is inside ModalStack)
+// The Modal renders inline and coordinates via context
+.ui-modal-nested {
+    display: none;
+    width: 100%;
+
+    &--open {
+        display: block;
+    }
+
+    // Remove default padding since ModalStack handles it
+    .ui-modal__body {
+        padding: 0;
+
+        &.flush {
+            padding: 0;
+        }
+    }
+}

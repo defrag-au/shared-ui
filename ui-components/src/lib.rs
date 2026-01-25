@@ -81,6 +81,7 @@ mod image_card;
 mod loading_overlay;
 mod memory_card;
 mod modal;
+mod modal_context;
 mod modal_stack;
 mod player_card;
 mod progress_bar;

@@ -2,7 +2,7 @@
 
 use crate::stories::helpers::AttributeCard;
 use leptos::prelude::*;
-use ui_components::{ModalStack, ModalStackContext};
+use ui_components::{Button, ButtonVariant, Modal, ModalStack, ModalStackContext};
 
 /// View enum for the demo modal
 #[derive(Clone, PartialEq)]
@@ -161,11 +161,76 @@ fn form_content(view: DemoView, ctx: ModalStackContext<DemoView>) -> AnyView {
     }
 }
 
+/// View enum for context-aware Modal demo
+#[derive(Clone, PartialEq)]
+enum ContextAwareView {
+    Main,
+}
+
+fn context_aware_title(view: &ContextAwareView) -> String {
+    match view {
+        ContextAwareView::Main => "Main View".to_string(),
+    }
+}
+
+fn context_aware_content(
+    view: ContextAwareView,
+    _ctx: ModalStackContext<ContextAwareView>,
+) -> AnyView {
+    match view {
+        ContextAwareView::Main => {
+            // This nested Modal will detect the ModalNavigation context
+            // and render as a view in the stack instead of its own overlay
+            let (show_nested, set_show_nested) = signal(false);
+
+            view! {
+                <div style="padding: 1rem;">
+                    <p style="margin-bottom: 1rem;">
+                        "This view contains a regular " <code>"<Modal>"</code> " component."
+                    </p>
+                    <p style="margin-bottom: 1rem; color: #888;">
+                        "When opened, it automatically coordinates with the ModalStack - "
+                        "no special setup required!"
+                    </p>
+                    <Button
+                        variant=ButtonVariant::Secondary
+                        on_click=Callback::new(move |()| set_show_nested.set(true))
+                    >
+                        "Open Nested Modal"
+                    </Button>
+
+                    // This Modal will detect the context and render as a stack view
+                    <Modal
+                        open=show_nested
+                        title="Nested Modal".to_string()
+                        on_close=Callback::new(move |()| set_show_nested.set(false))
+                    >
+                        <div style="padding: 1rem;">
+                            <p>"This is a nested Modal that automatically became a stack view!"</p>
+                            <p style="color: #888; margin-top: 0.5rem;">
+                                "Notice it appears in the breadcrumbs above."
+                            </p>
+                            <Button
+                                variant=ButtonVariant::Primary
+                                on_click=Callback::new(move |()| set_show_nested.set(false))
+                            >
+                                "Close"
+                            </Button>
+                        </div>
+                    </Modal>
+                </div>
+            }
+            .into_any()
+        }
+    }
+}
+
 #[component]
 pub fn ModalStackStory() -> impl IntoView {
     let (show_basic, set_show_basic) = signal(false);
     let (show_nested, set_show_nested) = signal(false);
     let (show_preserved, set_show_preserved) = signal(false);
+    let (show_context_aware, set_show_context_aware) = signal(false);
 
     view! {
         <div>
@@ -197,6 +262,12 @@ pub fn ModalStackStory() -> impl IntoView {
                         >
                             "State Preservation"
                         </button>
+                        <button
+                            class="btn btn--primary"
+                            on:click=move |_| set_show_context_aware.set(true)
+                        >
+                            "Context-Aware Modal"
+                        </button>
                     </div>
                 </div>
             </div>
@@ -226,6 +297,15 @@ pub fn ModalStackStory() -> impl IntoView {
                 on_close=Callback::new(move |()| set_show_preserved.set(false))
                 view_title=form_title
                 view_content=form_content
+            />
+
+            // Context-Aware Modal Demo
+            <ModalStack
+                open=show_context_aware
+                initial_view=ContextAwareView::Main
+                on_close=Callback::new(move |()| set_show_context_aware.set(false))
+                view_title=context_aware_title
+                view_content=context_aware_content
             />
 
             // Key Differences section

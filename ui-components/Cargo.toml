@@ -31,4 +31,5 @@ js-sys = { workspace = true }
 
 # Utilities
 phf = { workspace = true }
+send_wrapper = "0.6"
 tracing = { workspace = true }
