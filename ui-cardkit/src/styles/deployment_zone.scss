@@ -1,0 +1,84 @@
+// DeploymentZone Component Styles
+// Container for deployed cards over the monster stage
+
+@use "variables";
+
+.cardkit-deployment-zone {
+  position: relative;
+
+  // Label
+  &__label {
+    position: absolute;
+    top: -20px;
+    left: 0;
+    font-size: 12px;
+    color: var(--cardkit-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  // Cards container
+  &__cards {
+    display: flex;
+    gap: 8px;
+  }
+
+  // Individual card wrapper
+  &__card {
+    position: relative;
+  }
+
+  // Layout variants
+  &--scatter {
+    .cardkit-deployment-zone__cards {
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    // Slight random rotation for scatter effect
+    .cardkit-deployment-zone__card {
+      &:nth-child(3n) {
+        transform: rotate(-3deg);
+      }
+      &:nth-child(3n+1) {
+        transform: rotate(2deg);
+      }
+      &:nth-child(3n+2) {
+        transform: rotate(-1deg);
+      }
+
+      // Reset rotation on hover
+      &:hover {
+        transform: rotate(0deg) scale(1.1);
+        z-index: 10;
+      }
+    }
+  }
+
+  &--grid {
+    .cardkit-deployment-zone__cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(var(--cardkit-compact-md), 1fr));
+      gap: 8px;
+      padding: 8px;
+    }
+  }
+
+  &--row {
+    .cardkit-deployment-zone__cards {
+      flex-direction: row;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding: 8px;
+      gap: 8px;
+
+      // Hide scrollbar but keep functionality
+      scrollbar-width: none;
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+  }
+}

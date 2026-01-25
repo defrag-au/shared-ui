@@ -9,6 +9,7 @@ members = [
     "ui-toast",
     "wallet-core",
     "ui-components",
+    "ui-cardkit",
     "_storybook",
     "workers/flow-demo",
     "workers/flow-demo/frontend",

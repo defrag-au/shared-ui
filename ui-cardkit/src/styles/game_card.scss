@@ -1,0 +1,87 @@
+// GameCard Component Styles
+// Full-sized card for hand display and detail views
+
+@use "variables";
+
+.cardkit-game-card {
+  position: relative;
+  border-radius: var(--cardkit-card-radius);
+  background: var(--cardkit-bg);
+  border: 2px solid var(--cardkit-border);
+  overflow: hidden;
+  box-shadow: var(--cardkit-shadow);
+  transition:
+    transform var(--cardkit-transition-fast) var(--cardkit-easing),
+    box-shadow var(--cardkit-transition-fast) var(--cardkit-easing),
+    border-color var(--cardkit-transition-fast) var(--cardkit-easing);
+
+  // Size variants
+  &--sm {
+    width: var(--cardkit-card-sm);
+    height: calc(var(--cardkit-card-sm) * var(--cardkit-card-ratio));
+  }
+
+  &--md {
+    width: var(--cardkit-card-md);
+    height: calc(var(--cardkit-card-md) * var(--cardkit-card-ratio));
+  }
+
+  &--lg {
+    width: var(--cardkit-card-lg);
+    height: calc(var(--cardkit-card-lg) * var(--cardkit-card-ratio));
+  }
+
+  &--xl {
+    width: var(--cardkit-card-xl);
+    height: calc(var(--cardkit-card-xl) * var(--cardkit-card-ratio));
+  }
+
+  // Clickable state
+  &--clickable {
+    cursor: pointer;
+
+    &:hover:not(.cardkit-game-card--disabled) {
+      transform: translateY(-4px);
+      box-shadow: var(--cardkit-shadow-hover);
+    }
+
+    &:active:not(.cardkit-game-card--disabled) {
+      transform: translateY(-2px);
+    }
+  }
+
+  // Highlighted state (selected)
+  &--highlighted {
+    border-color: var(--cardkit-highlight-strong);
+    box-shadow: var(--cardkit-shadow-highlight);
+
+    &.cardkit-game-card--clickable:hover {
+      box-shadow:
+        var(--cardkit-shadow-hover),
+        var(--cardkit-shadow-highlight);
+    }
+  }
+
+  // Disabled state
+  &--disabled {
+    opacity: var(--cardkit-disabled-opacity);
+    cursor: not-allowed;
+    filter: grayscale(0.5);
+  }
+
+  // Inner content container
+  &__inner {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    // Allow images to fill the card
+    > img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+}

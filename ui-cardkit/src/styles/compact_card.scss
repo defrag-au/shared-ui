@@ -1,0 +1,92 @@
+// CompactCard Component Styles
+// Square format card for deployed engines
+
+@use "variables";
+
+.cardkit-compact-card {
+  position: relative;
+  border-radius: var(--cardkit-compact-radius);
+  overflow: hidden;
+  background: var(--cardkit-bg);
+  border: 2px solid var(--cardkit-border);
+  transition:
+    transform var(--cardkit-transition-fast) var(--cardkit-easing),
+    box-shadow var(--cardkit-transition-fast) var(--cardkit-easing),
+    border-color var(--cardkit-transition-fast) var(--cardkit-easing);
+
+  // Size variants (square)
+  &--sm {
+    width: var(--cardkit-compact-sm);
+    height: var(--cardkit-compact-sm);
+  }
+
+  &--md {
+    width: var(--cardkit-compact-md);
+    height: var(--cardkit-compact-md);
+  }
+
+  &--lg {
+    width: var(--cardkit-compact-lg);
+    height: var(--cardkit-compact-lg);
+  }
+
+  // Owner variants
+  &--owner-you {
+    border-color: var(--cardkit-owner-you-border);
+    background: var(--cardkit-owner-you);
+  }
+
+  &--owner-other {
+    border-color: var(--cardkit-owner-other-border);
+    background: var(--cardkit-owner-other);
+  }
+
+  // Clickable state
+  &--clickable {
+    cursor: pointer;
+
+    &:hover {
+      transform: scale(1.1);
+      box-shadow: var(--cardkit-shadow-hover);
+      z-index: 10;
+    }
+
+    &:active {
+      transform: scale(1.05);
+    }
+  }
+
+  // Image container
+  &__image {
+    width: 100%;
+    height: 100%;
+    position: relative;
+
+    // Override ImageCard sizing to fill container
+    .image-card {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .image-card__image-wrapper {
+      width: 100%;
+      height: 100%;
+    }
+
+    .image-card__image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  // Stats overlay
+  &__stats {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    display: flex;
+    gap: 2px;
+    pointer-events: none;
+  }
+}

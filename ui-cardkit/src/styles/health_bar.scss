@@ -1,0 +1,76 @@
+// HealthBar Component Styles
+// Visual health/damage display
+
+@use "variables";
+
+.cardkit-health-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  // Track (background)
+  &__track {
+    flex: 1;
+    height: 12px;
+    background: var(--cardkit-health-bg);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  // Fill (foreground)
+  &__fill {
+    height: 100%;
+    background: var(--cardkit-health-fill);
+    border-radius: 6px;
+    transition: width var(--cardkit-transition-normal) var(--cardkit-easing);
+  }
+
+  // Value text
+  &__value {
+    font-size: 12px;
+    color: var(--cardkit-text);
+    min-width: 60px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  // Low health state
+  &--low {
+    .cardkit-health-bar__fill {
+      background: var(--cardkit-health-low);
+      animation: cardkit-health-pulse 1s ease-in-out infinite;
+    }
+  }
+
+  // Variant: Shield (blue)
+  &--shield {
+    .cardkit-health-bar__fill {
+      background: #2196f3;
+    }
+
+    &.cardkit-health-bar--low .cardkit-health-bar__fill {
+      background: #64b5f6;
+    }
+  }
+
+  // Variant: Energy (yellow)
+  &--energy {
+    .cardkit-health-bar__fill {
+      background: var(--cardkit-highlight-strong);
+    }
+
+    &.cardkit-health-bar--low .cardkit-health-bar__fill {
+      background: #ffc107;
+    }
+  }
+}
+
+// Low health pulse animation
+@keyframes cardkit-health-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
