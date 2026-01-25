@@ -1,14 +1,13 @@
 //! Draggable Stack Component
 //!
-//! A container for drag-and-drop reorderable items with visual drop indicators.
+//! A container for drag-and-drop reorderable items using mouse events.
 //!
 //! ## Features
 //!
 //! - Horizontal or vertical layout
-//! - Drop position indicators (lines between items)
-//! - Gap placeholder where dragged item originated
-//! - Automatic drag event wiring
-//! - Customizable rendering via render function
+//! - Smooth drag with actual element movement
+//! - Items shift to show drop position
+//! - Container-based mouse capture for reliable tracking
 //!
 //! ## Usage
 //!
@@ -24,10 +23,7 @@
 //!         direction=StackDirection::Horizontal
 //!         gap="0.5rem"
 //!         render_item=move |item, _idx, drag_state| view! {
-//!             <div
-//!                 class="my-item"
-//!                 class:dragging=drag_state.is_source
-//!             >
+//!             <div class="my-item" class:dragging=drag_state.is_source>
 //!                 {item}
 //!             </div>
 //!         }
@@ -35,7 +31,7 @@
 //! }
 //! ```
 
-use crate::{use_draggable, Reorder};
+use crate::Reorder;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -54,29 +50,30 @@ impl StackDirection {
             StackDirection::Vertical => "column",
         }
     }
-
-    fn indicator_style(&self) -> &'static str {
-        match self {
-            StackDirection::Horizontal => "width: 3px; height: 100%; left: -2px; top: 0;",
-            StackDirection::Vertical => "height: 3px; width: 100%; top: -2px; left: 0;",
-        }
-    }
-
-    fn end_indicator_style(&self) -> &'static str {
-        match self {
-            StackDirection::Horizontal => "width: 3px; height: 100%; right: -2px; top: 0;",
-            StackDirection::Vertical => "height: 3px; width: 100%; bottom: -2px; left: 0;",
-        }
-    }
 }
 
 /// Drag state passed to render function
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct ItemDragState {
     /// True if this item is currently being dragged
     pub is_source: bool,
     /// True if drag is active (any item being dragged)
     pub drag_active: bool,
+}
+
+/// Internal drag state
+#[derive(Clone, Default)]
+struct DragState {
+    /// Index of item being dragged
+    source_index: Option<usize>,
+    /// Current target position (where item would be inserted)
+    target_position: Option<usize>,
+    /// Current mouse offset from drag start
+    offset_x: f64,
+    offset_y: f64,
+    /// Starting mouse position
+    start_x: f64,
+    start_y: f64,
 }
 
 /// Draggable stack component for reorderable lists
@@ -95,26 +92,18 @@ pub fn DraggableStack<T, F, V>(
     #[prop(into, optional, default = "0.5rem".into())]
     gap: String,
     /// Render function for each item
-    /// Receives (item, index, drag_state)
     render_item: F,
     /// Additional class for the container
     #[prop(into, optional)]
     class: String,
 ) -> impl IntoView
 where
-    T: Clone + PartialEq + Send + Sync + 'static,
+    T: Clone + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
     F: Fn(T, usize, ItemDragState) -> V + Clone + Send + Sync + 'static,
     V: IntoView + 'static,
 {
-    // Use the draggable hook
-    let draggable = use_draggable(move |reorder| {
-        on_reorder.run(reorder);
-    });
-
-    // Track which position the drop indicator should show at
-    // None = no indicator, Some(idx) = show before item at idx
-    // Special case: idx == items.len() means show at end
-    let (drop_target_position, set_drop_target_position) = signal(None::<usize>);
+    let (drag_state, set_drag_state) = signal(DragState::default());
+    let container_ref = NodeRef::<leptos::html::Div>::new();
 
     let container_class = if class.is_empty() {
         "ui-draggable-stack".to_string()
@@ -123,159 +112,185 @@ where
     };
 
     let container_style = format!(
-        "display: flex; flex-direction: {}; gap: {gap};",
+        "display: flex; flex-direction: {}; gap: {gap}; position: relative; user-select: none;",
         direction.flex_direction()
     );
 
-    view! {
-        <div class=container_class style=container_style>
-            {
-                let draggable = draggable.clone();
-                let render_item = render_item.clone();
+    // Mouse down on an item - start drag
+    let on_item_mousedown = move |idx: usize, ev: web_sys::MouseEvent| {
+        ev.prevent_default();
+        set_drag_state.set(DragState {
+            source_index: Some(idx),
+            target_position: Some(idx),
+            offset_x: 0.0,
+            offset_y: 0.0,
+            start_x: ev.client_x() as f64,
+            start_y: ev.client_y() as f64,
+        });
+    };
 
-                view! {
-                    <For
-                        each={move || items.get().into_iter().enumerate().collect::<Vec<_>>()}
-                        key=|(idx, _)| *idx
-                        children=move |(idx, item)| {
-                            let draggable = draggable.clone();
-                            let render_item = render_item.clone();
-                            let item_for_render = item.clone();
+    // Mouse move on container - update drag position
+    let on_container_mousemove = move |ev: web_sys::MouseEvent| {
+        let state = drag_state.get();
+        if state.source_index.is_none() {
+            return;
+        }
 
-                            // Get drag state for this item
-                            let drag_state = {
-                                let draggable = draggable.clone();
-                                move || ItemDragState {
-                                    is_source: draggable.is_dragging(idx),
-                                    drag_active: draggable.is_active(),
-                                }
-                            };
+        let source_idx = state.source_index.unwrap();
+        let offset_x = ev.client_x() as f64 - state.start_x;
+        let offset_y = ev.client_y() as f64 - state.start_y;
 
-                            // Get the drag attrs
-                            let attrs = draggable.attrs(idx);
-                            let draggable_for_events = draggable.clone();
+        // Calculate target position based on mouse position
+        let target_pos = if let Some(container) = container_ref.get() {
+            let container_el: &web_sys::HtmlElement = &container;
+            let children = container_el.children();
+            let mouse_pos = match direction {
+                StackDirection::Horizontal => ev.client_x() as f64,
+                StackDirection::Vertical => ev.client_y() as f64,
+            };
 
-                            // Calculate drop position based on mouse position within item
-                            let on_drag_over_with_position = {
-                                move |ev: web_sys::DragEvent| {
-                                    ev.prevent_default();
+            let mut new_pos = source_idx;
+            let item_count = items.get_untracked().len();
 
-                                    // Get the drag state
-                                    let state = draggable_for_events.state().get_untracked();
-                                    if state.source_index.is_none() {
-                                        return;
-                                    }
-                                    let source_idx = state.source_index.unwrap();
+            for i in 0..children.length() {
+                if let Some(child) = children.item(i) {
+                    if let Ok(el) = child.dyn_into::<web_sys::HtmlElement>() {
+                        let rect = el.get_bounding_client_rect();
+                        let mid = match direction {
+                            StackDirection::Horizontal => rect.left() + rect.width() / 2.0,
+                            StackDirection::Vertical => rect.top() + rect.height() / 2.0,
+                        };
 
-                                    // Determine if we're in the first or second half of the element
-                                    if let Some(target) = ev.current_target() {
-                                        if let Ok(element) = target.dyn_into::<web_sys::HtmlElement>() {
-                                            let rect = element.get_bounding_client_rect();
-                                            let is_before = match direction {
-                                                StackDirection::Horizontal => {
-                                                    let mid = rect.left() + rect.width() / 2.0;
-                                                    ev.client_x() as f64 <= mid
-                                                }
-                                                StackDirection::Vertical => {
-                                                    let mid = rect.top() + rect.height() / 2.0;
-                                                    ev.client_y() as f64 <= mid
-                                                }
-                                            };
-
-                                            // Calculate drop position
-                                            let drop_pos = if is_before { idx } else { idx + 1 };
-
-                                            // Don't show indicator at source position or adjacent
-                                            // (dropping there would be a no-op)
-                                            if drop_pos == source_idx || drop_pos == source_idx + 1 {
-                                                set_drop_target_position.set(None);
-                                            } else {
-                                                set_drop_target_position.set(Some(drop_pos));
-                                            }
-                                        }
-                                    }
-                                }
-                            };
-
-                            let on_drag_leave = move |_: web_sys::DragEvent| {
-                                // Clear indicator when leaving (will be set again if entering another)
-                                set_drop_target_position.set(None);
-                            };
-
-                            let attrs_for_drop = attrs.clone();
-                            let on_drop_handler = move |ev: web_sys::DragEvent| {
-                                set_drop_target_position.set(None);
-                                attrs_for_drop.on_drop(ev);
-                            };
-
-                            let attrs_for_end = attrs.clone();
-                            let on_drag_end_handler = move |ev: web_sys::DragEvent| {
-                                set_drop_target_position.set(None);
-                                attrs_for_end.on_drag_end(ev);
-                            };
-
-                            let attrs_for_start = attrs;
-
-                            // Show drop indicator before this item?
-                            let show_indicator_before = move || {
-                                drop_target_position.get() == Some(idx)
-                            };
-
-                            // For the last item, also check if indicator should show after
-                            let items_len = items.get().len();
-                            let is_last = idx == items_len.saturating_sub(1);
-                            let show_indicator_after = move || {
-                                is_last && drop_target_position.get() == Some(idx + 1)
-                            };
-
-                            let indicator_style = direction.indicator_style();
-                            let end_indicator_style = direction.end_indicator_style();
-
-                            // Is this item being dragged?
-                            let draggable_for_source = draggable.clone();
-                            let draggable_for_opacity = draggable.clone();
-
-                            view! {
-                                <div
-                                    class="ui-draggable-stack__item-wrapper"
-                                    class:ui-draggable-stack__item-wrapper--dragging=move || draggable_for_source.is_dragging(idx)
-                                    style="position: relative;"
-                                    draggable="true"
-                                    on:dragstart=move |ev| attrs_for_start.on_drag_start(ev)
-                                    on:dragend=on_drag_end_handler
-                                    on:dragover=on_drag_over_with_position
-                                    on:dragleave=on_drag_leave
-                                    on:drop=on_drop_handler
-                                >
-                                    // Drop indicator BEFORE this item
-                                    <div
-                                        class="ui-draggable-stack__indicator"
-                                        class:ui-draggable-stack__indicator--visible=show_indicator_before
-                                        style=format!("position: absolute; {indicator_style} background: var(--ui-draggable-indicator-color, #3b82f6); border-radius: 2px; pointer-events: none; opacity: 0; transition: opacity 0.15s;")
-                                    />
-
-                                    // The actual item content
-                                    <div
-                                        class="ui-draggable-stack__item"
-                                        style=move || if draggable_for_opacity.is_dragging(idx) { "opacity: 0.4;" } else { "" }
-                                    >
-                                        {render_item(item_for_render.clone(), idx, drag_state())}
-                                    </div>
-
-                                    // Drop indicator AFTER this item (only for last item)
-                                    {is_last.then(|| view! {
-                                        <div
-                                            class="ui-draggable-stack__indicator"
-                                            class:ui-draggable-stack__indicator--visible=show_indicator_after
-                                            style=format!("position: absolute; {end_indicator_style} background: var(--ui-draggable-indicator-color, #3b82f6); border-radius: 2px; pointer-events: none; opacity: 0; transition: opacity 0.15s;")
-                                        />
-                                    })}
-                                </div>
-                            }
+                        if mouse_pos < mid {
+                            new_pos = i as usize;
+                            break;
+                        } else {
+                            new_pos = (i as usize + 1).min(item_count);
                         }
-                    />
+                    }
                 }
             }
+            Some(new_pos)
+        } else {
+            state.target_position
+        };
+
+        set_drag_state.set(DragState {
+            source_index: Some(source_idx),
+            target_position: target_pos,
+            offset_x,
+            offset_y,
+            start_x: state.start_x,
+            start_y: state.start_y,
+        });
+    };
+
+    // Mouse up - complete drag
+    let on_container_mouseup = move |_ev: web_sys::MouseEvent| {
+        let state = drag_state.get();
+        if let (Some(source), Some(target)) = (state.source_index, state.target_position) {
+            if source != target && source + 1 != target {
+                on_reorder.run(Reorder::new(source, target));
+            }
+        }
+        set_drag_state.set(DragState::default());
+    };
+
+    // Mouse leave container - cancel drag
+    let on_container_mouseleave = move |_ev: web_sys::MouseEvent| {
+        set_drag_state.set(DragState::default());
+    };
+
+    view! {
+        <div
+            class=container_class
+            style=container_style
+            node_ref=container_ref
+            on:mousemove=on_container_mousemove
+            on:mouseup=on_container_mouseup
+            on:mouseleave=on_container_mouseleave
+        >
+            <For
+                each={move || items.get().into_iter().enumerate().collect::<Vec<_>>()}
+                key=|(_, item)| item.clone()
+                children=move |(idx, item)| {
+                    let render_item = render_item.clone();
+                    let item_for_render = item.clone();
+
+                    // Calculate transform and styles for this item
+                    let item_style = move || {
+                        let state = drag_state.get();
+                        let source = state.source_index;
+                        let target = state.target_position;
+
+                        if source == Some(idx) {
+                            // This is the dragged item - apply offset transform
+                            let (tx, ty) = match direction {
+                                StackDirection::Horizontal => (state.offset_x, 0.0),
+                                StackDirection::Vertical => (0.0, state.offset_y),
+                            };
+                            format!(
+                                "transform: translate({tx}px, {ty}px); z-index: 100; position: relative; \
+                                 transition: none; cursor: grabbing;"
+                            )
+                        } else if let (Some(src), Some(tgt)) = (source, target) {
+                            // Other items may need to shift
+                            let shift = calculate_shift(idx, src, tgt, direction);
+                            if shift != 0.0 {
+                                let (tx, ty) = match direction {
+                                    StackDirection::Horizontal => (shift, 0.0),
+                                    StackDirection::Vertical => (0.0, shift),
+                                };
+                                format!(
+                                    "transform: translate({tx}px, {ty}px); \
+                                     transition: transform 0.15s ease; cursor: grab;"
+                                )
+                            } else {
+                                "transition: transform 0.15s ease; cursor: grab;".to_string()
+                            }
+                        } else {
+                            "cursor: grab;".to_string()
+                        }
+                    };
+
+                    let drag_state_for_render = move || {
+                        let state = drag_state.get();
+                        ItemDragState {
+                            is_source: state.source_index == Some(idx),
+                            drag_active: state.source_index.is_some(),
+                        }
+                    };
+
+                    view! {
+                        <div
+                            class="ui-draggable-stack__item-wrapper"
+                            style=item_style
+                            on:mousedown=move |ev| on_item_mousedown(idx, ev)
+                        >
+                            {render_item(item_for_render.clone(), idx, drag_state_for_render())}
+                        </div>
+                    }
+                }
+            />
         </div>
     }
+}
+
+/// Calculate the shift amount for an item based on drag state
+fn calculate_shift(idx: usize, source: usize, target: usize, _direction: StackDirection) -> f64 {
+    // Estimate item size + gap (will be refined by actual measurements)
+    let item_size = 70.0; // Approximate - ideally we'd measure
+
+    if source < target {
+        // Dragging forward: items between source+1 and target-1 shift backward
+        if idx > source && idx < target {
+            return -item_size;
+        }
+    } else if source > target {
+        // Dragging backward: items between target and source-1 shift forward
+        if idx >= target && idx < source {
+            return item_size;
+        }
+    }
+    0.0
 }

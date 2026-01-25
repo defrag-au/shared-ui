@@ -114,6 +114,14 @@ pub struct Reorder {
 }
 
 impl Reorder {
+    /// Create a new reorder operation
+    ///
+    /// - `source`: index of the item being dragged
+    /// - `target`: position to insert the item (can be 0..=len)
+    pub fn new(source: usize, target: usize) -> Self {
+        Self { source, target }
+    }
+
     /// Apply this reorder operation to a vector
     pub fn apply<T>(&self, items: &mut Vec<T>) {
         if self.source == self.target || self.source >= items.len() {
