@@ -21,7 +21,10 @@ wasm-bindgen-futures = { workspace = true }
 web-sys = { workspace = true, features = [
     "Blob",
     "DataTransfer",
+    "DomRect",
     "DragEvent",
+    "Element",
+    "HtmlElement",
     "HtmlImageElement",
     "Response",
     "Url",

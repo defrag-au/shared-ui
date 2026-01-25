@@ -64,13 +64,47 @@ impl DragState {
     }
 }
 
-/// Event handlers for a draggable item
+/// Event handler type (Arc for cloneability)
+pub type DragHandler = std::sync::Arc<dyn Fn(web_sys::DragEvent) + Send + Sync>;
+
+/// Event handlers for a draggable item.
+///
+/// These are Arc-wrapped so they can be cloned. To use with Leptos `on:` handlers,
+/// wrap in a closure: `on:dragstart=move |ev| attrs.on_drag_start(ev)`
+#[derive(Clone)]
 pub struct DragAttrs {
-    pub on_drag_start: Box<dyn Fn(web_sys::DragEvent) + Send + Sync>,
-    pub on_drag_end: Box<dyn Fn(web_sys::DragEvent) + Send + Sync>,
-    pub on_drag_over: Box<dyn Fn(web_sys::DragEvent) + Send + Sync>,
-    pub on_drag_leave: Box<dyn Fn(web_sys::DragEvent) + Send + Sync>,
-    pub on_drop: Box<dyn Fn(web_sys::DragEvent) + Send + Sync>,
+    inner_drag_start: DragHandler,
+    inner_drag_end: DragHandler,
+    inner_drag_over: DragHandler,
+    inner_drag_leave: DragHandler,
+    inner_drop: DragHandler,
+}
+
+impl DragAttrs {
+    /// Call on dragstart event
+    pub fn on_drag_start(&self, ev: web_sys::DragEvent) {
+        (self.inner_drag_start)(ev);
+    }
+
+    /// Call on dragend event
+    pub fn on_drag_end(&self, ev: web_sys::DragEvent) {
+        (self.inner_drag_end)(ev);
+    }
+
+    /// Call on dragover event
+    pub fn on_drag_over(&self, ev: web_sys::DragEvent) {
+        (self.inner_drag_over)(ev);
+    }
+
+    /// Call on dragleave event
+    pub fn on_drag_leave(&self, ev: web_sys::DragEvent) {
+        (self.inner_drag_leave)(ev);
+    }
+
+    /// Call on drop event
+    pub fn on_drop(&self, ev: web_sys::DragEvent) {
+        (self.inner_drop)(ev);
+    }
 }
 
 /// A reorder operation that can be applied to a Vec
@@ -141,12 +175,14 @@ impl Draggable {
 
     /// Get drag event handlers for a specific index
     pub fn attrs(&self, index: usize) -> DragAttrs {
+        use std::sync::Arc;
+
         let set_state = self.set_state;
         let state = self.state;
         let on_reorder = self.on_reorder;
 
         let set_state_start = set_state;
-        let on_drag_start = Box::new(move |ev: web_sys::DragEvent| {
+        let on_drag_start: DragHandler = Arc::new(move |ev: web_sys::DragEvent| {
             if let Some(dt) = ev.data_transfer() {
                 let _ = dt.set_effect_allowed("move");
             }
@@ -157,13 +193,13 @@ impl Draggable {
         });
 
         let set_state_end = set_state;
-        let on_drag_end = Box::new(move |_: web_sys::DragEvent| {
+        let on_drag_end: DragHandler = Arc::new(move |_: web_sys::DragEvent| {
             set_state_end.set(DragState::default());
         });
 
         let set_state_over = set_state;
         let state_over = state;
-        let on_drag_over = Box::new(move |ev: web_sys::DragEvent| {
+        let on_drag_over: DragHandler = Arc::new(move |ev: web_sys::DragEvent| {
             ev.prevent_default();
             let current = state_over.get_untracked();
             if current.source_index.is_some() && current.target_index != Some(index) {
@@ -176,7 +212,7 @@ impl Draggable {
 
         let set_state_leave = set_state;
         let state_leave = state;
-        let on_drag_leave = Box::new(move |_: web_sys::DragEvent| {
+        let on_drag_leave: DragHandler = Arc::new(move |_: web_sys::DragEvent| {
             let current = state_leave.get_untracked();
             if current.target_index == Some(index) {
                 set_state_leave.set(DragState {
@@ -188,7 +224,7 @@ impl Draggable {
 
         let set_state_drop = set_state;
         let state_drop = state;
-        let on_drop = Box::new(move |ev: web_sys::DragEvent| {
+        let on_drop: DragHandler = Arc::new(move |ev: web_sys::DragEvent| {
             ev.prevent_default();
             let current = state_drop.get_untracked();
             if let Some(source) = current.source_index {
@@ -204,11 +240,11 @@ impl Draggable {
         });
 
         DragAttrs {
-            on_drag_start,
-            on_drag_end,
-            on_drag_over,
-            on_drag_leave,
-            on_drop,
+            inner_drag_start: on_drag_start,
+            inner_drag_end: on_drag_end,
+            inner_drag_over: on_drag_over,
+            inner_drag_leave: on_drag_leave,
+            inner_drop: on_drop,
         }
     }
 }

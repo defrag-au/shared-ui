@@ -204,15 +204,21 @@ fn DropItem(
         classes.join(" ")
     };
 
+    let attrs_start = attrs.clone();
+    let attrs_end = attrs.clone();
+    let attrs_over = attrs.clone();
+    let attrs_leave = attrs.clone();
+    let attrs_drop = attrs;
+
     view! {
         <div
             class=item_class
             draggable=move || if readonly.get() { "false" } else { "true" }
-            on:dragstart=attrs.on_drag_start
-            on:dragend=attrs.on_drag_end
-            on:dragover=attrs.on_drag_over
-            on:dragleave=attrs.on_drag_leave
-            on:drop=attrs.on_drop
+            on:dragstart=move |ev| attrs_start.on_drag_start(ev)
+            on:dragend=move |ev| attrs_end.on_drag_end(ev)
+            on:dragover=move |ev| attrs_over.on_drag_over(ev)
+            on:dragleave=move |ev| attrs_leave.on_drag_leave(ev)
+            on:drop=move |ev| attrs_drop.on_drop(ev)
         >
             // Position indicator
             <div class="drop-item__position">{index + 1}</div>

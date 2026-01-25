@@ -1,8 +1,8 @@
-//! use_draggable hook story
+//! use_draggable hook and DraggableStack component story
 
 use crate::stories::helpers::AttributeCard;
 use leptos::prelude::*;
-use ui_components::use_draggable;
+use ui_components::{use_draggable, DraggableStack, Reorder, StackDirection};
 
 #[component]
 pub fn UseDraggableStory() -> impl IntoView {
@@ -57,27 +57,35 @@ pub fn UseDraggableStory() -> impl IntoView {
                                 let attrs = draggable.attrs(idx);
                                 let draggable_clone = draggable.clone();
 
-                                view! {
-                                    <div
-                                        style=move || format!(
-                                            "width: 60px; height: 60px; background: {}; border-radius: 8px; \
-                                            display: flex; align-items: center; justify-content: center; \
-                                            font-weight: bold; font-size: 1.5rem; color: white; cursor: grab; \
-                                            transition: transform 0.15s, opacity 0.15s; \
-                                            transform: {}; opacity: {};",
-                                            color,
-                                            if draggable_clone.is_drag_over(idx) { "scale(1.1)" } else { "scale(1)" },
-                                            if draggable_clone.is_dragging(idx) { "0.5" } else { "1" }
-                                        )
-                                        draggable="true"
-                                        on:dragstart=attrs.on_drag_start
-                                        on:dragend=attrs.on_drag_end
-                                        on:dragover=attrs.on_drag_over
-                                        on:dragleave=attrs.on_drag_leave
-                                        on:drop=attrs.on_drop
-                                    >
-                                        {label}
-                                    </div>
+                                {
+                                    let attrs_start = attrs.clone();
+                                    let attrs_end = attrs.clone();
+                                    let attrs_over = attrs.clone();
+                                    let attrs_leave = attrs.clone();
+                                    let attrs_drop = attrs;
+
+                                    view! {
+                                        <div
+                                            style=move || format!(
+                                                "width: 60px; height: 60px; background: {}; border-radius: 8px; \
+                                                display: flex; align-items: center; justify-content: center; \
+                                                font-weight: bold; font-size: 1.5rem; color: white; cursor: grab; \
+                                                transition: transform 0.15s, opacity 0.15s; \
+                                                transform: {}; opacity: {};",
+                                                color,
+                                                if draggable_clone.is_drag_over(idx) { "scale(1.1)" } else { "scale(1)" },
+                                                if draggable_clone.is_dragging(idx) { "0.5" } else { "1" }
+                                            )
+                                            draggable="true"
+                                            on:dragstart=move |ev| attrs_start.on_drag_start(ev)
+                                            on:dragend=move |ev| attrs_end.on_drag_end(ev)
+                                            on:dragover=move |ev| attrs_over.on_drag_over(ev)
+                                            on:dragleave=move |ev| attrs_leave.on_drag_leave(ev)
+                                            on:drop=move |ev| attrs_drop.on_drop(ev)
+                                        >
+                                            {label}
+                                        </div>
+                                    }
                                 }
                             }
                         </For>
@@ -109,31 +117,39 @@ pub fn UseDraggableStory() -> impl IntoView {
                                 let attrs = task_draggable.attrs(idx);
                                 let draggable_clone = task_draggable.clone();
 
-                                view! {
-                                    <div
-                                        style=move || format!(
-                                            "padding: 0.75rem 1rem; background: {}; border-radius: 6px; \
-                                            cursor: grab; display: flex; align-items: center; gap: 0.75rem; \
-                                            transition: background 0.15s, transform 0.15s; \
-                                            transform: {};",
-                                            if draggable_clone.is_drag_over(idx) { "#3a3a5e" }
-                                            else if draggable_clone.is_dragging(idx) { "#2a2a4e" }
-                                            else { "#252538" },
-                                            if draggable_clone.is_drag_over(idx) { "translateX(4px)" } else { "translateX(0)" }
-                                        )
-                                        draggable="true"
-                                        on:dragstart=attrs.on_drag_start
-                                        on:dragend=attrs.on_drag_end
-                                        on:dragover=attrs.on_drag_over
-                                        on:dragleave=attrs.on_drag_leave
-                                        on:drop=attrs.on_drop
-                                    >
-                                        <span style="color: #666; font-size: 0.875rem; min-width: 1.5rem;">
-                                            {idx + 1}"."
-                                        </span>
-                                        <span style="color: #fff;">{task}</span>
-                                        <span style="margin-left: auto; color: #444; font-size: 1.25rem;">"⠿"</span>
-                                    </div>
+                                {
+                                    let attrs_start = attrs.clone();
+                                    let attrs_end = attrs.clone();
+                                    let attrs_over = attrs.clone();
+                                    let attrs_leave = attrs.clone();
+                                    let attrs_drop = attrs;
+
+                                    view! {
+                                        <div
+                                            style=move || format!(
+                                                "padding: 0.75rem 1rem; background: {}; border-radius: 6px; \
+                                                cursor: grab; display: flex; align-items: center; gap: 0.75rem; \
+                                                transition: background 0.15s, transform 0.15s; \
+                                                transform: {};",
+                                                if draggable_clone.is_drag_over(idx) { "#3a3a5e" }
+                                                else if draggable_clone.is_dragging(idx) { "#2a2a4e" }
+                                                else { "#252538" },
+                                                if draggable_clone.is_drag_over(idx) { "translateX(4px)" } else { "translateX(0)" }
+                                            )
+                                            draggable="true"
+                                            on:dragstart=move |ev| attrs_start.on_drag_start(ev)
+                                            on:dragend=move |ev| attrs_end.on_drag_end(ev)
+                                            on:dragover=move |ev| attrs_over.on_drag_over(ev)
+                                            on:dragleave=move |ev| attrs_leave.on_drag_leave(ev)
+                                            on:drop=move |ev| attrs_drop.on_drop(ev)
+                                        >
+                                            <span style="color: #666; font-size: 0.875rem; min-width: 1.5rem;">
+                                                {idx + 1}"."
+                                            </span>
+                                            <span style="color: #fff;">{task}</span>
+                                            <span style="margin-left: auto; color: #444; font-size: 1.25rem;">"⠿"</span>
+                                        </div>
+                                    }
                                 }
                             }
                         </For>
@@ -141,9 +157,84 @@ pub fn UseDraggableStory() -> impl IntoView {
                 </div>
             </div>
 
+            // DraggableStack examples
+            <div class="story-section">
+                <h3>"DraggableStack Component"</h3>
+                <p style="color: #888; margin-bottom: 1rem; font-size: 0.875rem;">
+                    "A higher-level component that handles all the wiring automatically. Shows drop position indicators between items."
+                </p>
+
+                // Horizontal DraggableStack
+                <div class="story-canvas" style="margin-bottom: 1rem;">
+                    <p style="margin: 0 0 0.5rem; font-size: 0.75rem; color: #888;">"Horizontal (default)"</p>
+                    {
+                        let (stack_items, set_stack_items) = signal(vec![
+                            ("1", "#e74c3c"),
+                            ("2", "#3498db"),
+                            ("3", "#2ecc71"),
+                            ("4", "#f39c12"),
+                        ]);
+
+                        view! {
+                            <DraggableStack
+                                items=stack_items
+                                on_reorder=move |reorder: Reorder| set_stack_items.update(|i| reorder.apply(i))
+                                direction=StackDirection::Horizontal
+                                gap="0.5rem"
+                                render_item=move |(label, color), _idx, _drag_state| view! {
+                                    <div style=format!(
+                                        "width: 60px; height: 60px; background: {}; border-radius: 8px; \
+                                        display: flex; align-items: center; justify-content: center; \
+                                        font-weight: bold; font-size: 1.5rem; color: white;",
+                                        color
+                                    )>
+                                        {label}
+                                    </div>
+                                }
+                            />
+                        }
+                    }
+                </div>
+
+                // Vertical DraggableStack
+                <div class="story-canvas">
+                    <p style="margin: 0 0 0.5rem; font-size: 0.75rem; color: #888;">"Vertical"</p>
+                    {
+                        let (vertical_items, set_vertical_items) = signal(vec![
+                            "First item",
+                            "Second item",
+                            "Third item",
+                            "Fourth item",
+                        ]);
+
+                        view! {
+                            <DraggableStack
+                                items=vertical_items
+                                on_reorder=move |reorder: Reorder| set_vertical_items.update(|i| reorder.apply(i))
+                                direction=StackDirection::Vertical
+                                gap="0.5rem"
+                                render_item=move |item, idx, drag_state| view! {
+                                    <div style=format!(
+                                        "padding: 0.75rem 1rem; background: {}; border-radius: 6px; \
+                                        display: flex; align-items: center; gap: 0.75rem; min-width: 250px;",
+                                        if drag_state.is_source { "#2a2a4e" } else { "#252538" }
+                                    )>
+                                        <span style="color: #666; font-size: 0.875rem; min-width: 1.5rem;">
+                                            {idx + 1}"."
+                                        </span>
+                                        <span style="color: #fff;">{item}</span>
+                                        <span style="margin-left: auto; color: #444; font-size: 1.25rem;">"⠿"</span>
+                                    </div>
+                                }
+                            />
+                        }
+                    }
+                </div>
+            </div>
+
             // API section
             <div class="story-section">
-                <h3>"Hook Return Value"</h3>
+                <h3>"use_draggable Hook Return Value"</h3>
                 <div class="story-canvas">
                     <div class="story-grid">
                         <AttributeCard
@@ -236,41 +327,100 @@ pub fn UseDraggableStory() -> impl IntoView {
                 </div>
             </div>
 
-            // Usage code
+            // DraggableStack Props
             <div class="story-section">
-                <h3>"Usage"</h3>
+                <h3>"DraggableStack Props"</h3>
+                <div class="story-canvas">
+                    <div class="story-grid">
+                        <AttributeCard
+                            name="items"
+                            values="Signal<Vec<T>>"
+                            description="Items to render in the stack"
+                        />
+                        <AttributeCard
+                            name="on_reorder"
+                            values="Callback<Reorder>"
+                            description="Called when items are reordered"
+                        />
+                        <AttributeCard
+                            name="direction"
+                            values="StackDirection"
+                            description="Horizontal (default) or Vertical"
+                        />
+                        <AttributeCard
+                            name="gap"
+                            values="String"
+                            description="CSS gap between items (default: 0.5rem)"
+                        />
+                        <AttributeCard
+                            name="render_item"
+                            values="Fn(T, usize, ItemDragState) -> V"
+                            description="Render function for each item"
+                        />
+                        <AttributeCard
+                            name="class"
+                            values="String (optional)"
+                            description="Additional CSS class for container"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            // DraggableStack Usage code
+            <div class="story-section">
+                <h3>"DraggableStack Usage"</h3>
+                <pre class="code-block">{r##"use ui_components::{DraggableStack, StackDirection};
+
+let (items, set_items) = signal(vec!["A", "B", "C", "D"]);
+
+view! {
+    <DraggableStack
+        items=items
+        on_reorder=move |reorder| set_items.update(|i| reorder.apply(i))
+        direction=StackDirection::Horizontal
+        gap="0.5rem"
+        render_item=move |item, idx, drag_state| view! {
+            <div
+                class="my-item"
+                class:dragging=drag_state.is_source
+            >
+                {item}
+            </div>
+        }
+    />
+}"##}</pre>
+            </div>
+
+            // Low-level hook usage code
+            <div class="story-section">
+                <h3>"Low-Level use_draggable Hook"</h3>
+                <p style="color: #888; margin-bottom: 1rem; font-size: 0.875rem;">
+                    "For custom implementations where DraggableStack doesn't fit your needs."
+                </p>
                 <pre class="code-block">{r##"use ui_components::use_draggable;
 
 let (items, set_items) = signal(vec!["A", "B", "C", "D"]);
 
-// Create the draggable hook with a reorder callback
 let draggable = use_draggable(move |reorder| {
     set_items.update(|items| reorder.apply(items));
 });
 
 view! {
-    <For
-        each=move || items.get().into_iter().enumerate()
-        key=|(_, item)| item.to_string()
-        let:item
-    >
+    <For each=move || items.get().into_iter().enumerate() ...>
         {
             let (idx, value) = item;
             let attrs = draggable.attrs(idx);
+            // Clone attrs for each handler since they need to be moved
+            let attrs_start = attrs.clone();
+            let attrs_end = attrs.clone();
+            // ... etc
 
             view! {
                 <div
-                    // Visual feedback
-                    class:dragging=move || draggable.is_dragging(idx)
-                    class:drag-over=move || draggable.is_drag_over(idx)
-                    // Required attributes
                     draggable="true"
-                    // Attach all event handlers
-                    on:dragstart=attrs.on_drag_start
-                    on:dragend=attrs.on_drag_end
-                    on:dragover=attrs.on_drag_over
-                    on:dragleave=attrs.on_drag_leave
-                    on:drop=attrs.on_drop
+                    on:dragstart=move |ev| attrs_start.on_drag_start(ev)
+                    on:dragend=move |ev| attrs_end.on_drag_end(ev)
+                    // ... etc
                 >
                     {value}
                 </div>

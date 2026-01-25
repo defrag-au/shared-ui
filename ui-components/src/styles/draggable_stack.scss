@@ -1,0 +1,40 @@
+// Draggable Stack Component Styles
+// Container for drag-and-drop reorderable items with visual drop indicators
+
+.ui-draggable-stack {
+    // Container uses inline styles for flex direction and gap
+    // This file provides styling for item wrappers and indicators
+
+    &__item-wrapper {
+        position: relative;
+        cursor: grab;
+        user-select: none;
+
+        &:active {
+            cursor: grabbing;
+        }
+
+        &--dragging {
+            cursor: grabbing;
+        }
+    }
+
+    &__item {
+        transition: opacity 0.15s ease;
+    }
+
+    &__indicator {
+        // Position and size set via inline styles based on direction
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        z-index: 10;
+
+        &--visible {
+            opacity: 1;
+        }
+    }
+}
+
+// CSS custom property for indicator color
+// Override this in your app to customize:
+// :root { --ui-draggable-indicator-color: #your-color; }
