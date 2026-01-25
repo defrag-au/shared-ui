@@ -26,6 +26,7 @@ pub enum Story {
     // Components - Feedback
     LoadingOverlayComponent,
     SkeletonComponent,
+    AlertComponent,
     // Components - User
     UserAvatarComponent,
     RoleDotsComponent,
@@ -43,10 +44,16 @@ pub enum Story {
     BadgeComponent,
     EmptyStateComponent,
     ProgressBarComponent,
+    InfoGridComponent,
+    ColorSwatchComponent,
+    RatingComponent,
     // Components - Forms
     ButtonComponent,
     ButtonGroupComponent,
     SelectComponent,
+    TextInputComponent,
+    TextareaComponent,
+    FormGroupComponent,
     // Components - Editors
     DropEditorComponent,
     // Hooks
@@ -80,6 +87,7 @@ impl Story {
             // Feedback
             Story::LoadingOverlayComponent,
             Story::SkeletonComponent,
+            Story::AlertComponent,
             // User
             Story::UserAvatarComponent,
             Story::RoleDotsComponent,
@@ -97,10 +105,16 @@ impl Story {
             Story::BadgeComponent,
             Story::EmptyStateComponent,
             Story::ProgressBarComponent,
+            Story::InfoGridComponent,
+            Story::ColorSwatchComponent,
+            Story::RatingComponent,
             // Forms
             Story::ButtonComponent,
             Story::ButtonGroupComponent,
             Story::SelectComponent,
+            Story::TextInputComponent,
+            Story::TextareaComponent,
+            Story::FormGroupComponent,
             // Editors
             Story::DropEditorComponent,
             // Hooks
@@ -131,6 +145,7 @@ impl Story {
             // Feedback
             Story::LoadingOverlayComponent => "Loading Overlay",
             Story::SkeletonComponent => "Skeleton",
+            Story::AlertComponent => "Alert",
             // User
             Story::UserAvatarComponent => "User Avatar",
             Story::RoleDotsComponent => "Role Dots",
@@ -148,10 +163,16 @@ impl Story {
             Story::BadgeComponent => "Badge",
             Story::EmptyStateComponent => "Empty State",
             Story::ProgressBarComponent => "Progress Bar",
+            Story::InfoGridComponent => "Info Grid",
+            Story::ColorSwatchComponent => "Color Swatch",
+            Story::RatingComponent => "Rating",
             // Forms
             Story::ButtonComponent => "Button",
             Story::ButtonGroupComponent => "Button Group",
             Story::SelectComponent => "Select",
+            Story::TextInputComponent => "Text Input",
+            Story::TextareaComponent => "Textarea",
+            Story::FormGroupComponent => "Form Group",
             // Editors
             Story::DropEditorComponent => "Drop Editor",
             // Hooks
@@ -180,7 +201,9 @@ impl Story {
             | Story::TabsComponent
             | Story::HeaderComponent => "Layout",
             // Feedback components
-            Story::LoadingOverlayComponent | Story::SkeletonComponent => "Feedback",
+            Story::LoadingOverlayComponent | Story::SkeletonComponent | Story::AlertComponent => {
+                "Feedback"
+            }
             // User components
             Story::UserAvatarComponent | Story::RoleDotsComponent | Story::PlayerCardComponent => {
                 "User"
@@ -197,11 +220,17 @@ impl Story {
             | Story::StatPillComponent
             | Story::BadgeComponent
             | Story::EmptyStateComponent
-            | Story::ProgressBarComponent => "Data Display",
+            | Story::ProgressBarComponent
+            | Story::InfoGridComponent
+            | Story::ColorSwatchComponent
+            | Story::RatingComponent => "Data Display",
             // Form components
-            Story::ButtonComponent | Story::ButtonGroupComponent | Story::SelectComponent => {
-                "Forms"
-            }
+            Story::ButtonComponent
+            | Story::ButtonGroupComponent
+            | Story::SelectComponent
+            | Story::TextInputComponent
+            | Story::TextareaComponent
+            | Story::FormGroupComponent => "Forms",
             // Editor components
             Story::DropEditorComponent => "Editors",
             // Hooks
@@ -335,6 +364,9 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         <Show when=move || story.get() == Story::SkeletonComponent fallback=|| ()>
             <stories::SkeletonStory />
         </Show>
+        <Show when=move || story.get() == Story::AlertComponent fallback=|| ()>
+            <stories::AlertStory />
+        </Show>
         // User
         <Show when=move || story.get() == Story::UserAvatarComponent fallback=|| ()>
             <stories::UserAvatarStory />
@@ -382,6 +414,15 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         <Show when=move || story.get() == Story::ProgressBarComponent fallback=|| ()>
             <stories::ProgressBarStory />
         </Show>
+        <Show when=move || story.get() == Story::InfoGridComponent fallback=|| ()>
+            <stories::InfoGridStory />
+        </Show>
+        <Show when=move || story.get() == Story::ColorSwatchComponent fallback=|| ()>
+            <stories::ColorSwatchStory />
+        </Show>
+        <Show when=move || story.get() == Story::RatingComponent fallback=|| ()>
+            <stories::RatingStory />
+        </Show>
         // Forms
         <Show when=move || story.get() == Story::ButtonComponent fallback=|| ()>
             <stories::ButtonStory />
@@ -391,6 +432,15 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         </Show>
         <Show when=move || story.get() == Story::SelectComponent fallback=|| ()>
             <stories::SelectStory />
+        </Show>
+        <Show when=move || story.get() == Story::TextInputComponent fallback=|| ()>
+            <stories::TextInputStory />
+        </Show>
+        <Show when=move || story.get() == Story::TextareaComponent fallback=|| ()>
+            <stories::TextareaStory />
+        </Show>
+        <Show when=move || story.get() == Story::FormGroupComponent fallback=|| ()>
+            <stories::FormGroupStory />
         </Show>
         // Editors
         <Show when=move || story.get() == Story::DropEditorComponent fallback=|| ()>
