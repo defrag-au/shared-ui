@@ -223,17 +223,25 @@ where
             }
         }
 
+        // For forward dragging to feel natural, we need to check if the pointer
+        // has actually crossed into the NEXT item's space (past the source item's end).
+        // Without this, clicking anywhere on an item immediately triggers the skip logic.
+        let source_rect = state.item_rects.get(source_idx);
+        let has_left_source = source_rect
+            .map(|r| pointer_pos > r.end || pointer_pos < r.start)
+            .unwrap_or(false);
+
         // Convert visual position to insertion position
-        // The visual_position is where the pointer is relative to original item midpoints.
-        // But when dragging forward, position source+1 is a no-op (item stays in place),
-        // so we skip it by adding 1 when the pointer is in that zone.
         let insertion_pos = if visual_position <= source_idx {
             // Dragging backward or staying put - use visual position directly
             visual_position
-        } else if visual_position == source_idx + 1 {
-            // This would be a no-op (item stays in place), skip to next position
-            // This makes the "crossing next item's midpoint" action feel responsive
+        } else if visual_position == source_idx + 1 && has_left_source {
+            // Pointer has left the source item AND is in the no-op zone
+            // Skip to the next position to make the drag feel responsive
             source_idx + 2
+        } else if visual_position == source_idx + 1 {
+            // Still within source item bounds - keep at source position (no shift)
+            source_idx
         } else {
             // Dragging further forward - use visual position
             visual_position
@@ -324,7 +332,7 @@ where
                             )
                         } else if let (Some(src), Some(tgt)) = (source, target) {
                             // Other items may need to shift
-                            let shift = calculate_shift(idx, src, tgt, direction);
+                            let shift = calculate_shift(idx, src, tgt, &state.item_rects);
                             if shift != 0.0 {
                                 let (tx, ty) = match direction {
                                     StackDirection::Horizontal => (shift, 0.0),
@@ -378,20 +386,36 @@ where
 }
 
 /// Calculate the shift amount for an item based on drag state
-fn calculate_shift(idx: usize, source: usize, target: usize, _direction: StackDirection) -> f64 {
-    // Estimate item size + gap (will be refined by actual measurements)
-    let item_size = 70.0; // Approximate - ideally we'd measure
+fn calculate_shift(idx: usize, source: usize, target: usize, item_rects: &[ItemRect]) -> f64 {
+    // Get the source item's size (width or height depending on direction)
+    let source_size = item_rects
+        .get(source)
+        .map(|r| r.end - r.start)
+        .unwrap_or(0.0);
+
+    // Include gap between items (estimate from the difference between items)
+    let gap = if item_rects.len() >= 2 {
+        item_rects
+            .get(1)
+            .and_then(|r1| item_rects.first().map(|r0| r1.start - r0.end))
+            .unwrap_or(0.0)
+            .max(0.0)
+    } else {
+        0.0
+    };
+
+    let shift_amount = source_size + gap;
 
     if source < target {
         // Dragging forward: items between source+1 and target-1 shift backward
         // Note: target is already adjusted to skip no-op positions, so target >= source + 2
         if idx > source && idx < target {
-            return -item_size;
+            return -shift_amount;
         }
     } else if source > target {
         // Dragging backward: items between target and source-1 shift forward
         if idx >= target && idx < source {
-            return item_size;
+            return shift_amount;
         }
     }
     0.0
