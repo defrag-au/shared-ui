@@ -73,14 +73,21 @@ pub fn Modal(
         let nav_for_cleanup = nav.clone();
         let title_for_effect = title_str.clone();
 
+        // Create callback for external close (e.g., back button in ModalStack)
+        let external_close_callback: Option<std::sync::Arc<dyn Fn() + Send + Sync>> =
+            on_close.map(|cb| {
+                std::sync::Arc::new(move || cb.run(())) as std::sync::Arc<dyn Fn() + Send + Sync>
+            });
+
         // Sync open state with mount/unmount
         Effect::new(move |prev_open: Option<bool>| {
             let is_open = open.get();
 
             match (is_open, prev_open) {
                 (true, Some(false)) | (true, None) => {
-                    // Opening - register with the stack
-                    let id = nav_for_mount.mount(title_for_effect.clone());
+                    // Opening - register with the stack, passing the close callback
+                    let id = nav_for_mount
+                        .mount(title_for_effect.clone(), external_close_callback.clone());
                     set_view_id.set(Some(id));
                 }
                 (false, Some(true)) => {

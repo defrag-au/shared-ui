@@ -164,6 +164,18 @@ where
 
     // Create the context for child views (typed navigation)
     let push_typed_fn = Arc::new(move |view: V| {
+        // Collect callbacks from mounted modals before clearing
+        let callbacks: Vec<_> = {
+            let s = state.get_untracked();
+            if s.is_animating {
+                return;
+            }
+            s.mounted_modals
+                .iter()
+                .filter_map(|m| m.on_external_close.clone())
+                .collect()
+        };
+
         set_state.update(|s| {
             if s.is_animating {
                 return;
@@ -173,9 +185,27 @@ where
             s.is_animating = true;
             s.typed_views.push(view);
         });
+
+        // Call all external close callbacks
+        for cb in callbacks {
+            cb();
+        }
     });
 
     let pop_fn = Arc::new(move || {
+        // Get the callback before updating state (to avoid borrow issues)
+        let callback_to_call = {
+            let s = state.get_untracked();
+            if s.is_animating {
+                return;
+            }
+            if let Some(modal) = s.mounted_modals.last() {
+                modal.on_external_close.clone()
+            } else {
+                None
+            }
+        };
+
         set_state.update(|s| {
             if s.is_animating {
                 return;
@@ -191,6 +221,11 @@ where
                 s.typed_views.pop();
             }
         });
+
+        // Call the external close callback after state update
+        if let Some(cb) = callback_to_call {
+            cb();
+        }
     });
 
     let close_fn = Arc::new(move || {
@@ -206,17 +241,20 @@ where
     };
 
     // Create ModalNavigation context for nested Modals
-    let mount_fn = Arc::new(move |title: String| {
-        let id = ModalViewId::new();
-        let mounted = MountedView {
-            id,
-            title: title.clone(),
-        };
-        set_state.update(|s| {
-            s.mounted_modals.push(mounted);
-        });
-        id
-    });
+    let mount_fn = Arc::new(
+        move |title: String, on_external_close: Option<crate::modal_context::OnExternalClose>| {
+            let id = ModalViewId::new();
+            let mounted = MountedView {
+                id,
+                title: title.clone(),
+                on_external_close,
+            };
+            set_state.update(|s| {
+                s.mounted_modals.push(mounted);
+            });
+            id
+        },
+    );
 
     let unmount_fn = Arc::new(move |id: ModalViewId| {
         set_state.update(|s| {
@@ -224,8 +262,10 @@ where
         });
     });
 
-    let modal_nav =
-        ModalNavigation::new(move |title| (mount_fn)(title), move |id| (unmount_fn)(id));
+    let modal_nav = ModalNavigation::new(
+        move |title, on_close| (mount_fn)(title, on_close),
+        move |id| (unmount_fn)(id),
+    );
 
     // Provide the context immediately
     provide_context(modal_nav);
@@ -347,10 +387,23 @@ where
                                                     on:click={
                                                         move |_| {
                                                             if let Some(depth) = typed_depth {
+                                                                // Collect callbacks from mounted modals before clearing
+                                                                let callbacks: Vec<_> = {
+                                                                    let s = state.get_untracked();
+                                                                    s.mounted_modals.iter()
+                                                                        .filter_map(|m| m.on_external_close.clone())
+                                                                        .collect()
+                                                                };
+
                                                                 set_state.update(|s| {
                                                                     s.typed_views.truncate(depth);
                                                                     s.mounted_modals.clear();
                                                                 });
+
+                                                                // Call all external close callbacks
+                                                                for cb in callbacks {
+                                                                    cb();
+                                                                }
                                                             }
                                                         }
                                                     }

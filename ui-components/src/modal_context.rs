@@ -28,18 +28,23 @@ impl Default for ModalViewId {
     }
 }
 
+/// Callback to notify a Modal that it's been externally closed
+pub type OnExternalClose = Arc<dyn Fn() + Send + Sync>;
+
 /// Information about a mounted modal view (just the title, content renders inline)
 #[derive(Clone)]
 pub struct MountedView {
     pub id: ModalViewId,
     pub title: String,
+    /// Called when the modal is closed externally (e.g., back button)
+    pub on_external_close: Option<OnExternalClose>,
 }
 
 /// Context for modal navigation - allows nested Modals to coordinate with a parent ModalStack
 #[derive(Clone)]
 pub struct ModalNavigation {
-    /// Mount a new view onto the stack (registers title), returns the view ID
-    mount_fn: Arc<dyn Fn(String) -> ModalViewId + Send + Sync>,
+    /// Mount a new view onto the stack (registers title + close callback), returns the view ID
+    mount_fn: Arc<dyn Fn(String, Option<OnExternalClose>) -> ModalViewId + Send + Sync>,
     /// Unmount a view by ID
     unmount_fn: Arc<dyn Fn(ModalViewId) + Send + Sync>,
 }
@@ -48,7 +53,7 @@ impl ModalNavigation {
     /// Create a new ModalNavigation context
     pub fn new<M, U>(mount: M, unmount: U) -> Self
     where
-        M: Fn(String) -> ModalViewId + Send + Sync + 'static,
+        M: Fn(String, Option<OnExternalClose>) -> ModalViewId + Send + Sync + 'static,
         U: Fn(ModalViewId) + Send + Sync + 'static,
     {
         Self {
@@ -59,8 +64,10 @@ impl ModalNavigation {
 
     /// Mount content as a new view in the modal stack
     /// Returns a view ID that can be used to unmount
-    pub fn mount(&self, title: String) -> ModalViewId {
-        (self.mount_fn)(title)
+    ///
+    /// `on_external_close` is called if the modal is closed externally (e.g., back button)
+    pub fn mount(&self, title: String, on_external_close: Option<OnExternalClose>) -> ModalViewId {
+        (self.mount_fn)(title, on_external_close)
     }
 
     /// Unmount a view by its ID
