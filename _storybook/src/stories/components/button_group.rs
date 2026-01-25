@@ -50,26 +50,31 @@ pub fn ButtonGroupStory() -> impl IntoView {
                 <h3>"Toggle Group Pattern"</h3>
                 <p style="color: #888; margin-bottom: 1rem;">"Selected: "<code>{move || selected.get()}</code></p>
                 <div class="story-canvas">
-                    <ButtonGroup>
-                        <Button
-                            variant=if selected.get() == "option1" { ButtonVariant::Primary } else { ButtonVariant::Secondary }
-                            on_click=move |()| set_selected.set("option1".into())
-                        >
-                            "Option 1"
-                        </Button>
-                        <Button
-                            variant=if selected.get() == "option2" { ButtonVariant::Primary } else { ButtonVariant::Secondary }
-                            on_click=move |()| set_selected.set("option2".into())
-                        >
-                            "Option 2"
-                        </Button>
-                        <Button
-                            variant=if selected.get() == "option3" { ButtonVariant::Primary } else { ButtonVariant::Secondary }
-                            on_click=move |()| set_selected.set("option3".into())
-                        >
-                            "Option 3"
-                        </Button>
-                    </ButtonGroup>
+                    {move || {
+                        let current = selected.get();
+                        view! {
+                            <ButtonGroup>
+                                <Button
+                                    variant=if current == "option1" { ButtonVariant::Primary } else { ButtonVariant::Secondary }
+                                    on_click=move |()| set_selected.set("option1".into())
+                                >
+                                    "Option 1"
+                                </Button>
+                                <Button
+                                    variant=if current == "option2" { ButtonVariant::Primary } else { ButtonVariant::Secondary }
+                                    on_click=move |()| set_selected.set("option2".into())
+                                >
+                                    "Option 2"
+                                </Button>
+                                <Button
+                                    variant=if current == "option3" { ButtonVariant::Primary } else { ButtonVariant::Secondary }
+                                    on_click=move |()| set_selected.set("option3".into())
+                                >
+                                    "Option 3"
+                                </Button>
+                            </ButtonGroup>
+                        }
+                    }}
                 </div>
             </div>
 

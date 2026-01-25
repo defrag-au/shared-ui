@@ -25,11 +25,17 @@
 @use "badge";
 @use "empty_state";
 @use "progress_bar";
+@use "info_grid";
+@use "color_swatch";
+@use "rating";
 
 // Form components
 @use "button";
 @use "button_group";
 @use "select";
+@use "text_input";
+@use "textarea";
+@use "form_group";
 
 // Asset components
 @use "asset_card";
@@ -41,6 +47,7 @@
 @use "toast";
 @use "loading_overlay";
 @use "skeleton";
+@use "alert";
 
 // User components
 @use "user_avatar";
