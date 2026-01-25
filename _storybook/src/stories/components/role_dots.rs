@@ -102,7 +102,7 @@ pub fn RoleDotsStory() -> impl IntoView {
                             <p style="font-size: 0.75rem; color: #888; margin-top: 0.5rem;">"4 roles"</p>
                         </div>
                         <div style="text-align: center;">
-                            <RoleDots roles=Signal::derive(|| vec![]) />
+                            <RoleDots roles=Signal::derive(std::vec::Vec::new) />
                             <p style="font-size: 0.75rem; color: #888; margin-top: 0.5rem;">"Empty"</p>
                         </div>
                     </div>

@@ -192,7 +192,7 @@ impl Draggable {
         let set_state_start = set_state;
         let on_drag_start: DragHandler = Arc::new(move |ev: web_sys::DragEvent| {
             if let Some(dt) = ev.data_transfer() {
-                let _ = dt.set_effect_allowed("move");
+                dt.set_effect_allowed("move");
             }
             set_state_start.set(DragState {
                 source_index: Some(index),

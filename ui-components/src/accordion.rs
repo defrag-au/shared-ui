@@ -138,7 +138,8 @@ pub fn AccordionItem(
                         <span class="ui-accordion__icon">{emoji}</span>
                     }.into_any()
                 } else {
-                    view! { }.into_any()
+                    let _: () = view! { };
+                    ().into_any()
                 }}
                 <span class="ui-accordion__title">{title}</span>
                 {badge.map(|b| view! {
