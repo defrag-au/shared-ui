@@ -84,28 +84,42 @@ enum SlideDirection {
     Back,
 }
 
-/// Internal view representation that can be either typed or mounted
+/// Combined state for the modal stack - enables atomic updates
 #[derive(Clone)]
-enum StackEntry<V: Clone> {
-    /// A typed view from the view_content function
-    Typed(V),
-    /// A mounted view from a nested Modal (content renders inline in the Modal)
-    Mounted(MountedView),
+struct StackState<V: Clone> {
+    /// Typed views pushed via ctx.push()
+    typed_views: Vec<V>,
+    /// Mounted modals from nested Modal components (overlay, don't hide parent)
+    mounted_modals: Vec<MountedView>,
+    /// Current slide animation direction
+    slide_direction: SlideDirection,
+    /// Whether an animation is in progress
+    is_animating: bool,
 }
 
-impl<V: Clone> StackEntry<V> {
-    fn title<F: Fn(&V) -> String>(&self, typed_title_fn: &F) -> String {
-        match self {
-            StackEntry::Typed(v) => typed_title_fn(v),
-            StackEntry::Mounted(m) => m.title.clone(),
+impl<V: Clone> StackState<V> {
+    fn new(initial_view: V) -> Self {
+        Self {
+            typed_views: vec![initial_view],
+            mounted_modals: vec![],
+            slide_direction: SlideDirection::None,
+            is_animating: false,
         }
     }
 
-    fn mounted_id(&self) -> Option<ModalViewId> {
-        match self {
-            StackEntry::Mounted(m) => Some(m.id),
-            _ => None,
-        }
+    fn reset(&mut self, initial_view: V) {
+        self.typed_views = vec![initial_view];
+        self.mounted_modals.clear();
+        self.slide_direction = SlideDirection::None;
+        self.is_animating = false;
+    }
+
+    fn can_go_back(&self) -> bool {
+        self.typed_views.len() > 1 || !self.mounted_modals.is_empty()
+    }
+
+    fn total_breadcrumb_count(&self) -> usize {
+        self.typed_views.len() + self.mounted_modals.len()
     }
 }
 
@@ -135,47 +149,48 @@ where
     TitleFn: Fn(&V) -> String + Send + Sync + Clone + 'static,
     ContentFn: Fn(V, ModalStackContext<V>) -> AnyView + Send + Sync + Clone + 'static,
 {
-    // View stack - stores all views (typed and mounted) for preservation
-    let (view_stack, set_view_stack) = signal(vec![StackEntry::Typed(initial_view.clone())]);
+    // Single state signal for atomic updates
+    let (state, set_state) = signal(StackState::new(initial_view.clone()));
 
-    // Animation state
-    let (slide_direction, set_slide_direction) = signal(SlideDirection::None);
-    let (is_animating, set_is_animating) = signal(false);
-
-    // Reset stack when modal closes and reopens
+    // Reset state when modal closes and reopens
     let initial_for_effect = initial_view.clone();
     Effect::new(move |prev_open: Option<bool>| {
         let currently_open = open.get();
         if currently_open && prev_open == Some(false) {
-            // Modal just opened - reset to initial view
-            set_view_stack.set(vec![StackEntry::Typed(initial_for_effect.clone())]);
-            set_slide_direction.set(SlideDirection::None);
+            set_state.update(|s| s.reset(initial_for_effect.clone()));
         }
         currently_open
     });
 
     // Create the context for child views (typed navigation)
     let push_typed_fn = Arc::new(move |view: V| {
-        if is_animating.get() {
-            return;
-        }
-        set_slide_direction.set(SlideDirection::Forward);
-        set_is_animating.set(true);
-        set_view_stack.update(|stack| stack.push(StackEntry::Typed(view)));
+        set_state.update(|s| {
+            if s.is_animating {
+                return;
+            }
+            s.mounted_modals.clear();
+            s.slide_direction = SlideDirection::Forward;
+            s.is_animating = true;
+            s.typed_views.push(view);
+        });
     });
 
     let pop_fn = Arc::new(move || {
-        if is_animating.get() {
-            return;
-        }
-        let stack = view_stack.get();
-        if stack.len() > 1 {
-            set_slide_direction.set(SlideDirection::Back);
-            set_is_animating.set(true);
-            set_view_stack.update(|stack| {
-                stack.pop();
-            });
-        }
+        set_state.update(|s| {
+            if s.is_animating {
+                return;
+            }
+            // First pop any mounted modals, then typed views
+            if !s.mounted_modals.is_empty() {
+                s.slide_direction = SlideDirection::Back;
+                s.is_animating = true;
+                s.mounted_modals.pop();
+            } else if s.typed_views.len() > 1 {
+                s.slide_direction = SlideDirection::Back;
+                s.is_animating = true;
+                s.typed_views.pop();
+            }
+        });
     });
 
     let close_fn = Arc::new(move || {
@@ -193,39 +208,21 @@ where
     // Create ModalNavigation context for nested Modals
     let mount_fn = Arc::new(move |title: String| {
         let id = ModalViewId::new();
-        let mounted = MountedView { id, title };
-
-        if !is_animating.get() {
-            set_slide_direction.set(SlideDirection::Forward);
-            set_is_animating.set(true);
-        }
-        set_view_stack.update(|stack| stack.push(StackEntry::Mounted(mounted)));
-
+        let mounted = MountedView {
+            id,
+            title: title.clone(),
+        };
+        set_state.update(|s| {
+            s.mounted_modals.push(mounted);
+        });
         id
     });
 
-    let unmount_fn = {
-        let pop_fn = pop_fn.clone();
-        Arc::new(move |id: ModalViewId| {
-            // Check if this ID is on the top of the stack
-            let stack = view_stack.get();
-            if let Some(entry) = stack.last() {
-                if entry.mounted_id() == Some(id) {
-                    // It's on top, just pop
-                    pop_fn();
-                    return;
-                }
-            }
-            // Not on top - remove from stack directly
-            if !is_animating.get() {
-                set_slide_direction.set(SlideDirection::Back);
-                set_is_animating.set(true);
-            }
-            set_view_stack.update(|stack| {
-                stack.retain(|entry| entry.mounted_id() != Some(id));
-            });
-        })
-    };
+    let unmount_fn = Arc::new(move |id: ModalViewId| {
+        set_state.update(|s| {
+            s.mounted_modals.retain(|m| m.id != id);
+        });
+    });
 
     let modal_nav =
         ModalNavigation::new(move |title| (mount_fn)(title), move |id| (unmount_fn)(id));
@@ -240,8 +237,10 @@ where
 
     // Handle animation end
     let on_animation_end = move |_| {
-        set_is_animating.set(false);
-        set_slide_direction.set(SlideDirection::None);
+        set_state.update(|s| {
+            s.is_animating = false;
+            s.slide_direction = SlideDirection::None;
+        });
     };
 
     // Close handlers
@@ -272,7 +271,7 @@ where
     };
 
     // Animation class
-    let animation_class = move || match slide_direction.get() {
+    let animation_class = move || match state.get().slide_direction {
         SlideDirection::None => "",
         SlideDirection::Forward => "ui-modal-stack__content--slide-in",
         SlideDirection::Back => "ui-modal-stack__content--slide-out",
@@ -294,11 +293,11 @@ where
             >
                 // Header with breadcrumbs
                 <div class="ui-modal__header ui-modal-stack__header">
-                    // Back button (only show when depth > 1)
+                    // Back button (only show when there's something to go back to)
                     {move || {
-                        let stack = view_stack.get();
+                        let s = state.get();
                         let ctx = ctx.clone();
-                        (stack.len() > 1).then(|| view! {
+                        s.can_go_back().then(|| view! {
                             <button
                                 class="ui-modal-stack__back"
                                 on:click=move |_| ctx.pop()
@@ -309,15 +308,32 @@ where
                         })
                     }}
 
-                    // Breadcrumbs
+                    // Breadcrumbs - show typed views + mounted modals
                     <nav class="ui-modal-stack__breadcrumbs">
                         {move || {
-                            let stack = view_stack.get();
+                            let s = state.get();
                             let view_title = view_title_for_breadcrumbs.clone();
-                            stack.iter().enumerate().map(|(i, entry)| {
-                                let title = entry.title(&view_title);
-                                let is_last = i == stack.len() - 1;
+                            let total_items = s.total_breadcrumb_count();
+
+                            // Build breadcrumb items: typed views first, then mounted modals
+                            let mut items = Vec::new();
+
+                            // Add typed views
+                            for (i, v) in s.typed_views.iter().enumerate() {
+                                let title = view_title(v);
+                                let is_last = i == total_items - 1;
                                 let target_depth = i + 1;
+                                items.push((title, is_last, Some(target_depth)));
+                            }
+
+                            // Add mounted modals
+                            for (i, m) in s.mounted_modals.iter().enumerate() {
+                                let title = m.title.clone();
+                                let is_last = s.typed_views.len() + i == total_items - 1;
+                                items.push((title, is_last, None));
+                            }
+
+                            items.into_iter().map(|(title, is_last, typed_depth)| {
                                 view! {
                                     <span class="ui-modal-stack__breadcrumb">
                                         {if is_last {
@@ -329,13 +345,13 @@ where
                                                 <button
                                                     class="ui-modal-stack__breadcrumb-link"
                                                     on:click={
-                                                        let set_view_stack = set_view_stack.clone();
                                                         move |_| {
-                                                            set_slide_direction.set(SlideDirection::Back);
-                                                            set_is_animating.set(true);
-                                                            set_view_stack.update(|stack| {
-                                                                stack.truncate(target_depth);
-                                                            });
+                                                            if let Some(depth) = typed_depth {
+                                                                set_state.update(|s| {
+                                                                    s.typed_views.truncate(depth);
+                                                                    s.mounted_modals.clear();
+                                                                });
+                                                            }
                                                         }
                                                     }
                                                 >
@@ -371,36 +387,38 @@ where
                         class=move || format!("ui-modal-stack__content {}", animation_class())
                         on:animationend=on_animation_end
                     >
-                        {move || {
-                            let stack = view_stack.get();
-                            let content_fn = content_fn.clone();
-                            let ctx = ctx_for_content.clone();
+                        // Render typed views only - mounted modals overlay via nested Modal component
+                        <For
+                            each=move || {
+                                state.get().typed_views.into_iter().enumerate().collect::<Vec<_>>()
+                            }
+                            key=|(i, _)| format!("typed-{i}")
+                            let:indexed_entry
+                        >
+                            {
+                                let content_fn = content_fn.clone();
+                                let ctx = ctx_for_content.clone();
+                                let (i, view) = indexed_entry;
 
-                            // Render all views but only show the current one
-                            // This preserves state for previous views
-                            stack.iter().enumerate().map(|(i, entry)| {
-                                let is_current = i == stack.len() - 1;
-                                let content = match entry {
-                                    StackEntry::Typed(v) => content_fn(v.clone(), ctx.clone()),
-                                    StackEntry::Mounted(_) => {
-                                        // Mounted content renders inline via the nested Modal
-                                        // We just provide a container that CSS will show/hide
-                                        view! {
-                                            <div class="ui-modal-stack__mounted-view"></div>
-                                        }.into_any()
-                                    }
+                                let content = content_fn(view, ctx.clone());
+
+                                // Make is_current reactive
+                                let is_current = move || {
+                                    let s = state.get();
+                                    i == s.typed_views.len() - 1
                                 };
+
                                 view! {
                                     <div
                                         class="ui-modal-stack__view"
                                         class:ui-modal-stack__view--current=is_current
-                                        class:ui-modal-stack__view--hidden=!is_current
+                                        class:ui-modal-stack__view--hidden=move || !is_current()
                                     >
                                         {content}
                                     </div>
                                 }
-                            }).collect_view()
-                        }}
+                            }
+                        </For>
                     </div>
                 </div>
             </div>

@@ -70,10 +70,16 @@
         font-weight: 600;
     }
 
-    // Body needs overflow hidden for slide animation
+    // Body needs position relative for nested modal overlay + overflow hidden for slide
     &__body {
         position: relative;
         overflow: hidden;
+    }
+
+    // The mounted view placeholder (where nested Modal content overlays)
+    &__mounted-view {
+        // This is just a placeholder, nested modal overlays via absolute positioning
+        display: none;
     }
 
     // Content wrapper that slides
@@ -134,18 +140,26 @@
 }
 
 // Nested Modal styles (when Modal is inside ModalStack)
-// The Modal renders inline and coordinates via context
+// The Modal renders inline but positions absolutely to overlay the current view
 .ui-modal-nested {
+    // Hidden by default
     display: none;
-    width: 100%;
 
     &--open {
-        display: block;
+        // When open, position absolutely to cover the modal body
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        inset: 0;
+        background: v.$bg-secondary;
+        z-index: 10;
+        overflow-y: auto;
     }
 
-    // Remove default padding since ModalStack handles it
+    // Body inside nested modal gets standard padding
     .ui-modal__body {
-        padding: 0;
+        padding: 1.25rem;
+        flex: 1;
 
         &.flush {
             padding: 0;

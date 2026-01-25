@@ -205,18 +205,16 @@ fn context_aware_content(
                         title="Nested Modal".to_string()
                         on_close=Callback::new(move |()| set_show_nested.set(false))
                     >
-                        <div style="padding: 1rem;">
-                            <p>"This is a nested Modal that automatically became a stack view!"</p>
-                            <p style="color: #888; margin-top: 0.5rem;">
-                                "Notice it appears in the breadcrumbs above."
-                            </p>
-                            <Button
-                                variant=ButtonVariant::Primary
-                                on_click=Callback::new(move |()| set_show_nested.set(false))
-                            >
-                                "Close"
-                            </Button>
-                        </div>
+                        <p>"This is a nested Modal that automatically became a stack view!"</p>
+                        <p style="color: #888; margin-top: 0.5rem;">
+                            "Notice it appears in the breadcrumbs above."
+                        </p>
+                        <Button
+                            variant=ButtonVariant::Primary
+                            on_click=Callback::new(move |()| set_show_nested.set(false))
+                        >
+                            "Close"
+                        </Button>
                     </Modal>
                 </div>
             }
