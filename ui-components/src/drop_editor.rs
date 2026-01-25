@@ -30,7 +30,10 @@
 //! }
 //! ```
 
-use crate::{AssetCard, Button, ButtonVariant, CardSize, Modal, Select, SelectOption};
+use crate::{
+    use_draggable, AssetCard, Button, ButtonVariant, CardSize, Draggable, Modal, Select,
+    SelectOption,
+};
 use asset_intents::{format_number, AssetId, Drop};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -54,49 +57,27 @@ pub fn DropEditor(
     // Modal state
     let (show_add_modal, set_show_add_modal) = signal(false);
 
-    // Drag state
-    let (drag_index, set_drag_index) = signal(Option::<usize>::None);
-    let (drag_over_index, set_drag_over_index) = signal(Option::<usize>::None);
-
-    // Helper to update drops
-    let update_drops = move |new_drops: Vec<Drop>| {
+    // Draggable hook for reordering
+    let draggable = use_draggable(move |reorder| {
+        let mut new_drops = drops.get();
+        reorder.apply(&mut new_drops);
         on_change.run(new_drops);
-    };
+    });
 
     // Remove a drop at index
     let remove_drop = move |idx: usize| {
         let mut new_drops = drops.get();
         if idx < new_drops.len() {
             new_drops.remove(idx);
-            update_drops(new_drops);
+            on_change.run(new_drops);
         }
-    };
-
-    // Handle drop reorder from drag
-    let handle_drop = move |target_idx: usize| {
-        if let Some(source_idx) = drag_index.get() {
-            if source_idx != target_idx {
-                let mut new_drops = drops.get();
-                let item = new_drops.remove(source_idx);
-                // Adjust target index if we removed before it
-                let adjusted_target = if source_idx < target_idx {
-                    target_idx - 1
-                } else {
-                    target_idx
-                };
-                new_drops.insert(adjusted_target, item);
-                update_drops(new_drops);
-            }
-        }
-        set_drag_index.set(None);
-        set_drag_over_index.set(None);
     };
 
     // Add a new drop from modal
     let add_drop = move |drop: Drop| {
         let mut new_drops = drops.get();
         new_drops.push(drop);
-        update_drops(new_drops);
+        on_change.run(new_drops);
         set_show_add_modal.set(false);
     };
 
@@ -108,36 +89,28 @@ pub fn DropEditor(
                     when=move || !drops.get().is_empty()
                     fallback=|| ()
                 >
-                    <For
-                        each={move || drops.get().into_iter().enumerate().collect::<Vec<_>>()}
-                        key=|(idx, drop)| format!("{}-{}", idx, drop_key(drop))
-                        let:item
-                    >
-                        {
-                            let (idx, drop) = item;
-                            let is_dragging = move || drag_index.get() == Some(idx);
-                            let is_drag_over = move || drag_over_index.get() == Some(idx);
-
-                            view! {
-                                <DropItem
-                                    index=idx
-                                    drop=drop
-                                    size=size
-                                    readonly=readonly
-                                    is_dragging=is_dragging
-                                    is_drag_over=is_drag_over
-                                    on_remove=move || remove_drop(idx)
-                                    on_drag_start=move || set_drag_index.set(Some(idx))
-                                    on_drag_end=move || {
-                                        set_drag_index.set(None);
-                                        set_drag_over_index.set(None);
+                    {
+                        let draggable = draggable.clone();
+                        view! {
+                            <For
+                                each={move || drops.get().into_iter().enumerate().collect::<Vec<_>>()}
+                                key=|(idx, drop)| format!("{}-{}", idx, drop_key(drop))
+                                children=move |(idx, drop)| {
+                                    let draggable = draggable.clone();
+                                    view! {
+                                        <DropItem
+                                            index=idx
+                                            drop=drop
+                                            size=size
+                                            readonly=readonly
+                                            draggable=draggable
+                                            on_remove=move || remove_drop(idx)
+                                        />
                                     }
-                                    on_drag_over=move || set_drag_over_index.set(Some(idx))
-                                    on_drop=move || handle_drop(idx)
-                                />
-                            }
+                                }
+                            />
                         }
-                    </For>
+                    }
                 </Show>
 
                 // Add button (hidden in readonly mode)
@@ -202,13 +175,8 @@ fn DropItem(
     drop: Drop,
     size: CardSize,
     #[prop(into)] readonly: Signal<bool>,
-    #[prop(into)] is_dragging: Signal<bool>,
-    #[prop(into)] is_drag_over: Signal<bool>,
+    draggable: Draggable,
     on_remove: impl Fn() + Send + Sync + 'static + Copy,
-    on_drag_start: impl Fn() + Send + Sync + 'static + Copy,
-    on_drag_end: impl Fn() + Send + Sync + 'static + Copy,
-    on_drag_over: impl Fn() + Send + Sync + 'static + Copy,
-    on_drop: impl Fn() + Send + Sync + 'static + Copy,
 ) -> impl IntoView {
     let display_name = drop_display_name(&drop);
 
@@ -218,15 +186,19 @@ fn DropItem(
         Drop::Tip { .. } => None,
     };
 
+    // Get drag handlers from the hook
+    let attrs = draggable.attrs(index);
+    let draggable_for_class = draggable.clone();
+
     let item_class = move || {
         let mut classes = vec!["drop-item"];
         if readonly.get() {
             classes.push("drop-item--readonly");
         }
-        if is_dragging.get() {
+        if draggable_for_class.is_dragging(index) {
             classes.push("drop-item--dragging");
         }
-        if is_drag_over.get() {
+        if draggable_for_class.is_drag_over(index) {
             classes.push("drop-item--drag-over");
         }
         classes.join(" ")
@@ -236,25 +208,11 @@ fn DropItem(
         <div
             class=item_class
             draggable=move || if readonly.get() { "false" } else { "true" }
-            on:dragstart=move |ev| {
-                if !readonly.get() {
-                    ev.data_transfer()
-                        .map(|dt| dt.set_effect_allowed("move"));
-                    on_drag_start();
-                }
-            }
-            on:dragend=move |_| on_drag_end()
-            on:dragover=move |ev| {
-                if !readonly.get() {
-                    ev.prevent_default();
-                    on_drag_over();
-                }
-            }
-            on:dragleave=move |_| {}
-            on:drop=move |ev| {
-                ev.prevent_default();
-                on_drop();
-            }
+            on:dragstart=attrs.on_drag_start
+            on:dragend=attrs.on_drag_end
+            on:dragover=attrs.on_drag_over
+            on:dragleave=attrs.on_drag_leave
+            on:drop=attrs.on_drop
         >
             // Position indicator
             <div class="drop-item__position">{index + 1}</div>

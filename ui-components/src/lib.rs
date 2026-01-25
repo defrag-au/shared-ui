@@ -92,6 +92,7 @@ mod stat_pill;
 mod styles;
 mod tabs;
 mod toast;
+mod use_draggable;
 mod user_avatar;
 
 pub use accordion::{Accordion, AccordionItem};
@@ -126,4 +127,5 @@ pub use toast::{
     try_use_toasts, use_toasts, Toast, ToastContainer, ToastContext, ToastKind, ToastProvider,
     DEFAULT_TOAST_DURATION_MS,
 };
+pub use use_draggable::{use_draggable, DragAttrs, DragState, Draggable, Reorder};
 pub use user_avatar::{AvatarSize, UserAvatar};

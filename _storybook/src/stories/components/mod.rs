@@ -26,6 +26,7 @@ mod select;
 mod skeleton;
 mod stat_pill;
 mod tabs;
+mod use_draggable;
 mod user_avatar;
 
 pub use accordion::*;
@@ -54,4 +55,5 @@ pub use select::*;
 pub use skeleton::*;
 pub use stat_pill::*;
 pub use tabs::*;
+pub use use_draggable::*;
 pub use user_avatar::*;
