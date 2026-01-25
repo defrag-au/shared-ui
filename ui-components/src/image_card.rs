@@ -1,6 +1,7 @@
 //! Image Card Leptos Component
 //!
 //! A basic card displaying an image with optional name overlay and accent color.
+//! Shows a skeleton loading state while the image is being fetched.
 //!
 //! ## Props
 //!
@@ -10,6 +11,7 @@
 //! - `accent_color` - Optional accent/tier color for top bar
 //! - `is_static` - If true, card is non-interactive (no hover effect)
 //! - `show_name` - If true, show name overlay
+//! - `show_skeleton` - If true, shows skeleton while image loads (default: true)
 //! - `on_click` - Callback when card is clicked (if not static)
 //! - `on_load` - Callback when image has loaded
 //!
@@ -116,6 +118,9 @@ pub fn ImageCard(
     /// If true, show name overlay
     #[prop(optional)]
     show_name: bool,
+    /// If true, shows skeleton while image loads (default: true)
+    #[prop(optional, default = true)]
+    show_skeleton: bool,
     /// Click callback
     #[prop(into, optional)]
     on_click: Option<Callback<()>>,
@@ -157,6 +162,19 @@ pub fn ImageCard(
     // even if the reactive scope is disposed
     let stored_on_load = StoredValue::new(on_load);
 
+    // Track image loading state
+    let (is_loaded, set_is_loaded) = signal(false);
+
+    // Reset loaded state when URL changes
+    let url_for_effect = url_signal;
+    Effect::new(move |prev_url: Option<String>| {
+        let current_url = url_for_effect.get();
+        if prev_url.is_some() && prev_url.as_ref() != Some(&current_url) {
+            set_is_loaded.set(false);
+        }
+        current_url
+    });
+
     view! {
         <div
             class=card_class
@@ -175,16 +193,28 @@ pub fn ImageCard(
                         let resolved_url = crate::image_cache::get_cached_url(&url)
                             .unwrap_or(url);
                         view! {
+                            // Show skeleton while loading (if enabled)
+                            <Show when=move || show_skeleton && !is_loaded.get()>
+                                <div class="image-card__skeleton">
+                                    <div class="ui-skeleton ui-skeleton--rect"></div>
+                                </div>
+                            </Show>
                             <img
                                 class="image-card__image"
+                                class:image-card__image--loading=move || show_skeleton && !is_loaded.get()
                                 src=resolved_url
                                 alt=move || name_signal.get()
                                 loading="lazy"
                                 on:load=move |_| {
+                                    set_is_loaded.set(true);
                                     // Use try_get_value to safely handle disposed scope
                                     if let Some(Some(cb)) = stored_on_load.try_get_value() {
                                         cb.run(());
                                     }
+                                }
+                                on:error=move |_| {
+                                    // Hide skeleton on error too
+                                    set_is_loaded.set(true);
                                 }
                             />
                         }.into_any()

@@ -12,7 +12,7 @@ dev = ["ui-core/dev"]
 
 [dependencies]
 # Core UI utilities
-ui-core = { workspace = true }
+ui-core = { path = "../ui-core" }
 
 # HTML templating for loading/error screens
 maud = { workspace = true }

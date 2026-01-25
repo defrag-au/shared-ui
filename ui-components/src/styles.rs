@@ -28,4 +28,5 @@ use scss_macros::scss;
 
 /// Combined CSS for all ui-components.
 /// Include this once at the app root level.
+// Touch to force SCSS recompile
 pub const STYLES: &str = scss!("src/styles/mod.scss");

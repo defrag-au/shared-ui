@@ -17,10 +17,19 @@ use wasm_bindgen::JsCast;
 pub enum Story {
     Welcome,
     // Components - Layout
+    AccordionComponent,
     CardComponent,
     ModalComponent,
+    ModalStackComponent,
     TabsComponent,
     HeaderComponent,
+    // Components - Feedback
+    LoadingOverlayComponent,
+    SkeletonComponent,
+    // Components - User
+    UserAvatarComponent,
+    RoleDotsComponent,
+    PlayerCardComponent,
     // Components - Data Display
     ImageCardComponent,
     AssetCardComponent,
@@ -38,6 +47,10 @@ pub enum Story {
     ButtonComponent,
     ButtonGroupComponent,
     SelectComponent,
+    // Components - Editors
+    DropEditorComponent,
+    // Hooks
+    UseDraggableHook,
     // Wallet Core
     WalletProviders,
     ConnectionStates,
@@ -58,10 +71,19 @@ impl Story {
         &[
             Story::Welcome,
             // Layout
+            Story::AccordionComponent,
             Story::CardComponent,
             Story::ModalComponent,
+            Story::ModalStackComponent,
             Story::TabsComponent,
             Story::HeaderComponent,
+            // Feedback
+            Story::LoadingOverlayComponent,
+            Story::SkeletonComponent,
+            // User
+            Story::UserAvatarComponent,
+            Story::RoleDotsComponent,
+            Story::PlayerCardComponent,
             // Data Display
             Story::ImageCardComponent,
             Story::AssetCardComponent,
@@ -79,6 +101,10 @@ impl Story {
             Story::ButtonComponent,
             Story::ButtonGroupComponent,
             Story::SelectComponent,
+            // Editors
+            Story::DropEditorComponent,
+            // Hooks
+            Story::UseDraggableHook,
             // Wallet
             Story::WalletProviders,
             Story::ConnectionStates,
@@ -96,10 +122,19 @@ impl Story {
         match self {
             Story::Welcome => "Welcome",
             // Layout
+            Story::AccordionComponent => "Accordion",
             Story::CardComponent => "Card",
             Story::ModalComponent => "Modal",
+            Story::ModalStackComponent => "Modal Stack",
             Story::TabsComponent => "Tabs",
             Story::HeaderComponent => "Page Header",
+            // Feedback
+            Story::LoadingOverlayComponent => "Loading Overlay",
+            Story::SkeletonComponent => "Skeleton",
+            // User
+            Story::UserAvatarComponent => "User Avatar",
+            Story::RoleDotsComponent => "Role Dots",
+            Story::PlayerCardComponent => "Player Card",
             // Data Display
             Story::ImageCardComponent => "Image Card",
             Story::AssetCardComponent => "Asset Card",
@@ -117,6 +152,10 @@ impl Story {
             Story::ButtonComponent => "Button",
             Story::ButtonGroupComponent => "Button Group",
             Story::SelectComponent => "Select",
+            // Editors
+            Story::DropEditorComponent => "Drop Editor",
+            // Hooks
+            Story::UseDraggableHook => "use_draggable",
             // Wallet
             Story::WalletProviders => "Wallet Providers",
             Story::ConnectionStates => "Connection States",
@@ -134,10 +173,18 @@ impl Story {
         match self {
             Story::Welcome => "Getting Started",
             // Layout components
-            Story::CardComponent
+            Story::AccordionComponent
+            | Story::CardComponent
             | Story::ModalComponent
+            | Story::ModalStackComponent
             | Story::TabsComponent
             | Story::HeaderComponent => "Layout",
+            // Feedback components
+            Story::LoadingOverlayComponent | Story::SkeletonComponent => "Feedback",
+            // User components
+            Story::UserAvatarComponent | Story::RoleDotsComponent | Story::PlayerCardComponent => {
+                "User"
+            }
             // Data display components
             Story::ImageCardComponent
             | Story::AssetCardComponent
@@ -155,6 +202,10 @@ impl Story {
             Story::ButtonComponent | Story::ButtonGroupComponent | Story::SelectComponent => {
                 "Forms"
             }
+            // Editor components
+            Story::DropEditorComponent => "Editors",
+            // Hooks
+            Story::UseDraggableHook => "Hooks",
             Story::WalletProviders | Story::ConnectionStates => "Wallet Core",
             Story::FlowOverview | Story::FlowState | Story::FlowOperations => "UI Flow",
             Story::LoadingStates | Story::LoaderConfig => "UI Loader",
@@ -259,17 +310,40 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
             <stories::WelcomeStory />
         </Show>
         // Layout
+        <Show when=move || story.get() == Story::AccordionComponent fallback=|| ()>
+            <stories::AccordionStory />
+        </Show>
         <Show when=move || story.get() == Story::CardComponent fallback=|| ()>
             <stories::CardStory />
         </Show>
         <Show when=move || story.get() == Story::ModalComponent fallback=|| ()>
             <stories::ModalStory />
         </Show>
+        <Show when=move || story.get() == Story::ModalStackComponent fallback=|| ()>
+            <stories::ModalStackStory />
+        </Show>
         <Show when=move || story.get() == Story::TabsComponent fallback=|| ()>
             <stories::TabsStory />
         </Show>
         <Show when=move || story.get() == Story::HeaderComponent fallback=|| ()>
             <stories::HeaderStory />
+        </Show>
+        // Feedback
+        <Show when=move || story.get() == Story::LoadingOverlayComponent fallback=|| ()>
+            <stories::LoadingOverlayStory />
+        </Show>
+        <Show when=move || story.get() == Story::SkeletonComponent fallback=|| ()>
+            <stories::SkeletonStory />
+        </Show>
+        // User
+        <Show when=move || story.get() == Story::UserAvatarComponent fallback=|| ()>
+            <stories::UserAvatarStory />
+        </Show>
+        <Show when=move || story.get() == Story::RoleDotsComponent fallback=|| ()>
+            <stories::RoleDotsStory />
+        </Show>
+        <Show when=move || story.get() == Story::PlayerCardComponent fallback=|| ()>
+            <stories::PlayerCardStory />
         </Show>
         // Data Display
         <Show when=move || story.get() == Story::ImageCardComponent fallback=|| ()>
@@ -317,6 +391,14 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         </Show>
         <Show when=move || story.get() == Story::SelectComponent fallback=|| ()>
             <stories::SelectStory />
+        </Show>
+        // Editors
+        <Show when=move || story.get() == Story::DropEditorComponent fallback=|| ()>
+            <stories::DropEditorStory />
+        </Show>
+        // Hooks
+        <Show when=move || story.get() == Story::UseDraggableHook fallback=|| ()>
+            <stories::UseDraggableStory />
         </Show>
         // Wallet
         <Show when=move || story.get() == Story::WalletProviders fallback=|| ()>
