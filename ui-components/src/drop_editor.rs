@@ -97,6 +97,7 @@ pub fn DropEditor(
                         key_fn=|drop| drop_key(drop)
                         direction=StackDirection::Horizontal
                         gap="0.5rem"
+                        disabled=readonly
                         render_item=move |drop: Drop, idx: usize, drag_state: ItemDragState| {
                             let drop_for_remove = drop.clone();
                             view! {
