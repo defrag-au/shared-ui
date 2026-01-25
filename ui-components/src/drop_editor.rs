@@ -31,7 +31,7 @@
 //! ```
 
 use crate::{AssetCard, Button, ButtonVariant, CardSize, Modal, Select, SelectOption};
-use asset_intents::{AssetId, Drop};
+use asset_intents::{format_number, AssetId, Drop};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -182,16 +182,12 @@ fn drop_key(drop: &Drop) -> String {
 fn drop_display_name(drop: &Drop) -> String {
     match drop {
         Drop::Tip { token, amount } => {
-            if *amount == amount.floor() {
-                format!("{} {}", *amount as i64, token)
-            } else {
-                format!("{} {}", amount, token)
-            }
+            format!("{} {}", format_number(*amount), token)
         }
         Drop::WalletSend { asset_id, amount } => {
             let name = asset_id.asset_name();
             if *amount > 1 {
-                format!("{} x{}", name, amount)
+                format!("{} x{}", name, format_number(*amount as f64))
             } else {
                 name
             }
@@ -224,6 +220,9 @@ fn DropItem(
 
     let item_class = move || {
         let mut classes = vec!["drop-item"];
+        if readonly.get() {
+            classes.push("drop-item--readonly");
+        }
         if is_dragging.get() {
             classes.push("drop-item--dragging");
         }

@@ -53,6 +53,14 @@
         cursor: grabbing;
     }
 
+    &--readonly {
+        cursor: default;
+
+        &:active {
+            cursor: default;
+        }
+    }
+
     &--dragging {
         opacity: 0.5;
         transform: scale(0.95);
