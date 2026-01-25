@@ -31,8 +31,8 @@
 //! ```
 
 use crate::{
-    use_draggable, AssetCard, Button, ButtonVariant, CardSize, Draggable, Modal, Select,
-    SelectOption,
+    AssetCard, Button, ButtonVariant, CardSize, DraggableStack, ItemDragState, Modal, Reorder,
+    Select, SelectOption, StackDirection,
 };
 use asset_intents::{format_number, AssetId, Drop};
 use leptos::prelude::*;
@@ -57,20 +57,21 @@ pub fn DropEditor(
     // Modal state
     let (show_add_modal, set_show_add_modal) = signal(false);
 
-    // Draggable hook for reordering
-    let draggable = use_draggable(move |reorder| {
+    // Handle reordering
+    let on_reorder = move |reorder: Reorder| {
         let mut new_drops = drops.get();
         reorder.apply(&mut new_drops);
         on_change.run(new_drops);
-    });
+    };
 
-    // Remove a drop at index
-    let remove_drop = move |idx: usize| {
-        let mut new_drops = drops.get();
-        if idx < new_drops.len() {
-            new_drops.remove(idx);
-            on_change.run(new_drops);
-        }
+    // Remove a drop by its key (since indices change during drag)
+    let remove_drop = move |drop_to_remove: Drop| {
+        let new_drops: Vec<Drop> = drops
+            .get()
+            .into_iter()
+            .filter(|d| drop_key(d) != drop_key(&drop_to_remove))
+            .collect();
+        on_change.run(new_drops);
     };
 
     // Add a new drop from modal
@@ -81,53 +82,47 @@ pub fn DropEditor(
         set_show_add_modal.set(false);
     };
 
+    let btn_size = size.pixels().unwrap_or(120);
+
     view! {
         <div class="drop-editor">
-            // Horizontal stack of drop items
             <div class="drop-editor__items">
                 <Show
                     when=move || !drops.get().is_empty()
                     fallback=|| ()
                 >
-                    {
-                        let draggable = draggable.clone();
-                        view! {
-                            <For
-                                each={move || drops.get().into_iter().enumerate().collect::<Vec<_>>()}
-                                key=|(idx, drop)| format!("{}-{}", idx, drop_key(drop))
-                                children=move |(idx, drop)| {
-                                    let draggable = draggable.clone();
-                                    view! {
-                                        <DropItem
-                                            index=idx
-                                            drop=drop
-                                            size=size
-                                            readonly=readonly
-                                            draggable=draggable
-                                            on_remove=move || remove_drop(idx)
-                                        />
-                                    }
-                                }
-                            />
+                    <DraggableStack
+                        items=drops
+                        on_reorder=on_reorder
+                        key_fn=|drop| drop_key(drop)
+                        direction=StackDirection::Horizontal
+                        gap="0.5rem"
+                        render_item=move |drop: Drop, idx: usize, drag_state: ItemDragState| {
+                            let drop_for_remove = drop.clone();
+                            view! {
+                                <DropItem
+                                    index=idx
+                                    drop=drop
+                                    size=size
+                                    readonly=readonly
+                                    drag_state=drag_state
+                                    on_remove=Callback::new(move |()| remove_drop(drop_for_remove.clone()))
+                                />
+                            }
                         }
-                    }
+                    />
                 </Show>
 
                 // Add button (hidden in readonly mode)
                 <Show when=move || !readonly.get()>
-                    {
-                        let btn_size = size.pixels().unwrap_or(120);
-                        view! {
-                            <button
-                                class="drop-editor__add-btn"
-                                style=format!("width: {btn_size}px; height: {btn_size}px;")
-                                on:click=move |_| set_show_add_modal.set(true)
-                                title="Add prize"
-                            >
-                                <span class="drop-editor__add-icon">"+"</span>
-                            </button>
-                        }
-                    }
+                    <button
+                        class="drop-editor__add-btn"
+                        style=format!("width: {btn_size}px; height: {btn_size}px;")
+                        on:click=move |_| set_show_add_modal.set(true)
+                        title="Add prize"
+                    >
+                        <span class="drop-editor__add-icon">"+"</span>
+                    </button>
                 </Show>
             </div>
 
@@ -175,8 +170,8 @@ fn DropItem(
     drop: Drop,
     size: CardSize,
     #[prop(into)] readonly: Signal<bool>,
-    draggable: Draggable,
-    on_remove: impl Fn() + Send + Sync + 'static + Copy,
+    drag_state: ItemDragState,
+    #[prop(into)] on_remove: Callback<()>,
 ) -> impl IntoView {
     let display_name = drop_display_name(&drop);
 
@@ -186,40 +181,19 @@ fn DropItem(
         Drop::Tip { .. } => None,
     };
 
-    // Get drag handlers from the hook
-    let attrs = draggable.attrs(index);
-    let draggable_for_class = draggable.clone();
-
     let item_class = move || {
         let mut classes = vec!["drop-item"];
         if readonly.get() {
             classes.push("drop-item--readonly");
         }
-        if draggable_for_class.is_dragging(index) {
+        if drag_state.is_source {
             classes.push("drop-item--dragging");
-        }
-        if draggable_for_class.is_drag_over(index) {
-            classes.push("drop-item--drag-over");
         }
         classes.join(" ")
     };
 
-    let attrs_start = attrs.clone();
-    let attrs_end = attrs.clone();
-    let attrs_over = attrs.clone();
-    let attrs_leave = attrs.clone();
-    let attrs_drop = attrs;
-
     view! {
-        <div
-            class=item_class
-            draggable=move || if readonly.get() { "false" } else { "true" }
-            on:dragstart=move |ev| attrs_start.on_drag_start(ev)
-            on:dragend=move |ev| attrs_end.on_drag_end(ev)
-            on:dragover=move |ev| attrs_over.on_drag_over(ev)
-            on:dragleave=move |ev| attrs_leave.on_drag_leave(ev)
-            on:drop=move |ev| attrs_drop.on_drop(ev)
-        >
+        <div class=item_class>
             // Position indicator
             <div class="drop-item__position">{index + 1}</div>
 
@@ -255,7 +229,7 @@ fn DropItem(
                     class="drop-item__remove"
                     on:click=move |ev| {
                         ev.stop_propagation();
-                        on_remove();
+                        on_remove.run(());
                     }
                     title="Remove"
                 >

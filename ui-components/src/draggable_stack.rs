@@ -78,13 +78,15 @@ struct DragState {
 
 /// Draggable stack component for reorderable lists
 #[component]
-pub fn DraggableStack<T, F, V>(
+pub fn DraggableStack<T, K, KeyFn, F, V>(
     /// Items to render
     #[prop(into)]
     items: Signal<Vec<T>>,
     /// Callback when items are reordered
     #[prop(into)]
     on_reorder: Callback<Reorder>,
+    /// Function to extract a unique key from each item
+    key_fn: KeyFn,
     /// Stack direction
     #[prop(optional, default = StackDirection::Horizontal)]
     direction: StackDirection,
@@ -98,7 +100,9 @@ pub fn DraggableStack<T, F, V>(
     class: String,
 ) -> impl IntoView
 where
-    T: Clone + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+    T: Clone + PartialEq + Send + Sync + 'static,
+    K: Clone + PartialEq + Eq + std::hash::Hash + 'static,
+    KeyFn: Fn(&T) -> K + Clone + Send + Sync + 'static,
     F: Fn(T, usize, ItemDragState) -> V + Clone + Send + Sync + 'static,
     V: IntoView + 'static,
 {
@@ -116,9 +120,17 @@ where
         direction.flex_direction()
     );
 
-    // Mouse down on an item - start drag
-    let on_item_mousedown = move |idx: usize, ev: web_sys::MouseEvent| {
+    // Pointer down on an item - start drag and capture pointer
+    let on_item_pointerdown = move |idx: usize, ev: web_sys::PointerEvent| {
         ev.prevent_default();
+
+        // Capture pointer to track movement even outside container
+        if let Some(target) = ev.target() {
+            if let Ok(el) = target.dyn_into::<web_sys::Element>() {
+                let _ = el.set_pointer_capture(ev.pointer_id());
+            }
+        }
+
         set_drag_state.set(DragState {
             source_index: Some(idx),
             target_position: Some(idx),
@@ -129,8 +141,8 @@ where
         });
     };
 
-    // Mouse move on container - update drag position
-    let on_container_mousemove = move |ev: web_sys::MouseEvent| {
+    // Pointer move - update drag position (works even outside container due to capture)
+    let on_pointermove = move |ev: web_sys::PointerEvent| {
         let state = drag_state.get();
         if state.source_index.is_none() {
             return;
@@ -140,11 +152,11 @@ where
         let offset_x = ev.client_x() as f64 - state.start_x;
         let offset_y = ev.client_y() as f64 - state.start_y;
 
-        // Calculate target position based on mouse position
+        // Calculate target position based on pointer position
         let target_pos = if let Some(container) = container_ref.get() {
             let container_el: &web_sys::HtmlElement = &container;
             let children = container_el.children();
-            let mouse_pos = match direction {
+            let pointer_pos = match direction {
                 StackDirection::Horizontal => ev.client_x() as f64,
                 StackDirection::Vertical => ev.client_y() as f64,
             };
@@ -161,7 +173,7 @@ where
                             StackDirection::Vertical => rect.top() + rect.height() / 2.0,
                         };
 
-                        if mouse_pos < mid {
+                        if pointer_pos < mid {
                             new_pos = i as usize;
                             break;
                         } else {
@@ -185,8 +197,15 @@ where
         });
     };
 
-    // Mouse up - complete drag
-    let on_container_mouseup = move |_ev: web_sys::MouseEvent| {
+    // Pointer up - complete drag
+    let on_pointerup = move |ev: web_sys::PointerEvent| {
+        // Release pointer capture
+        if let Some(target) = ev.target() {
+            if let Ok(el) = target.dyn_into::<web_sys::Element>() {
+                let _ = el.release_pointer_capture(ev.pointer_id());
+            }
+        }
+
         let state = drag_state.get();
         if let (Some(source), Some(target)) = (state.source_index, state.target_position) {
             if source != target && source + 1 != target {
@@ -196,23 +215,18 @@ where
         set_drag_state.set(DragState::default());
     };
 
-    // Mouse leave container - cancel drag
-    let on_container_mouseleave = move |_ev: web_sys::MouseEvent| {
-        set_drag_state.set(DragState::default());
-    };
-
     view! {
         <div
             class=container_class
             style=container_style
             node_ref=container_ref
-            on:mousemove=on_container_mousemove
-            on:mouseup=on_container_mouseup
-            on:mouseleave=on_container_mouseleave
         >
             <For
                 each={move || items.get().into_iter().enumerate().collect::<Vec<_>>()}
-                key=|(_, item)| item.clone()
+                key={
+                    let key_fn = key_fn.clone();
+                    move |(_, item)| key_fn(item)
+                }
                 children=move |(initial_idx, item)| {
                     let render_item = render_item.clone();
                     let item_for_style = item.clone();
@@ -267,9 +281,9 @@ where
                         }
                     };
 
-                    let on_mousedown = move |ev: web_sys::MouseEvent| {
+                    let on_pointerdown_item = move |ev: web_sys::PointerEvent| {
                         let idx = items.get().iter().position(|i| i == &item_for_mousedown).unwrap_or(initial_idx);
-                        on_item_mousedown(idx, ev);
+                        on_item_pointerdown(idx, ev);
                     };
 
                     // For render_item, we need a stable index for display purposes
@@ -279,7 +293,9 @@ where
                         <div
                             class="ui-draggable-stack__item-wrapper"
                             style=item_style
-                            on:mousedown=on_mousedown
+                            on:pointerdown=on_pointerdown_item
+                            on:pointermove=on_pointermove
+                            on:pointerup=on_pointerup
                         >
                             {render_item(item_for_render.clone(), display_idx, drag_state_for_render())}
                         </div>

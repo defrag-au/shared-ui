@@ -179,6 +179,7 @@ pub fn UseDraggableStory() -> impl IntoView {
                             <DraggableStack
                                 items=stack_items
                                 on_reorder=move |reorder: Reorder| set_stack_items.update(|i| reorder.apply(i))
+                                key_fn=|(label, _)| *label
                                 direction=StackDirection::Horizontal
                                 gap="0.5rem"
                                 render_item=move |(label, color), _idx, _drag_state| view! {
@@ -211,6 +212,7 @@ pub fn UseDraggableStory() -> impl IntoView {
                             <DraggableStack
                                 items=vertical_items
                                 on_reorder=move |reorder: Reorder| set_vertical_items.update(|i| reorder.apply(i))
+                                key_fn=|item| *item
                                 direction=StackDirection::Vertical
                                 gap="0.5rem"
                                 render_item=move |item, idx, drag_state| view! {
