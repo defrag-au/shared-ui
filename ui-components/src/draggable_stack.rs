@@ -213,12 +213,17 @@ where
             <For
                 each={move || items.get().into_iter().enumerate().collect::<Vec<_>>()}
                 key=|(_, item)| item.clone()
-                children=move |(idx, item)| {
+                children=move |(initial_idx, item)| {
                     let render_item = render_item.clone();
+                    let item_for_style = item.clone();
+                    let item_for_mousedown = item.clone();
+                    let item_for_drag_state = item.clone();
+                    let item_for_display_idx = item.clone();
                     let item_for_render = item.clone();
 
                     // Calculate transform and styles for this item
                     let item_style = move || {
+                        let idx = items.get().iter().position(|i| i == &item_for_style).unwrap_or(initial_idx);
                         let state = drag_state.get();
                         let source = state.source_index;
                         let target = state.target_position;
@@ -254,6 +259,7 @@ where
                     };
 
                     let drag_state_for_render = move || {
+                        let idx = items.get().iter().position(|i| i == &item_for_drag_state).unwrap_or(initial_idx);
                         let state = drag_state.get();
                         ItemDragState {
                             is_source: state.source_index == Some(idx),
@@ -261,13 +267,21 @@ where
                         }
                     };
 
+                    let on_mousedown = move |ev: web_sys::MouseEvent| {
+                        let idx = items.get().iter().position(|i| i == &item_for_mousedown).unwrap_or(initial_idx);
+                        on_item_mousedown(idx, ev);
+                    };
+
+                    // For render_item, we need a stable index for display purposes
+                    let display_idx = items.get().iter().position(|i| i == &item_for_display_idx).unwrap_or(initial_idx);
+
                     view! {
                         <div
                             class="ui-draggable-stack__item-wrapper"
                             style=item_style
-                            on:mousedown=move |ev| on_item_mousedown(idx, ev)
+                            on:mousedown=on_mousedown
                         >
-                            {render_item(item_for_render.clone(), idx, drag_state_for_render())}
+                            {render_item(item_for_render.clone(), display_idx, drag_state_for_render())}
                         </div>
                     }
                 }
