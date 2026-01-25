@@ -70,9 +70,9 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 tracing = "0.1"
 
 # shared-crates
-asset-intents = { git = "https://github.com/defrag-au/shared-crates", package = "asset-intents", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
-worker_utils = { git = "https://github.com/defrag-au/shared-crates", package = "worker_utils", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
-cardano-assets = { git = "https://github.com/defrag-au/shared-crates", package = "cardano-assets", rev = "74d5ad8f0b6ef347cf3da9b325ea6bf1dac75ef9" }
+asset-intents = { git = "https://github.com/defrag-au/shared-crates", package = "asset-intents", rev = "2d68fcc" }
+worker_utils = { git = "https://github.com/defrag-au/shared-crates", package = "worker_utils", rev = "2d68fcc" }
+cardano-assets = { git = "https://github.com/defrag-au/shared-crates", package = "cardano-assets", rev = "2d68fcc" }
 
 # Error handling
 thiserror = "1"
@@ -88,5 +88,5 @@ phf = { version = "0.11", features = ["macros"] }
 maud = "0.26"
 
 [patch."https://github.com/defrag-au/shared-crates"]
-asset-intents = { path = "../shared-crates/asset-intents" }
-cardano-assets = { path = "../shared-crates/cardano-assets" }
+# asset-intents = { path = "../shared-crates/asset-intents" }
+# cardano-assets = { path = "../shared-crates/cardano-assets" }
