@@ -302,6 +302,28 @@ fn DropItem(
     }
 }
 
+/// Form state for the AddDropModal
+#[derive(Clone)]
+struct AddDropFormState {
+    drop_type: String,
+    tip_token: String,
+    tip_amount: f64,
+    cnft_input: String,
+    cnft_error: Option<String>,
+}
+
+impl Default for AddDropFormState {
+    fn default() -> Self {
+        Self {
+            drop_type: "tip".to_string(),
+            tip_token: "ADA".to_string(),
+            tip_amount: 100.0,
+            cnft_input: String::new(),
+            cnft_error: None,
+        }
+    }
+}
+
 /// Modal for adding a new drop
 #[component]
 fn AddDropModal(
@@ -309,39 +331,30 @@ fn AddDropModal(
     on_close: impl Fn() + Send + Sync + 'static + Copy,
     on_add: impl Fn(Drop) + Send + Sync + 'static + Copy,
 ) -> impl IntoView {
-    // Form state
-    let (drop_type, set_drop_type) = signal("tip".to_string());
-    let (tip_token, set_tip_token) = signal("ADA".to_string());
-    let (tip_amount, set_tip_amount) = signal(100.0f64);
-    let (cnft_input, set_cnft_input) = signal(String::new());
-    let (cnft_error, set_cnft_error) = signal(Option::<String>::None);
+    // Form state as single struct
+    let (form, set_form) = signal(AddDropFormState::default());
 
     // Reset form when modal opens
     Effect::new(move |_| {
         if open.get() {
-            set_drop_type.set("tip".to_string());
-            set_tip_token.set("ADA".to_string());
-            set_tip_amount.set(100.0);
-            set_cnft_input.set(String::new());
-            set_cnft_error.set(None);
+            set_form.set(AddDropFormState::default());
         }
     });
 
     let handle_add = move |_| {
-        let dtype = drop_type.get();
-        if dtype == "tip" {
-            let drop = Drop::tip(tip_token.get(), tip_amount.get());
+        let state = form.get();
+        if state.drop_type == "tip" {
+            let drop = Drop::tip(state.tip_token, state.tip_amount);
             on_add(drop);
         } else {
             // CNFT - parse asset ID
-            let input = cnft_input.get();
-            match AssetId::parse_smart(input.trim()) {
+            match AssetId::parse_smart(state.cnft_input.trim()) {
                 Ok(asset_id) => {
                     let drop = Drop::wallet_send_single(asset_id);
                     on_add(drop);
                 }
                 Err(_) => {
-                    set_cnft_error.set(Some("Invalid asset ID format".to_string()));
+                    set_form.update(|f| f.cnft_error = Some("Invalid asset ID format".to_string()));
                 }
             }
         }
@@ -355,13 +368,16 @@ fn AddDropModal(
     });
 
     let can_add = move || {
-        let dtype = drop_type.get();
-        if dtype == "tip" {
-            tip_amount.get() > 0.0 && !tip_token.get().is_empty()
+        let state = form.get();
+        if state.drop_type == "tip" {
+            state.tip_amount > 0.0 && !state.tip_token.is_empty()
         } else {
-            !cnft_input.get().trim().is_empty()
+            !state.cnft_input.trim().is_empty()
         }
     };
+
+    // Derived signals for Select component (needs Signal<String>)
+    let drop_type_signal = Signal::derive(move || form.get().drop_type);
 
     view! {
         <Modal
@@ -373,26 +389,26 @@ fn AddDropModal(
                 <div class="add-drop-modal__field">
                     <label>"Prize Type"</label>
                     <Select
-                        value=drop_type
+                        value=drop_type_signal
                         options=type_options
-                        on_change=move |v| set_drop_type.set(v)
+                        on_change=move |v| set_form.update(|f| f.drop_type = v)
                     />
                 </div>
 
                 // Tip fields
-                <Show when=move || drop_type.get() == "tip">
+                <Show when=move || form.get().drop_type == "tip">
                     <div class="add-drop-modal__row">
                         <div class="add-drop-modal__field add-drop-modal__field--amount">
                             <label>"Amount"</label>
                             <input
                                 type="number"
                                 class="add-drop-modal__input"
-                                prop:value=move || tip_amount.get().to_string()
+                                prop:value=move || form.get().tip_amount.to_string()
                                 on:input=move |ev| {
                                     let target = ev.target().unwrap();
                                     let input: web_sys::HtmlInputElement = target.unchecked_into();
                                     if let Ok(val) = input.value().parse::<f64>() {
-                                        set_tip_amount.set(val);
+                                        set_form.update(|f| f.tip_amount = val);
                                     }
                                 }
                                 min="0"
@@ -404,11 +420,11 @@ fn AddDropModal(
                             <input
                                 type="text"
                                 class="add-drop-modal__input"
-                                prop:value=tip_token
+                                prop:value=move || form.get().tip_token.clone()
                                 on:input=move |ev| {
                                     let target = ev.target().unwrap();
                                     let input: web_sys::HtmlInputElement = target.unchecked_into();
-                                    set_tip_token.set(input.value());
+                                    set_form.update(|f| f.tip_token = input.value());
                                 }
                                 placeholder="ADA"
                             />
@@ -417,23 +433,25 @@ fn AddDropModal(
                 </Show>
 
                 // CNFT fields
-                <Show when=move || drop_type.get() == "cnft">
+                <Show when=move || form.get().drop_type == "cnft">
                     <div class="add-drop-modal__field">
                         <label>"Asset ID"</label>
                         <input
                             type="text"
                             class="add-drop-modal__input"
-                            prop:value=cnft_input
+                            prop:value=move || form.get().cnft_input.clone()
                             on:input=move |ev| {
                                 let target = ev.target().unwrap();
                                 let input: web_sys::HtmlInputElement = target.unchecked_into();
-                                set_cnft_input.set(input.value());
-                                set_cnft_error.set(None);
+                                set_form.update(|f| {
+                                    f.cnft_input = input.value();
+                                    f.cnft_error = None;
+                                });
                             }
                             placeholder="Paste asset ID (policy + asset name hex)"
                         />
-                        <Show when=move || cnft_error.get().is_some()>
-                            <span class="add-drop-modal__error">{move || cnft_error.get()}</span>
+                        <Show when=move || form.get().cnft_error.is_some()>
+                            <span class="add-drop-modal__error">{move || form.get().cnft_error.clone()}</span>
                         </Show>
                         <span class="add-drop-modal__hint">
                             "Formats: policy_id + asset_name_hex, or policy_id.asset_name_hex"
