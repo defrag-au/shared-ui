@@ -138,7 +138,6 @@ pub fn AccordionItem(
                         <span class="ui-accordion__icon">{emoji}</span>
                     }.into_any()
                 } else {
-                    let _: () = view! { };
                     ().into_any()
                 }}
                 <span class="ui-accordion__title">{title}</span>
