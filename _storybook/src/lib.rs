@@ -20,6 +20,7 @@ pub enum Story {
     AccordionComponent,
     CardComponent,
     ModalComponent,
+    ModalStackComponent,
     TabsComponent,
     HeaderComponent,
     // Components - Feedback
@@ -71,6 +72,7 @@ impl Story {
             Story::AccordionComponent,
             Story::CardComponent,
             Story::ModalComponent,
+            Story::ModalStackComponent,
             Story::TabsComponent,
             Story::HeaderComponent,
             // Feedback
@@ -119,6 +121,7 @@ impl Story {
             Story::AccordionComponent => "Accordion",
             Story::CardComponent => "Card",
             Story::ModalComponent => "Modal",
+            Story::ModalStackComponent => "Modal Stack",
             Story::TabsComponent => "Tabs",
             Story::HeaderComponent => "Page Header",
             // Feedback
@@ -167,6 +170,7 @@ impl Story {
             Story::AccordionComponent
             | Story::CardComponent
             | Story::ModalComponent
+            | Story::ModalStackComponent
             | Story::TabsComponent
             | Story::HeaderComponent => "Layout",
             // Feedback components
@@ -306,6 +310,9 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         </Show>
         <Show when=move || story.get() == Story::ModalComponent fallback=|| ()>
             <stories::ModalStory />
+        </Show>
+        <Show when=move || story.get() == Story::ModalStackComponent fallback=|| ()>
+            <stories::ModalStackStory />
         </Show>
         <Show when=move || story.get() == Story::TabsComponent fallback=|| ()>
             <stories::TabsStory />
