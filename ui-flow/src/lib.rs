@@ -105,7 +105,18 @@
 //!
 //! See the `examples` directory for framework-specific integration patterns.
 
+// Transport abstraction
+pub mod transport;
+
+// Callback-based connection (web-sys only)
+#[cfg(feature = "web-sys-transport")]
 mod connection;
+
+// Polling-based connection (works with both transports)
+mod polling_connection;
+
+// Notification-only connection (web-sys only, uses callback-based connection)
+#[cfg(feature = "web-sys-transport")]
 pub mod notify;
 mod operation;
 mod state;
@@ -129,7 +140,16 @@ pub use ui_flow_protocol::{
     SignalPayload,
 };
 
+// Callback-based connection (web-sys only)
+#[cfg(feature = "web-sys-transport")]
 pub use connection::{FlowConnection, FlowConnectionBuilder, FlowError, ReconnectConfig};
+
+// Polling-based connection (works with both transports)
+pub use polling_connection::{
+    FlowError as PollingFlowError, FlowEvent, PollingFlowConnection,
+    ReconnectConfig as PollingReconnectConfig,
+};
+
 pub use operation::{ActionError, ActionProgress, OperationTracker, PendingOperation};
 pub use state::FlowState;
 pub use status::{CloseInfo, ConnectionStatus};

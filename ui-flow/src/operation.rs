@@ -12,6 +12,22 @@ use std::collections::HashMap;
 // Re-export OpId for internal use
 pub use ui_flow_protocol::OpId;
 
+/// Get current time in milliseconds
+#[cfg(all(feature = "web-sys-transport", not(feature = "macroquad")))]
+fn now_ms() -> f64 {
+    js_sys::Date::now()
+}
+
+#[cfg(feature = "macroquad")]
+fn now_ms() -> f64 {
+    miniquad::date::now() * 1000.0
+}
+
+#[cfg(not(any(feature = "web-sys-transport", feature = "macroquad")))]
+fn now_ms() -> f64 {
+    0.0 // Fallback - timing features won't work
+}
+
 /// Progress update for an in-flight operation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionProgress {
@@ -50,23 +66,21 @@ pub struct PendingOperation<T> {
 impl<T> PendingOperation<T> {
     /// Create a new pending operation
     pub fn new(data: T) -> Self {
-        let now = js_sys::Date::now();
         Self {
             op_id: OpId::new(),
             data,
             progress: None,
-            started_at: now,
+            started_at: now_ms(),
         }
     }
 
     /// Create with a specific OpId (useful for testing)
     pub fn with_id(op_id: OpId, data: T) -> Self {
-        let now = js_sys::Date::now();
         Self {
             op_id,
             data,
             progress: None,
-            started_at: now,
+            started_at: now_ms(),
         }
     }
 
@@ -77,7 +91,7 @@ impl<T> PendingOperation<T> {
 
     /// Get elapsed time in milliseconds
     pub fn elapsed_ms(&self) -> f64 {
-        js_sys::Date::now() - self.started_at
+        now_ms() - self.started_at
     }
 }
 
@@ -161,7 +175,7 @@ impl<T> OperationTracker<T> {
 
     /// Remove operations that have been pending longer than the timeout
     pub fn cleanup_stale(&mut self, timeout_ms: f64) -> Vec<T> {
-        let now = js_sys::Date::now();
+        let now = now_ms();
         let stale: Vec<_> = self
             .pending
             .iter()
