@@ -1,0 +1,66 @@
+// MonsterStage Component Styles
+// Themed game background with damage state
+
+@use "variables";
+
+.cardkit-monster-stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--cardkit-card-radius);
+    overflow: hidden;
+    background: var(--cardkit-bg-dark);
+
+    &__image {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        transition: filter var(--cardkit-transition-normal)
+            var(--cardkit-easing);
+    }
+
+    // Damage overlay (red tint when hurt)
+    &__damage-overlay {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+            ellipse at center,
+            transparent 30%,
+            rgba(200, 0, 0, 0.4) 100%
+        );
+        pointer-events: none;
+        transition: opacity var(--cardkit-transition-normal)
+            var(--cardkit-easing);
+    }
+
+    // Damage state variants
+    &--wounded {
+        .cardkit-monster-stage__image {
+            filter: saturate(0.9);
+        }
+    }
+
+    &--damaged {
+        .cardkit-monster-stage__image {
+            filter: saturate(0.7) brightness(0.9);
+        }
+    }
+
+    &--critical {
+        .cardkit-monster-stage__image {
+            filter: saturate(0.5) brightness(0.8);
+            animation: cardkit-monster-pulse 2s ease-in-out infinite;
+        }
+    }
+}
+
+// Critical health pulse animation
+@keyframes cardkit-monster-pulse {
+    0%,
+    100% {
+        filter: saturate(0.5) brightness(0.8);
+    }
+    50% {
+        filter: saturate(0.5) brightness(0.7);
+    }
+}

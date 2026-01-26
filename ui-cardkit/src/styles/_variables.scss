@@ -1,0 +1,79 @@
+// CardKit CSS Custom Properties
+// All visual properties exposed for theming
+//
+// Override these in your app to customize the look:
+//
+// .theme-leviathan {
+//   --cardkit-highlight: rgba(0, 191, 255, 0.6);
+//   --cardkit-health-fill: #00bfff;
+// }
+
+:root {
+  // ===========================================
+  // Card Dimensions
+  // ===========================================
+
+  // Full-sized card (GameCard)
+  --cardkit-card-ratio: 1.4;  // height = width * ratio
+  --cardkit-card-radius: 8px;
+
+  // GameCard sizes
+  --cardkit-card-sm: 100px;
+  --cardkit-card-md: 140px;
+  --cardkit-card-lg: 200px;
+  --cardkit-card-xl: 280px;
+
+  // Compact card (deployed engines)
+  --cardkit-compact-sm: 48px;
+  --cardkit-compact-md: 64px;
+  --cardkit-compact-lg: 80px;
+  --cardkit-compact-radius: 6px;
+
+  // ===========================================
+  // Colors
+  // ===========================================
+
+  // Base
+  --cardkit-bg: #1a1a2e;
+  --cardkit-bg-dark: #0d0d1a;
+  --cardkit-border: #2a2a4e;
+  --cardkit-border-light: #3a3a5e;
+
+  // Text
+  --cardkit-text: #e0e0e0;
+  --cardkit-text-muted: #888;
+
+  // States
+  --cardkit-highlight: rgba(255, 215, 0, 0.6);
+  --cardkit-highlight-strong: rgba(255, 215, 0, 0.9);
+  --cardkit-disabled-opacity: 0.5;
+
+  // Owner indicators
+  --cardkit-owner-you: rgba(76, 175, 80, 0.4);
+  --cardkit-owner-you-border: #4caf50;
+  --cardkit-owner-other: rgba(156, 39, 176, 0.4);
+  --cardkit-owner-other-border: #9c27b0;
+
+  // Health bar
+  --cardkit-health-bg: #333;
+  --cardkit-health-fill: #4caf50;
+  --cardkit-health-low: #f44336;
+  --cardkit-health-low-threshold: 0.25;
+
+  // ===========================================
+  // Animation
+  // ===========================================
+
+  --cardkit-transition-fast: 150ms;
+  --cardkit-transition-normal: 300ms;
+  --cardkit-transition-slow: 500ms;
+  --cardkit-easing: ease-out;
+
+  // ===========================================
+  // Shadows & Effects
+  // ===========================================
+
+  --cardkit-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --cardkit-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --cardkit-shadow-highlight: 0 0 20px var(--cardkit-highlight);
+}

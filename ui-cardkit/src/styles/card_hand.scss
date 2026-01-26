@@ -1,0 +1,78 @@
+// CardHand Component Styles
+// Player's hand of cards
+
+@use "variables";
+
+.cardkit-card-hand {
+  position: relative;
+  padding: 16px;
+
+  // Cards container
+  &__cards {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  // Individual card wrapper
+  &__card {
+    position: relative;
+    cursor: pointer;
+    transition: transform var(--cardkit-transition-fast) var(--cardkit-easing);
+
+    &:hover {
+      transform: translateY(-8px);
+      z-index: 10;
+    }
+  }
+
+  // Overflow warning
+  &__overflow-warning {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 12px;
+    background: var(--cardkit-health-low);
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    border-radius: 4px;
+    animation: cardkit-overflow-pulse 1s ease-in-out infinite;
+  }
+
+  // Overflow state
+  &--overflow {
+    .cardkit-card-hand__cards {
+      animation: cardkit-hand-shake 0.5s ease-in-out;
+    }
+
+    .cardkit-card-hand__card {
+      box-shadow: 0 0 10px var(--cardkit-health-low);
+    }
+  }
+}
+
+// Overflow warning pulse
+@keyframes cardkit-overflow-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+// Hand shake when overflowing
+@keyframes cardkit-hand-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
