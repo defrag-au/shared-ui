@@ -1,6 +1,5 @@
 //! Story modules organized by category
 
-mod cardkit;
 mod components;
 mod flow;
 pub mod helpers;
@@ -9,7 +8,6 @@ mod toast;
 mod wallet;
 mod welcome;
 
-pub use cardkit::*;
 pub use components::*;
 pub use flow::*;
 pub use loader::*;

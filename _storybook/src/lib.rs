@@ -16,10 +16,6 @@ use wasm_bindgen::JsCast;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Story {
     Welcome,
-    // CardKit - Card Game UI
-    CardKitGameCard,
-    CardKitCompactCard,
-    CardKitLeviathanDemo,
     // Components - Layout
     AccordionComponent,
     CardComponent,
@@ -81,10 +77,6 @@ impl Story {
     fn all() -> &'static [Story] {
         &[
             Story::Welcome,
-            // CardKit
-            Story::CardKitGameCard,
-            Story::CardKitCompactCard,
-            Story::CardKitLeviathanDemo,
             // Layout
             Story::AccordionComponent,
             Story::CardComponent,
@@ -143,10 +135,6 @@ impl Story {
     fn label(&self) -> &'static str {
         match self {
             Story::Welcome => "Welcome",
-            // CardKit
-            Story::CardKitGameCard => "GameCard",
-            Story::CardKitCompactCard => "CompactCard",
-            Story::CardKitLeviathanDemo => "Leviathan Demo",
             // Layout
             Story::AccordionComponent => "Accordion",
             Story::CardComponent => "Card",
@@ -205,10 +193,6 @@ impl Story {
     fn category(&self) -> &'static str {
         match self {
             Story::Welcome => "Getting Started",
-            // CardKit
-            Story::CardKitGameCard | Story::CardKitCompactCard | Story::CardKitLeviathanDemo => {
-                "CardKit"
-            }
             // Layout components
             Story::AccordionComponent
             | Story::CardComponent
@@ -283,9 +267,8 @@ fn App() -> impl IntoView {
     let (current_story, set_current_story) = signal(Story::Welcome);
 
     view! {
-        // Include ui-components and ui-cardkit styles
+        // Include ui-components styles
         <style>{ui_components::STYLES}</style>
-        <style>{ui_cardkit::STYLES}</style>
         <div class="storybook">
             <Sidebar current_story=current_story set_current_story=set_current_story />
             <main class="storybook-main">
@@ -354,16 +337,6 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
     view! {
         <Show when=move || story.get() == Story::Welcome fallback=|| ()>
             <stories::WelcomeStory />
-        </Show>
-        // CardKit
-        <Show when=move || story.get() == Story::CardKitGameCard fallback=|| ()>
-            <stories::GameCardStory />
-        </Show>
-        <Show when=move || story.get() == Story::CardKitCompactCard fallback=|| ()>
-            <stories::CompactCardStory />
-        </Show>
-        <Show when=move || story.get() == Story::CardKitLeviathanDemo fallback=|| ()>
-            <stories::LeviathanDemoStory />
         </Show>
         // Layout
         <Show when=move || story.get() == Story::AccordionComponent fallback=|| ()>

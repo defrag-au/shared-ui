@@ -11,6 +11,7 @@ members = [
     "ui-components",
     "ui-cardkit",
     "_storybook",
+    "_gamebook",
     "workers/flow-demo",
     "workers/flow-demo/frontend",
 ]
