@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, user-scalable=no"
+        />
+        <title><!-- TITLE --></title>
+        <!--
+        Macroquad Game Launcher Template
+
+        This HTML template handles JWT authentication before launching a macroquad WASM game.
+        Copy this file to your project and customize:
+        - Replace TITLE with your game name
+        - Replace WASM_FILE with your .wasm filename
+        - Optionally customize colors/styling
+
+        The launcher:
+        1. Shows a loading screen
+        2. Extracts JWT token from URL (?token=xxx)
+        3. Decodes the JWT and writes identity to localStorage
+        4. Loads the macroquad WASM module
+        5. The game reads identity via quad-storage
+
+        Required files:
+        - gl.js (macroquad)
+        - sapp_jsutils.js (from quad-storage)
+        - quad-storage.js (from quad-storage)
+    -->
+        <link data-trunk rel="copy-file" href="gl.js" />
+        <link data-trunk rel="copy-file" href="sapp_jsutils.js" />
+        <link data-trunk rel="copy-file" href="quad-storage.js" />
+        <link data-trunk rel="copy-file" href="<!-- WASM_FILE -->" />
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                background: #1a1a2e;
+            }
+            canvas {
+                display: block;
+                width: 100%;
+                height: 100%;
+                touch-action: none;
+            }
+
+            /* Loading screen */
+            #launcher {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: #1a1a2e;
+                color: #e0e0e0;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
+                z-index: 1000;
+            }
+            #launcher.hidden {
+                display: none;
+            }
+
+            .spinner {
+                width: 48px;
+                height: 48px;
+                border: 3px solid #333;
+                border-top-color: #6366f1;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+                margin-bottom: 20px;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            #status {
+                font-size: 14px;
+                color: #888;
+            }
+
+            /* Error state */
+            #launcher.error {
+                background: #1a1a2e;
+            }
+            #launcher.error .spinner {
+                display: none;
+            }
+            .error-message {
+                display: none;
+                text-align: center;
+                max-width: 400px;
+                padding: 20px;
+            }
+            #launcher.error .error-message {
+                display: block;
+            }
+            .error-message h2 {
+                color: #ef4444;
+                margin-bottom: 12px;
+                font-size: 18px;
+            }
+            .error-message p {
+                color: #888;
+                font-size: 14px;
+                line-height: 1.5;
+            }
+            .error-message a {
+                color: #6366f1;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="launcher">
+            <div class="spinner"></div>
+            <div id="status">Initializing...</div>
+            <div class="error-message">
+                <h2>Authentication Required</h2>
+                <p id="error-text">Please launch this game from Discord.</p>
+            </div>
+        </div>
+        <canvas id="glcanvas" tabindex="1"></canvas>
+
+        <!-- Required for macroquad -->
+        <script src="gl.js"></script>
+        <!-- Required for quad-storage (localStorage access from WASM) -->
+        <script src="sapp_jsutils.js"></script>
+        <script src="quad-storage.js"></script>
+
+        <script>
+            (function () {
+                const launcher = document.getElementById("launcher");
+                const status = document.getElementById("status");
+                const errorText = document.getElementById("error-text");
+
+                // localStorage key for identity (read by quad-storage in Rust)
+                const IDENTITY_KEY = "widget_identity";
+
+                function setStatus(msg) {
+                    status.textContent = msg;
+                }
+
+                function showError(title, message) {
+                    launcher.querySelector("h2").textContent = title;
+                    errorText.textContent = message;
+                    launcher.classList.add("error");
+                }
+
+                function decodeJwtPayload(token) {
+                    try {
+                        const parts = token.split(".");
+                        if (parts.length !== 3) return null;
+
+                        // Decode base64url to base64
+                        const base64 = parts[1]
+                            .replace(/-/g, "+")
+                            .replace(/_/g, "/");
+                        const payload = JSON.parse(atob(base64));
+                        return payload;
+                    } catch (e) {
+                        console.error("Failed to decode JWT:", e);
+                        return null;
+                    }
+                }
+
+                function extractAndStoreIdentity() {
+                    // Check for token in URL params
+                    const params = new URLSearchParams(window.location.search);
+                    const token = params.get("token");
+
+                    if (!token) {
+                        // No token - store anonymous identity
+                        const identity = { provider: "anonymous" };
+                        localStorage.setItem(
+                            IDENTITY_KEY,
+                            JSON.stringify(identity),
+                        );
+                        return identity;
+                    }
+
+                    setStatus("Validating credentials...");
+
+                    const payload = decodeJwtPayload(token);
+                    if (!payload) {
+                        showError(
+                            "Invalid Token",
+                            "The authentication token could not be decoded.",
+                        );
+                        return { error: true };
+                    }
+
+                    // Check expiration
+                    if (payload.exp && payload.exp < Date.now() / 1000) {
+                        showError(
+                            "Session Expired",
+                            "Your session has expired. Please launch from Discord again.",
+                        );
+                        return { error: true };
+                    }
+
+                    // Build Discord identity object (tagged enum format)
+                    // Matches ui_loader::Identity::Discord
+                    const identity = {
+                        provider: "discord",
+                        user_id: payload.sub || "",
+                        display_name:
+                            payload.display_name || payload.name || null,
+                        avatar_url: payload.avatar_url || null,
+                        guild_id: payload.guild_id || null,
+                        token: token,
+                    };
+
+                    // Store in localStorage for quad-storage to read
+                    localStorage.setItem(
+                        IDENTITY_KEY,
+                        JSON.stringify(identity),
+                    );
+
+                    // Clean the URL (remove token param for security)
+                    const cleanUrl = new URL(window.location);
+                    cleanUrl.searchParams.delete("token");
+                    window.history.replaceState({}, "", cleanUrl);
+
+                    return identity;
+                }
+
+                async function launch() {
+                    setStatus("Checking authentication...");
+
+                    const result = extractAndStoreIdentity();
+
+                    if (result.error) {
+                        // Error already shown
+                        return;
+                    }
+
+                    if (result.anonymous) {
+                        setStatus("Loading game (anonymous)...");
+                    } else {
+                        setStatus("Loading game...");
+                    }
+
+                    // Hide launcher and show canvas
+                    launcher.classList.add("hidden");
+
+                    // Load the WASM module
+                    load("<!-- WASM_FILE -->");
+                }
+
+                // Start the launch sequence
+                launch();
+            })();
+        </script>
+    </body>
+</html>

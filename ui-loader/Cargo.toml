@@ -6,9 +6,13 @@ description = "Framework-agnostic loading orchestrator for WASM widgets"
 license = "MIT"
 
 [features]
-default = []
+default = ["web"]
 # Enable dev mode features
 dev = ["ui-core/dev"]
+# Web (wasm-bindgen) localStorage access for Identity
+web = []
+# Macroquad support (uses quad-storage for localStorage access)
+macroquad = ["dep:quad-storage"]
 
 [dependencies]
 # Core UI utilities
@@ -34,3 +38,11 @@ js-sys = { workspace = true }
 
 # Logging
 tracing = "0.1"
+log = "0.4"
+
+# Serialization (for Identity)
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Optional: quad-storage for macroquad localStorage access
+quad-storage = { version = "0.1", optional = true }

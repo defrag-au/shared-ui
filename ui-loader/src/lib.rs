@@ -1,5 +1,25 @@
 //! Framework-agnostic loading orchestrator for WASM widgets
 //!
+//! ## Identity
+//!
+//! This crate also provides the [`Identity`] enum for cross-platform user identity.
+//! Identity is passed from the launcher HTML via localStorage and can be read by
+//! any WASM framework (Leptos, Seed, macroquad via quad-storage, etc.).
+//!
+//! ```ignore
+//! use ui_loader::Identity;
+//!
+//! // In macroquad (using quad-storage):
+//! let identity = Identity::from_local_storage();
+//!
+//! match identity {
+//!     Identity::Anonymous => println!("Playing as guest"),
+//!     Identity::Discord { user_id, display_name, .. } => {
+//!         println!("Welcome, {}!", display_name.unwrap_or(user_id));
+//!     }
+//! }
+//! ```
+//!
 //! This crate provides a loading orchestrator that runs **before** any UI framework
 //! starts. It handles the common widget bootstrap sequence:
 //!
@@ -58,6 +78,10 @@
 //! The loader supports extension via hooks:
 //! - `on_before_load` - Called after auth validation, before load function
 //! - Custom data can be attached to `LoadResult` via the generic `extensions` field
+
+mod identity;
+
+pub use identity::{Identity, IDENTITY_STORAGE_KEY};
 
 use std::cell::RefCell;
 use std::future::Future;
