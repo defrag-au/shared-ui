@@ -74,8 +74,7 @@ pub fn LeviathanHunt() -> impl IntoView {
     let (hand_collapsed, _set_hand_collapsed) = signal(false);
 
     // Demo deployed cards
-    let deployed_cards = vec![
-        DeployedCard {
+    let deployed_cards = [DeployedCard {
             name: "Rusted Harpoon",
             power: 2,
             charges: (7, 7),
@@ -102,12 +101,10 @@ pub fn LeviathanHunt() -> impl IntoView {
             charges: (3, 3),
             rarity: Rarity::Epic,
             image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300",
-        },
-    ];
+        }];
 
     // Demo hand cards
-    let hand_cards = vec![
-        HandCard {
+    let hand_cards = [HandCard {
             name: "Cut the Line",
             power: 3,
             cost: 3,
@@ -130,12 +127,10 @@ pub fn LeviathanHunt() -> impl IntoView {
             description: "Target Leviathan's Remaining Tentacle. Double damage.",
             rarity: Rarity::Rare,
             image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300",
-        },
-    ];
+        }];
 
     // Combat log entries
-    let log_entries = vec![
-        LogEntry {
+    let log_entries = [LogEntry {
             title: "Depth Charge Buoy",
             subtitle: "DAMAGED",
             time: "1 minute ago",
@@ -152,8 +147,7 @@ pub fn LeviathanHunt() -> impl IntoView {
             subtitle: "",
             time: "1 minute ago",
             image: None,
-        },
-    ];
+        }];
 
     // Player avatars
     let player_avatars = [
