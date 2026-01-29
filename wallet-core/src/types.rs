@@ -2,6 +2,18 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Information about an available wallet extension
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WalletInfo {
+    /// The API name (e.g., "eternl", "nami")
+    pub api_name: String,
+    /// Display name from the wallet extension
+    pub name: String,
+    /// Base64-encoded icon (data URL) from the wallet extension
+    pub icon: Option<String>,
+}
+
 /// Supported wallet providers
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -82,8 +94,7 @@ impl Network {
 }
 
 /// Wallet connection state
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ConnectionState {
     #[default]
     Disconnected,
@@ -95,4 +106,3 @@ pub enum ConnectionState {
     },
     Error(String),
 }
-

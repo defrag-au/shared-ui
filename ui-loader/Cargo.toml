@@ -9,40 +9,54 @@ license = "MIT"
 default = ["web"]
 # Enable dev mode features
 dev = ["ui-core/dev"]
-# Web (wasm-bindgen) localStorage access for Identity
-web = []
+# Web (wasm-bindgen) localStorage access for Identity and LoadingOrchestrator
+web = [
+    "dep:ui-core",
+    "dep:maud",
+    "dep:gloo-timers",
+    "dep:futures",
+    "dep:wasm-bindgen",
+    "dep:web-sys",
+    "dep:js-sys",
+    "dep:tracing",
+    "web-sys/Storage",
+]
 # Macroquad support (uses quad-storage for localStorage access)
-macroquad = ["dep:quad-storage"]
+macroquad = ["dep:quad-storage", "dep:log"]
 
 [dependencies]
+# Serialization (for Identity) - always needed
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# === Web feature dependencies (optional) ===
+
 # Core UI utilities
-ui-core = { path = "../ui-core" }
+ui-core = { path = "../ui-core", optional = true }
 
 # HTML templating for loading/error screens
-maud = { workspace = true }
+maud = { workspace = true, optional = true }
 
 # Async/timing utilities
-gloo-timers = { version = "0.3", features = ["futures"] }
-futures = { workspace = true }
+gloo-timers = { version = "0.3", features = ["futures"], optional = true }
+futures = { workspace = true, optional = true }
 
 # WASM bindings
-wasm-bindgen = { workspace = true }
+wasm-bindgen = { workspace = true, optional = true }
 web-sys = { version = "0.3", features = [
     "CssStyleDeclaration",
     "Document",
     "Element",
     "HtmlElement",
     "Window",
-] }
-js-sys = { workspace = true }
+], optional = true }
+js-sys = { workspace = true, optional = true }
 
 # Logging
-tracing = "0.1"
-log = "0.4"
+tracing = { version = "0.1", optional = true }
+log = { version = "0.4", optional = true }
 
-# Serialization (for Identity)
-serde = { workspace = true }
-serde_json = { workspace = true }
+# === Macroquad feature dependencies (optional) ===
 
-# Optional: quad-storage for macroquad localStorage access
+# quad-storage for macroquad localStorage access
 quad-storage = { version = "0.1", optional = true }

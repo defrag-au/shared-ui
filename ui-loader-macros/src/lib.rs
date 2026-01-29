@@ -71,7 +71,6 @@ use syn::parse::{Parse, ParseStream};
 use syn::{parse_macro_input, Expr, Ident, Token};
 
 mod leptos;
-mod macroquad;
 mod seed;
 mod static_widget;
 
@@ -188,29 +187,4 @@ pub fn leptos_main(input: TokenStream) -> TokenStream {
 pub fn static_widget(input: TokenStream) -> TokenStream {
     let parsed = parse_macro_input!(input as static_widget::StaticWidgetInput);
     static_widget::generate(parsed)
-}
-
-/// Macroquad framework widget entry point
-///
-/// For canvas-based game widgets using macroquad. Unlike DOM-based frameworks,
-/// this uses the launcher pattern where the HTML page handles loading/auth
-/// and passes identity to the WASM module via JS interop.
-///
-/// ```ignore
-/// widget_loader::macroquad_main! {
-///     init: |identity: Option<Identity>| {
-///         MyGame::new(identity)
-///     },
-///     update: |game: &mut MyGame| {
-///         game.update();
-///     },
-///     draw: |game: &MyGame| {
-///         game.draw();
-///     },
-/// }
-/// ```
-#[proc_macro]
-pub fn macroquad_main(input: TokenStream) -> TokenStream {
-    let parsed = parse_macro_input!(input as macroquad::MacroquadMainInput);
-    macroquad::generate(parsed)
 }

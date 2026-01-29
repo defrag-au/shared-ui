@@ -4,7 +4,7 @@
 
 use wasm_bindgen::prelude::*;
 
-use crate::types::WalletProvider;
+use crate::types::{WalletInfo, WalletProvider};
 use crate::WalletError;
 
 // JavaScript bindings for wallet detection and connection
@@ -16,6 +16,36 @@ export function detectWallets() {
         for (const name of knownWallets) {
             if (window.cardano[name]) {
                 wallets.push(name);
+            }
+        }
+    }
+    return wallets;
+}
+
+export function getWalletInfo(name) {
+    if (typeof window === 'undefined' || !window.cardano || !window.cardano[name]) {
+        return null;
+    }
+    const wallet = window.cardano[name];
+    return {
+        apiName: name,
+        name: wallet.name || name,
+        icon: wallet.icon || null
+    };
+}
+
+export function detectWalletsWithInfo() {
+    const wallets = [];
+    if (typeof window !== 'undefined' && window.cardano) {
+        const knownWallets = ['nami', 'eternl', 'lace', 'flint', 'typhon', 'vespr', 'nufi', 'gerowallet', 'yoroi'];
+        for (const apiName of knownWallets) {
+            const wallet = window.cardano[apiName];
+            if (wallet) {
+                wallets.push({
+                    apiName: apiName,
+                    name: wallet.name || apiName,
+                    icon: wallet.icon || null
+                });
             }
         }
     }
@@ -61,6 +91,12 @@ extern "C" {
     #[wasm_bindgen(js_name = detectWallets)]
     pub fn detect_wallets_js() -> Vec<String>;
 
+    #[wasm_bindgen(js_name = detectWalletsWithInfo)]
+    pub fn detect_wallets_with_info_js() -> JsValue;
+
+    #[wasm_bindgen(js_name = getWalletInfo)]
+    pub fn get_wallet_info_js(name: &str) -> JsValue;
+
     #[wasm_bindgen(js_name = enableWallet, catch)]
     pub async fn enable_wallet_js(name: &str) -> Result<JsValue, JsValue>;
 
@@ -77,10 +113,18 @@ extern "C" {
     pub async fn get_balance_js(api: &JsValue) -> Result<JsValue, JsValue>;
 
     #[wasm_bindgen(js_name = signTx, catch)]
-    pub async fn sign_tx_js(api: &JsValue, tx_hex: &str, partial_sign: bool) -> Result<JsValue, JsValue>;
+    pub async fn sign_tx_js(
+        api: &JsValue,
+        tx_hex: &str,
+        partial_sign: bool,
+    ) -> Result<JsValue, JsValue>;
 
     #[wasm_bindgen(js_name = signData, catch)]
-    pub async fn sign_data_js(api: &JsValue, address: &str, payload: &str) -> Result<JsValue, JsValue>;
+    pub async fn sign_data_js(
+        api: &JsValue,
+        address: &str,
+        payload: &str,
+    ) -> Result<JsValue, JsValue>;
 
     #[wasm_bindgen(js_name = submitTx, catch)]
     pub async fn submit_tx_js(api: &JsValue, tx_hex: &str) -> Result<JsValue, JsValue>;
@@ -103,6 +147,18 @@ pub fn detect_wallets() -> Vec<WalletProvider> {
             _ => None,
         })
         .collect()
+}
+
+/// Detect available wallet extensions with full info (name, icon)
+pub fn detect_wallets_with_info() -> Vec<WalletInfo> {
+    let js_value = detect_wallets_with_info_js();
+    serde_wasm_bindgen::from_value(js_value).unwrap_or_default()
+}
+
+/// Get info for a specific wallet
+pub fn get_wallet_info(provider: WalletProvider) -> Option<WalletInfo> {
+    let js_value = get_wallet_info_js(provider.api_name());
+    serde_wasm_bindgen::from_value(js_value).ok()
 }
 
 /// Connected wallet API handle
@@ -136,10 +192,7 @@ impl WalletApi {
     pub async fn used_addresses(&self) -> Result<Vec<String>, WalletError> {
         let result = get_used_addresses_js(&self.api).await?;
         let array = js_sys::Array::from(&result);
-        Ok(array
-            .iter()
-            .filter_map(|v| v.as_string())
-            .collect())
+        Ok(array.iter().filter_map(|v| v.as_string()).collect())
     }
 
     /// Get change address (hex-encoded)

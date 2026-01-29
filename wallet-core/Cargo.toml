@@ -10,5 +10,6 @@ web-sys = { workspace = true, features = ["Storage"] }
 js-sys = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }
