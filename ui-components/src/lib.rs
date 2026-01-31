@@ -109,6 +109,9 @@ mod policy_folder;
 #[cfg(feature = "wallet")]
 mod wallet_nft_gallery;
 
+// Asset modal (no wallet feature needed - just needs cardano-assets)
+mod asset_modal;
+
 pub use accordion::{Accordion, AccordionItem};
 pub use alert::{Alert, AlertVariant};
 pub use asset_cache::{AssetCache, PreloadAsset};
@@ -157,3 +160,6 @@ pub use user_avatar::{AvatarSize, UserAvatar};
 pub use policy_folder::PolicyFolder;
 #[cfg(feature = "wallet")]
 pub use wallet_nft_gallery::WalletNftGallery;
+
+// Asset modal export
+pub use asset_modal::AssetModal;

@@ -1,13 +1,15 @@
 //! Asset Card component story
 
 use crate::stories::helpers::AttributeCard;
+use cardano_assets::AssetId;
 use leptos::prelude::*;
-use ui_components::{children_fn, AssetCard, Badge, CardSize, StatPill};
+use ui_components::{children_fn, AssetCard, AssetModal, Badge, CardSize, StatPill};
 
 #[component]
 pub fn AssetCardStory() -> impl IntoView {
     let (click_count, set_click_count) = signal(0u32);
     let (last_asset_id, set_last_asset_id) = signal(String::new());
+    let (modal_asset, set_modal_asset) = signal(Option::<AssetId>::None);
 
     view! {
         <div>
@@ -193,6 +195,68 @@ pub fn AssetCardStory() -> impl IntoView {
                     </div>
                 </div>
             </div>
+
+            // Asset Modal section
+            <div class="story-section">
+                <h3>"Asset Modal"</h3>
+                <p class="story-description">"Click any card to open the AssetModal with progressive loading (blurred preview → sharp full image)."</p>
+                <div class="story-canvas">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1rem;">
+                        <AssetCard
+                            asset_id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465313839"
+                            name="Pirate 189"
+                            size=CardSize::Auto
+                            show_name=true
+                            on_click=move |id: String| {
+                                if let Ok(asset_id) = AssetId::parse_concatenated(&id) {
+                                    set_modal_asset.set(Some(asset_id));
+                                }
+                            }
+                        />
+                        <AssetCard
+                            asset_id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465323030"
+                            name="Pirate 200"
+                            size=CardSize::Auto
+                            show_name=true
+                            on_click=move |id: String| {
+                                if let Ok(asset_id) = AssetId::parse_concatenated(&id) {
+                                    set_modal_asset.set(Some(asset_id));
+                                }
+                            }
+                        />
+                        <AssetCard
+                            asset_id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465333333"
+                            name="Pirate 333"
+                            size=CardSize::Auto
+                            show_name=true
+                            on_click=move |id: String| {
+                                if let Ok(asset_id) = AssetId::parse_concatenated(&id) {
+                                    set_modal_asset.set(Some(asset_id));
+                                }
+                            }
+                        />
+                        <AssetCard
+                            asset_id="b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6506972617465343434"
+                            name="Pirate 444"
+                            size=CardSize::Auto
+                            show_name=true
+                            on_click=move |id: String| {
+                                if let Ok(asset_id) = AssetId::parse_concatenated(&id) {
+                                    set_modal_asset.set(Some(asset_id));
+                                }
+                            }
+                        />
+                    </div>
+                </div>
+            </div>
+
+            // Asset Modal (rendered when an asset is selected)
+            {move || modal_asset.get().map(|asset_id| view! {
+                <AssetModal
+                    asset_id=asset_id
+                    on_close=Callback::new(move |_| set_modal_asset.set(None))
+                />
+            })}
 
             // Code example
             <div class="story-section">

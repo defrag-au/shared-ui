@@ -1,7 +1,8 @@
 //! Wallet stories - wallet providers, detection, connection flow, balance, and NFT display
 
+use cardano_assets::AssetId;
 use leptos::prelude::*;
-use ui_components::WalletNftGallery;
+use ui_components::{AssetModal, WalletNftGallery};
 use wallet_core::{
     detect_wallets, detect_wallets_with_info, ConnectionState, Network, WalletApi, WalletInfo,
     WalletProvider,
@@ -790,7 +791,7 @@ pub fn WalletNftsStory() -> impl IntoView {
     let (connected_provider, set_connected_provider) = signal(Option::<WalletProvider>::None);
 
     // Modal state for asset preview
-    let (modal_asset, set_modal_asset) = signal(Option::<(String, String)>::None);
+    let (modal_asset, set_modal_asset) = signal(Option::<AssetId>::None);
 
     // Detect wallets on mount
     Effect::new(move |_| {
@@ -887,60 +888,58 @@ pub fn WalletNftsStory() -> impl IntoView {
                         <WalletNftGallery
                             groups=Signal::derive(move || policy_groups.get())
                             loading=Signal::derive(move || is_loading.get())
-                            on_asset_click=Callback::new(move |(asset_id, name): (String, String)| {
-                                set_modal_asset.set(Some((asset_id, name)));
+                            on_asset_click=Callback::new(move |(asset_id_str, _name): (String, String)| {
+                                // Parse the asset_id string into AssetId
+                                if let Ok(asset_id) = AssetId::parse_concatenated(&asset_id_str) {
+                                    set_modal_asset.set(Some(asset_id));
+                                }
                             })
                         />
                     </div>
                 </div>
             </div>
 
-            // Asset preview modal
-            {move || modal_asset.get().map(|(asset_id, name)| {
-                // Build high-res IIIF URL (800px)
-                let image_url = format!(
-                    "https://iiif.hodlcroft.com/iiif/3/{}:{}/full/800,/0/default.jpg",
-                    &asset_id[..56],
-                    &asset_id[56..]
-                );
-
+            // Asset preview modal using AssetModal component
+            {move || modal_asset.get().map(|asset_id| {
                 view! {
-                    <div class="asset-modal-backdrop" on:click=move |_| set_modal_asset.set(None)>
-                        <div class="asset-modal" on:click=|e| e.stop_propagation()>
-                            <button class="asset-modal__close" on:click=move |_| set_modal_asset.set(None)>
-                                "×"
-                            </button>
-                            <img class="asset-modal__image" src=image_url alt=name.clone() />
-                            <div class="asset-modal__info">
-                                <h3 class="asset-modal__name">{name}</h3>
-                                <code class="asset-modal__id">{format!("{}...{}", &asset_id[..12], &asset_id[asset_id.len()-8..])}</code>
-                            </div>
-                        </div>
-                    </div>
+                    <AssetModal
+                        asset_id=asset_id
+                        on_close=Callback::new(move |_| set_modal_asset.set(None))
+                    />
                 }
             })}
 
             <div class="story-section">
                 <h3>"Usage"</h3>
-                <pre class="code-block">{r#"use ui_components::WalletNftGallery;
+                <pre class="code-block">{r#"use ui_components::{AssetModal, WalletNftGallery};
+use cardano_assets::AssetId;
 use wallet_pallas::PolicyGroup;
 
 // Get NFT groups from wallet balance
 let balance = decode_balance(&balance_hex)?;
 let groups: Vec<PolicyGroup> = balance.nft_policy_groups();
 
-// Display with click handler for modal
-let (selected, set_selected) = signal(None);
+// State for modal
+let (selected, set_selected) = signal(Option::<AssetId>::None);
 
+// Gallery with click handler
 <WalletNftGallery
     groups=Signal::derive(move || groups.clone())
     loading=Signal::derive(move || is_loading.get())
-    on_asset_click=Callback::new(move |(asset_id, name)| {
-        set_selected.set(Some((asset_id, name)));
+    on_asset_click=Callback::new(move |(asset_id_str, _name)| {
+        if let Ok(id) = AssetId::parse_concatenated(&asset_id_str) {
+            set_selected.set(Some(id));
+        }
     })
 />
 
-// Then render your modal based on `selected` signal"#}</pre>
+// Render modal when asset is selected
+{move || selected.get().map(|asset_id| view! {
+    <AssetModal
+        asset_id=asset_id
+        on_close=Callback::new(move |_| set_selected.set(None))
+    />
+})}"#}</pre>
             </div>
         </div>
     }
