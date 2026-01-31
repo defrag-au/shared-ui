@@ -12,6 +12,7 @@ leptos = { version = "0.8", features = ["csr"] }
 
 # Shared UI crates
 wallet-core = { path = "../wallet-core" }
+wallet-pallas = { path = "../wallet-pallas" }
 ui-components = { path = "../ui-components" }
 ui-loader = { path = "../ui-loader" }
 ui-toast = { path = "../ui-toast" }

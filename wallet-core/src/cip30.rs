@@ -75,6 +75,11 @@ export async function getBalance(api) {
     return await api.getBalance();
 }
 
+export async function getUtxos(api, amount, paginate) {
+    // amount and paginate are optional
+    return await api.getUtxos(amount, paginate);
+}
+
 export async function signTx(api, txHex, partialSign) {
     return await api.signTx(txHex, partialSign);
 }
@@ -121,6 +126,13 @@ extern "C" {
 
     #[wasm_bindgen(js_name = getBalance, catch)]
     pub async fn get_balance_js(api: &JsValue) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(js_name = getUtxos, catch)]
+    pub async fn get_utxos_js(
+        api: &JsValue,
+        amount: &JsValue,
+        paginate: &JsValue,
+    ) -> Result<JsValue, JsValue>;
 
     #[wasm_bindgen(js_name = signTx, catch)]
     pub async fn sign_tx_js(
@@ -219,12 +231,31 @@ impl WalletApi {
             .ok_or_else(|| WalletError::ApiError("Invalid change address".into()))
     }
 
-    /// Get wallet balance (CBOR-encoded)
+    /// Get wallet balance (CBOR-encoded hex string)
+    ///
+    /// Returns the total balance as CBOR-encoded Value.
+    /// Use `wallet_pallas::decode_value` to parse the result.
     pub async fn balance(&self) -> Result<String, WalletError> {
         let result = get_balance_js(&self.api).await?;
         result
             .as_string()
             .ok_or_else(|| WalletError::ApiError("Invalid balance".into()))
+    }
+
+    /// Get UTxOs from the wallet (CBOR-encoded hex strings)
+    ///
+    /// Returns a list of CBOR-encoded TransactionUnspentOutput values.
+    /// Use `wallet_pallas::decode_utxo` to parse each result.
+    pub async fn utxos(&self) -> Result<Vec<String>, WalletError> {
+        let result = get_utxos_js(&self.api, &JsValue::UNDEFINED, &JsValue::UNDEFINED).await?;
+
+        // Result can be null if wallet has no UTxOs
+        if result.is_null() || result.is_undefined() {
+            return Ok(vec![]);
+        }
+
+        let array = js_sys::Array::from(&result);
+        Ok(array.iter().filter_map(|v| v.as_string()).collect())
     }
 
     /// Sign a transaction (returns witness set hex)

@@ -1,10 +1,11 @@
-//! Wallet stories - wallet providers, detection, and connection flow
+//! Wallet stories - wallet providers, detection, connection flow, and balance
 
 use leptos::prelude::*;
 use wallet_core::{
     detect_wallets, detect_wallets_with_info, ConnectionState, Network, WalletApi, WalletInfo,
     WalletProvider,
 };
+use wallet_pallas::{decode_balance, WalletBalance};
 use wasm_bindgen_futures::spawn_local;
 
 // ============================================================================
@@ -561,6 +562,215 @@ let signature = api.sign_data(address, payload_hex).await?;
 // Submit a transaction
 let tx_hash = api.submit_tx(signed_tx_hex).await?;"#}</pre>
             </div>
+        </div>
+    }
+}
+
+// ============================================================================
+// Wallet Balance Story
+// ============================================================================
+
+#[component]
+pub fn WalletBalanceStory() -> impl IntoView {
+    let (available_wallets, set_available_wallets) = signal(Vec::<WalletProvider>::new());
+    let (is_loading, set_is_loading) = signal(false);
+    let (balance, set_balance) = signal(Option::<WalletBalance>::None);
+    let (error, set_error) = signal(Option::<String>::None);
+    let (connected_provider, set_connected_provider) = signal(Option::<WalletProvider>::None);
+
+    // Detect wallets on mount
+    Effect::new(move |_| {
+        let wallets = detect_wallets();
+        set_available_wallets.set(wallets);
+    });
+
+    // Fetch balance from a wallet
+    let fetch_balance = move |provider: WalletProvider| {
+        set_is_loading.set(true);
+        set_error.set(None);
+        set_balance.set(None);
+
+        spawn_local(async move {
+            match WalletApi::connect(provider).await {
+                Ok(api) => {
+                    set_connected_provider.set(Some(provider));
+
+                    match api.balance().await {
+                        Ok(balance_hex) => match decode_balance(&balance_hex) {
+                            Ok(decoded) => {
+                                set_balance.set(Some(decoded));
+                            }
+                            Err(e) => {
+                                set_error.set(Some(format!("Failed to decode balance: {e}")));
+                            }
+                        },
+                        Err(e) => {
+                            set_error.set(Some(format!("Failed to get balance: {e}")));
+                        }
+                    }
+                }
+                Err(e) => {
+                    set_error.set(Some(format!("Connection failed: {e}")));
+                }
+            }
+            set_is_loading.set(false);
+        });
+    };
+
+    view! {
+        <div>
+            <div class="story-header">
+                <h2>"Wallet Balance"</h2>
+                <p>"Query and display wallet balance including ADA and native tokens."</p>
+            </div>
+
+            <div class="story-section">
+                <h3>"Connect and Query Balance"</h3>
+                <div class="story-canvas">
+                    <div class="balance-demo">
+                        // Wallet selection
+                        <div class="balance-demo__controls">
+                            {move || {
+                                let wallets = available_wallets.get();
+                                let loading = is_loading.get();
+
+                                if wallets.is_empty() {
+                                    view! {
+                                        <p class="balance-demo__hint">"No wallets detected. Install a Cardano wallet extension."</p>
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <div class="balance-demo__buttons">
+                                            {wallets.into_iter().map(|provider| {
+                                                let is_connected = connected_provider.get() == Some(provider);
+                                                view! {
+                                                    <button
+                                                        class="btn"
+                                                        class:btn--primary=is_connected
+                                                        class:btn--outline=!is_connected
+                                                        on:click=move |_| fetch_balance(provider)
+                                                        disabled=loading
+                                                    >
+                                                        {provider.display_name()}
+                                                    </button>
+                                                }
+                                            }).collect::<Vec<_>>()}
+                                        </div>
+                                    }.into_any()
+                                }
+                            }}
+                        </div>
+
+                        // Loading state
+                        {move || is_loading.get().then(|| view! {
+                            <div class="balance-demo__loading">
+                                <div class="spinner"></div>
+                                <p>"Fetching balance..."</p>
+                            </div>
+                        })}
+
+                        // Error state
+                        {move || error.get().map(|e| view! {
+                            <div class="balance-demo__error">
+                                <p>{e}</p>
+                            </div>
+                        })}
+
+                        // Balance display
+                        {move || balance.get().map(|b| view! {
+                            <BalanceDisplay balance=b />
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            <div class="story-section">
+                <h3>"Balance API"</h3>
+                <pre class="code-block">{r#"use wallet_core::WalletApi;
+use wallet_pallas::{decode_balance, WalletBalance};
+
+// Connect and get raw CBOR balance
+let api = WalletApi::connect(WalletProvider::Eternl).await?;
+let balance_hex = api.balance().await?;
+
+// Decode the CBOR into structured data
+let balance: WalletBalance = decode_balance(&balance_hex)?;
+
+// Access balance data
+println!("Lovelace: {}", balance.lovelace);
+println!("ADA: {:.6}", balance.ada());
+println!("Token count: {}", balance.token_count());
+
+// Iterate over native tokens
+for token in balance.tokens() {
+    println!("{}.{}: {}",
+        token.policy_id,
+        token.asset_name.unwrap_or(token.asset_name_hex),
+        token.quantity
+    );
+}"#}</pre>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn BalanceDisplay(balance: WalletBalance) -> impl IntoView {
+    let tokens = balance.tokens();
+    let ada = balance.ada();
+
+    view! {
+        <div class="balance-display">
+            // ADA Balance
+            <div class="balance-display__ada">
+                <span class="balance-display__ada-amount">{format!("{:.6}", ada)}</span>
+                <span class="balance-display__ada-label">"ADA"</span>
+            </div>
+
+            <div class="balance-display__details">
+                <div class="balance-display__row">
+                    <span class="balance-display__label">"Lovelace"</span>
+                    <span class="balance-display__value">{format!("{}", balance.lovelace)}</span>
+                </div>
+                <div class="balance-display__row">
+                    <span class="balance-display__label">"Policies"</span>
+                    <span class="balance-display__value">{format!("{}", balance.policy_count())}</span>
+                </div>
+                <div class="balance-display__row">
+                    <span class="balance-display__label">"Tokens"</span>
+                    <span class="balance-display__value">{format!("{}", balance.token_count())}</span>
+                </div>
+            </div>
+
+            // Native tokens list
+            {(!tokens.is_empty()).then(|| view! {
+                <div class="balance-display__tokens">
+                    <h4 class="balance-display__tokens-title">"Native Tokens"</h4>
+                    <div class="balance-display__tokens-list">
+                        {tokens.into_iter().take(20).map(|token| {
+                            let display_name = token.asset_name.clone()
+                                .unwrap_or_else(|| {
+                                    if token.asset_name_hex.len() > 16 {
+                                        format!("{}...", &token.asset_name_hex[..16])
+                                    } else {
+                                        token.asset_name_hex.clone()
+                                    }
+                                });
+                            let short_policy = format!("{}...", &token.policy_id[..8]);
+
+                            view! {
+                                <div class="token-row">
+                                    <div class="token-row__info">
+                                        <span class="token-row__name">{display_name}</span>
+                                        <span class="token-row__policy">{short_policy}</span>
+                                    </div>
+                                    <span class="token-row__quantity">{format!("{}", token.quantity)}</span>
+                                </div>
+                            }
+                        }).collect::<Vec<_>>()}
+                    </div>
+                </div>
+            })}
         </div>
     }
 }

@@ -63,6 +63,7 @@ pub enum Story {
     ConnectionStates,
     WalletDetection,
     WalletConnection,
+    WalletBalance,
     // UI Flow
     FlowOverview,
     FlowState,
@@ -126,6 +127,7 @@ impl Story {
             Story::ConnectionStates,
             Story::WalletDetection,
             Story::WalletConnection,
+            Story::WalletBalance,
             Story::FlowOverview,
             Story::FlowState,
             Story::FlowOperations,
@@ -186,6 +188,7 @@ impl Story {
             Story::ConnectionStates => "Connection States",
             Story::WalletDetection => "Live Detection",
             Story::WalletConnection => "Connection Flow",
+            Story::WalletBalance => "Balance & Assets",
             Story::FlowOverview => "Overview",
             Story::FlowState => "FlowState Trait",
             Story::FlowOperations => "Operations",
@@ -244,7 +247,8 @@ impl Story {
             Story::WalletProviders
             | Story::ConnectionStates
             | Story::WalletDetection
-            | Story::WalletConnection => "Wallet Core",
+            | Story::WalletConnection
+            | Story::WalletBalance => "Wallet Core",
             Story::FlowOverview | Story::FlowState | Story::FlowOperations => "UI Flow",
             Story::LoadingStates | Story::LoaderConfig => "UI Loader",
             Story::ToastTypes | Story::ToastUsage => "UI Toast",
@@ -471,6 +475,9 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         </Show>
         <Show when=move || story.get() == Story::WalletConnection fallback=|| ()>
             <stories::WalletConnectionStory />
+        </Show>
+        <Show when=move || story.get() == Story::WalletBalance fallback=|| ()>
+            <stories::WalletBalanceStory />
         </Show>
         <Show when=move || story.get() == Story::FlowOverview fallback=|| ()>
             <stories::FlowOverviewStory />
