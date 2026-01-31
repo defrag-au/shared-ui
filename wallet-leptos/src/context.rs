@@ -132,7 +132,8 @@ impl WalletContext {
 
         spawn_local(async move {
             if let Some(api_wrapper) = ctx.api.get() {
-                let api = api_wrapper.borrow();
+                // Clone the api handle to avoid holding RefCell borrow across await
+                let api = api_wrapper.borrow().clone();
                 match api.balance().await {
                     Ok(balance_hex) => {
                         if let Ok(decoded) = wallet_pallas::decode_balance(&balance_hex) {
@@ -197,7 +198,8 @@ impl WalletContext {
             .get()
             .ok_or_else(|| WalletError::NotEnabled("No address".into()))?;
 
-        let api = api_wrapper.borrow();
+        // Clone to avoid holding RefCell borrow across await
+        let api = api_wrapper.borrow().clone();
         api.sign_data(&address, payload_hex).await
     }
 
@@ -210,7 +212,8 @@ impl WalletContext {
             .get()
             .ok_or_else(|| WalletError::NotEnabled("Not connected".into()))?;
 
-        let api = api_wrapper.borrow();
+        // Clone to avoid holding RefCell borrow across await
+        let api = api_wrapper.borrow().clone();
         api.sign_tx(tx_hex, partial_sign).await
     }
 
@@ -223,7 +226,8 @@ impl WalletContext {
             .get()
             .ok_or_else(|| WalletError::NotEnabled("Not connected".into()))?;
 
-        let api = api_wrapper.borrow();
+        // Clone to avoid holding RefCell borrow across await
+        let api = api_wrapper.borrow().clone();
         api.submit_tx(tx_hex).await
     }
 }

@@ -190,6 +190,7 @@ pub fn get_wallet_info(provider: WalletProvider) -> Option<WalletInfo> {
 }
 
 /// Connected wallet API handle
+#[derive(Clone)]
 pub struct WalletApi {
     provider: WalletProvider,
     api: JsValue,
