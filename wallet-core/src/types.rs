@@ -14,6 +14,15 @@ pub struct WalletInfo {
     pub icon: Option<String>,
 }
 
+/// CIP-8 DataSignature response from signData
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataSignature {
+    /// COSE_Sign1 signature (hex-encoded)
+    pub signature: String,
+    /// COSE_Key public key (hex-encoded)
+    pub key: String,
+}
+
 /// Supported wallet providers
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

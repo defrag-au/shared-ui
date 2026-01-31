@@ -4,7 +4,7 @@
 
 use wasm_bindgen::prelude::*;
 
-use crate::types::{WalletInfo, WalletProvider};
+use crate::types::{DataSignature, WalletInfo, WalletProvider};
 use crate::WalletError;
 
 // JavaScript bindings for wallet detection and connection
@@ -80,7 +80,17 @@ export async function signTx(api, txHex, partialSign) {
 }
 
 export async function signData(api, address, payload) {
-    return await api.signData(address, payload);
+    // CIP-8 signData returns { signature: string, key: string }
+    const result = await api.signData(address, payload);
+    return result;
+}
+
+export function extractSignature(dataSignature) {
+    return dataSignature.signature || null;
+}
+
+export function extractKey(dataSignature) {
+    return dataSignature.key || null;
 }
 
 export async function submitTx(api, txHex) {
@@ -125,6 +135,12 @@ extern "C" {
         address: &str,
         payload: &str,
     ) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(js_name = extractSignature)]
+    pub fn extract_signature_js(data_signature: &JsValue) -> JsValue;
+
+    #[wasm_bindgen(js_name = extractKey)]
+    pub fn extract_key_js(data_signature: &JsValue) -> JsValue;
 
     #[wasm_bindgen(js_name = submitTx, catch)]
     pub async fn submit_tx_js(api: &JsValue, tx_hex: &str) -> Result<JsValue, JsValue>;
@@ -220,11 +236,24 @@ impl WalletApi {
     }
 
     /// Sign arbitrary data (CIP-8)
-    pub async fn sign_data(&self, address: &str, payload: &str) -> Result<String, WalletError> {
+    /// Returns a DataSignature containing the COSE signature and public key
+    pub async fn sign_data(
+        &self,
+        address: &str,
+        payload: &str,
+    ) -> Result<DataSignature, WalletError> {
         let result = sign_data_js(&self.api, address, payload).await?;
-        result
+
+        // CIP-8 signData returns { signature: string, key: string }
+        let signature = extract_signature_js(&result)
             .as_string()
-            .ok_or_else(|| WalletError::SigningFailed("Invalid signature response".into()))
+            .ok_or_else(|| WalletError::SigningFailed("Missing signature in response".into()))?;
+
+        let key = extract_key_js(&result)
+            .as_string()
+            .ok_or_else(|| WalletError::SigningFailed("Missing key in response".into()))?;
+
+        Ok(DataSignature { signature, key })
     }
 
     /// Submit a signed transaction
