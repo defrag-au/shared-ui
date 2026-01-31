@@ -789,6 +789,9 @@ pub fn WalletNftsStory() -> impl IntoView {
     let (error, set_error) = signal(Option::<String>::None);
     let (connected_provider, set_connected_provider) = signal(Option::<WalletProvider>::None);
 
+    // Modal state for asset preview
+    let (modal_asset, set_modal_asset) = signal(Option::<(String, String)>::None);
+
     // Detect wallets on mount
     Effect::new(move |_| {
         let wallets = detect_wallets();
@@ -880,14 +883,42 @@ pub fn WalletNftsStory() -> impl IntoView {
                             </div>
                         })}
 
-                        // NFT Gallery component
+                        // NFT Gallery component with click handler
                         <WalletNftGallery
                             groups=Signal::derive(move || policy_groups.get())
                             loading=Signal::derive(move || is_loading.get())
+                            on_asset_click=Callback::new(move |(asset_id, name): (String, String)| {
+                                set_modal_asset.set(Some((asset_id, name)));
+                            })
                         />
                     </div>
                 </div>
             </div>
+
+            // Asset preview modal
+            {move || modal_asset.get().map(|(asset_id, name)| {
+                // Build high-res IIIF URL (800px)
+                let image_url = format!(
+                    "https://iiif.hodlcroft.com/iiif/3/{}:{}/full/800,/0/default.jpg",
+                    &asset_id[..56],
+                    &asset_id[56..]
+                );
+
+                view! {
+                    <div class="asset-modal-backdrop" on:click=move |_| set_modal_asset.set(None)>
+                        <div class="asset-modal" on:click=|e| e.stop_propagation()>
+                            <button class="asset-modal__close" on:click=move |_| set_modal_asset.set(None)>
+                                "×"
+                            </button>
+                            <img class="asset-modal__image" src=image_url alt=name.clone() />
+                            <div class="asset-modal__info">
+                                <h3 class="asset-modal__name">{name}</h3>
+                                <code class="asset-modal__id">{format!("{}...{}", &asset_id[..12], &asset_id[asset_id.len()-8..])}</code>
+                            </div>
+                        </div>
+                    </div>
+                }
+            })}
 
             <div class="story-section">
                 <h3>"Usage"</h3>
@@ -898,13 +929,18 @@ use wallet_pallas::PolicyGroup;
 let balance = decode_balance(&balance_hex)?;
 let groups: Vec<PolicyGroup> = balance.nft_policy_groups();
 
-// Display with WalletNftGallery
+// Display with click handler for modal
+let (selected, set_selected) = signal(None);
+
 <WalletNftGallery
     groups=Signal::derive(move || groups.clone())
     loading=Signal::derive(move || is_loading.get())
-    show_summary=true
-    empty_message="No NFTs found in wallet"
-/>"#}</pre>
+    on_asset_click=Callback::new(move |(asset_id, name)| {
+        set_selected.set(Some((asset_id, name)));
+    })
+/>
+
+// Then render your modal based on `selected` signal"#}</pre>
             </div>
         </div>
     }

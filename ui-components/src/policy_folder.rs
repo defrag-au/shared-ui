@@ -56,6 +56,10 @@ pub fn PolicyFolder(
     #[prop(into, optional)]
     on_toggle: Option<Callback<bool>>,
 
+    /// Callback when an asset is clicked (receives asset_id and display_name)
+    #[prop(into, optional)]
+    on_asset_click: Option<Callback<(String, String)>>,
+
     /// Additional CSS class
     #[prop(into, optional)]
     class: Option<String>,
@@ -164,15 +168,38 @@ pub fn PolicyFolder(
                             {nfts_to_show.into_iter().map(|nft| {
                                 let asset_id = nft.asset_id();
                                 let name = nft.display_name();
+                                let click_asset_id = asset_id.clone();
+                                let click_name = name.clone();
 
-                                view! {
-                                    <AssetCard
-                                        asset_id=Signal::derive(move || asset_id.clone())
-                                        name=Signal::derive(move || name.clone())
-                                        size=CardSize::Auto
-                                        show_name=true
-                                        is_static=true
-                                    />
+                                let card_click = on_asset_click.map(|cb| {
+                                    let id = click_asset_id.clone();
+                                    let n = click_name.clone();
+                                    Callback::new(move |_: String| {
+                                        cb.run((id.clone(), n.clone()));
+                                    })
+                                });
+
+                                if let Some(click_cb) = card_click {
+                                    view! {
+                                        <AssetCard
+                                            asset_id=Signal::derive(move || asset_id.clone())
+                                            name=Signal::derive(move || name.clone())
+                                            size=CardSize::Auto
+                                            show_name=true
+                                            is_static=false
+                                            on_click=click_cb
+                                        />
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <AssetCard
+                                            asset_id=Signal::derive(move || asset_id.clone())
+                                            name=Signal::derive(move || name.clone())
+                                            size=CardSize::Auto
+                                            show_name=true
+                                            is_static=true
+                                        />
+                                    }.into_any()
                                 }
                             }).collect::<Vec<_>>()}
                         </div>

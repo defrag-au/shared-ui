@@ -51,6 +51,10 @@ pub fn WalletNftGallery(
     #[prop(into, optional, default = "No NFTs found".into())]
     empty_message: String,
 
+    /// Callback when an asset is clicked (receives asset_id and display_name)
+    #[prop(into, optional)]
+    on_asset_click: Option<Callback<(String, String)>>,
+
     /// Additional CSS class
     #[prop(into, optional)]
     class: Option<String>,
@@ -104,7 +108,11 @@ pub fn WalletNftGallery(
                 (!is_loading() && !current_groups.is_empty()).then(|| view! {
                     <div class="ui-nft-gallery__folders">
                         {current_groups.into_iter().map(|group| {
-                            view! { <PolicyFolder group=group /> }
+                            if let Some(cb) = on_asset_click {
+                                view! { <PolicyFolder group=group on_asset_click=cb /> }.into_any()
+                            } else {
+                                view! { <PolicyFolder group=group /> }.into_any()
+                            }
                         }).collect::<Vec<_>>()}
                     </div>
                 })
