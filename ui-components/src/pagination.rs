@@ -74,7 +74,7 @@ impl PaginationState {
 
             self.page_size.set(new_size);
             // Calculate total_pages inline to avoid reactive read
-            let total_pages = (self.total_items + new_size - 1) / new_size;
+            let total_pages = self.total_items.div_ceil(new_size);
             self.current_page.set(new_page.clamp(1, total_pages.max(1)));
         }
     }
@@ -82,7 +82,7 @@ impl PaginationState {
     /// Total number of pages
     pub fn total_pages(&self) -> usize {
         let size = self.page_size.get();
-        (self.total_items + size - 1) / size
+        self.total_items.div_ceil(size)
     }
 
     /// Check if there's a previous page
@@ -382,8 +382,8 @@ pub fn Pagination(
                 {move || {
                     page_numbers()
                         .into_iter()
-                        .enumerate()
-                        .map(|(_idx, item)| {
+                        
+                        .map(|item| {
                             match item {
                                 PageItem::Page { num, is_sibling } => {
                                     let is_current = move || state.current_page.get() == num;

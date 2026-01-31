@@ -40,8 +40,10 @@ pub const IDENTITY_STORAGE_KEY: &str = "widget_identity";
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "provider", rename_all = "snake_case")]
+#[derive(Default)]
 pub enum Identity {
     /// Anonymous/guest user (no authentication)
+    #[default]
     Anonymous,
 
     /// Discord-authenticated user
@@ -67,11 +69,6 @@ pub enum Identity {
     },
 }
 
-impl Default for Identity {
-    fn default() -> Self {
-        Self::Anonymous
-    }
-}
 
 impl Identity {
     /// Check if this is an anonymous identity

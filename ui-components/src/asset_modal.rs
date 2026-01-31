@@ -87,8 +87,8 @@ pub fn AssetModal(
         asset_id_str
     };
 
-    let on_close_backdrop = on_close.clone();
-    let on_close_button = on_close.clone();
+    let on_close_backdrop = on_close;
+    let on_close_button = on_close;
 
     view! {
         <div class="ui-asset-modal-backdrop" on:click=move |_| on_close_backdrop.run(())>
