@@ -1,0 +1,117 @@
+// Pagination Component Styles
+
+@use "variables" as v;
+
+.ui-pagination {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+
+    &__pages {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    &__btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2rem;
+        height: 2rem;
+        padding: 0 0.5rem;
+        background: v.$bg-tertiary;
+        border: 1px solid v.$border-color;
+        border-radius: v.$card-radius-sm;
+        color: v.$text-light;
+        font-size: 0.85rem;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all v.$transition-fast;
+
+        &:hover:not(:disabled) {
+            background: v.$bg-secondary;
+            border-color: v.$border-color-light;
+        }
+
+        &:focus {
+            outline: none;
+            border-color: v.$accent-primary;
+        }
+
+        &:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        &--nav {
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        &--page {
+            font-variant-numeric: tabular-nums;
+        }
+
+        &--active {
+            background: v.$accent-primary;
+            border-color: v.$accent-primary;
+            color: v.$text-light;
+            font-weight: 500;
+
+            &:hover:not(:disabled) {
+                background: v.$accent-primary;
+                border-color: v.$accent-primary;
+            }
+        }
+    }
+
+    &__ellipsis {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        color: v.$text-muted;
+        font-size: 0.85rem;
+    }
+
+    &__info {
+        margin-left: 0.5rem;
+        font-size: 0.8rem;
+        color: v.$text-muted;
+    }
+
+    &__jump {
+        width: 4rem;
+        height: 2rem;
+        margin-left: 0.5rem;
+        padding: 0 0.5rem;
+        background: v.$bg-tertiary;
+        border: 1px solid v.$border-color;
+        border-radius: v.$card-radius-sm;
+        color: v.$text-light;
+        font-size: 0.85rem;
+        font-family: inherit;
+        text-align: center;
+
+        &:focus {
+            outline: none;
+            border-color: v.$accent-primary;
+        }
+
+        &::placeholder {
+            color: v.$text-muted;
+            font-size: 0.75rem;
+        }
+
+        // Hide spin buttons
+        &::-webkit-outer-spin-button,
+        &::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        -moz-appearance: textfield;
+    }
+}

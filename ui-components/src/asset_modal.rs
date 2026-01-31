@@ -119,15 +119,14 @@ pub fn AssetModal(
                         alt=display_name.clone()
                         on:load=move |_| set_full_loaded.set(true)
                     />
+                </div>
 
-                    // Indeterminate progress bar
+                <div class="ui-asset-modal__info">
+                    // Indeterminate progress bar (absolute positioned at top of info)
                     <div
                         class="ui-asset-modal__progress"
                         class:ui-asset-modal__progress--hidden=move || full_loaded.get()
                     ></div>
-                </div>
-
-                <div class="ui-asset-modal__info">
                     <h3 class="ui-asset-modal__name">{display_name}</h3>
                     <code class="ui-asset-modal__id">{short_id}</code>
                 </div>

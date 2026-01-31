@@ -1,12 +1,12 @@
 //! Policy Folder Component
 //!
 //! A collapsible folder for displaying NFTs grouped by policy ID.
-//! Supports infinite scroll via IntersectionObserver for large collections.
+//! Supports pagination for large collections.
 //!
 //! ## Features
 //!
 //! - Collapsible with expand/collapse toggle
-//! - Infinite scroll pagination (loads more as user scrolls)
+//! - Pagination with page controls
 //! - Optional custom title (for known collection names)
 //! - Controlled or uncontrolled expansion state
 //!
@@ -19,16 +19,15 @@
 //! <PolicyFolder
 //!     group=policy_group
 //!     title="Unsigned Algorithms"
-//!     initial_batch_size=12
+//!     page_size=15
 //! />
 //! ```
 
 use crate::asset_card::AssetCard;
 use crate::image_card::CardSize;
-use crate::loading_overlay::Spinner;
+use crate::pagination::{use_adaptive_pagination, Pagination};
 use leptos::prelude::*;
 use wallet_pallas::{NativeToken, PolicyGroup};
-use wasm_bindgen::prelude::*;
 
 /// Collapsible folder for displaying NFTs from a single policy
 #[component]
@@ -40,13 +39,9 @@ pub fn PolicyFolder(
     #[prop(into, optional)]
     title: Option<String>,
 
-    /// Initial batch size for infinite scroll
-    #[prop(optional, default = 12)]
-    initial_batch_size: usize,
-
-    /// Batch size for loading more
-    #[prop(optional, default = 12)]
-    load_more_batch_size: usize,
+    /// Number of rows per page (columns are detected automatically)
+    #[prop(optional, default = 3)]
+    rows_per_page: usize,
 
     /// Controlled expanded state (optional - uses internal state if not provided)
     #[prop(into, optional)]
@@ -85,9 +80,6 @@ pub fn PolicyFolder(
         }
     };
 
-    // Pagination state
-    let (visible_count, set_visible_count) = signal(initial_batch_size);
-
     // Extract data from group
     let policy_id = group.policy_id.clone();
     let policy_id_short = group.policy_id_short.clone();
@@ -95,45 +87,11 @@ pub fn PolicyFolder(
     let nfts: Vec<NativeToken> = group.nfts().into_iter().cloned().collect();
     let total_count = nfts.len();
 
-    // Sentinel ref for intersection observer
-    let sentinel_ref = NodeRef::<leptos::html::Div>::new();
+    // Grid ref for adaptive pagination
+    let grid_ref = NodeRef::<leptos::html::Div>::new();
 
-    // Set up intersection observer when expanded
-    Effect::new(move |_| {
-        if !is_expanded() {
-            return;
-        }
-
-        let Some(sentinel) = sentinel_ref.get() else {
-            return;
-        };
-
-        let batch_size = load_more_batch_size;
-        let callback = Closure::wrap(Box::new(
-            move |entries: js_sys::Array, _observer: web_sys::IntersectionObserver| {
-                for entry in entries.iter() {
-                    let entry: web_sys::IntersectionObserverEntry = entry.unchecked_into();
-                    if entry.is_intersecting() {
-                        set_visible_count.update(|count| {
-                            *count = (*count + batch_size).min(total_count);
-                        });
-                    }
-                }
-            },
-        )
-            as Box<dyn FnMut(js_sys::Array, web_sys::IntersectionObserver)>);
-
-        let options = web_sys::IntersectionObserverInit::new();
-        options.set_root_margin("100px");
-
-        if let Ok(observer) = web_sys::IntersectionObserver::new_with_options(
-            callback.as_ref().unchecked_ref(),
-            &options,
-        ) {
-            observer.observe(&sentinel);
-            callback.forget();
-        }
-    });
+    // Adaptive pagination - detects grid columns and adjusts page size
+    let pagination = use_adaptive_pagination(total_count, grid_ref, rows_per_page, None);
 
     let wrapper_class = move || {
         let mut classes = vec!["ui-policy-folder"];
@@ -156,70 +114,100 @@ pub fn PolicyFolder(
                 <span class="ui-policy-folder__count">{total_count} " NFTs"</span>
             </button>
 
-            {move || is_expanded().then(|| {
-                let visible = visible_count.get();
-                let nfts_to_show: Vec<NativeToken> = nfts.clone().into_iter().take(visible).collect();
-                let has_more = visible < total_count;
-                let policy_for_display = policy_id.clone();
+            <Show when=move || is_expanded()>
+                {
+                    let policy_for_display = policy_id.clone();
+                    let has_multiple_pages = pagination.total_pages() > 1;
 
-                view! {
-                    <div class="ui-policy-folder__content">
-                        <div class="ui-policy-folder__grid">
-                            {nfts_to_show.into_iter().map(|nft| {
-                                let asset_id = nft.asset_id();
-                                let name = nft.display_name();
-                                let click_asset_id = asset_id.clone();
-                                let click_name = name.clone();
+                    view! {
+                        <div class="ui-policy-folder__content">
+                            // Pagination at top (if more than one page)
+                            <Show when=move || has_multiple_pages fallback=|| ()>
+                                <div class="ui-policy-folder__pagination">
+                                    <Pagination
+                                        state=pagination
+                                        show_page_jump=false
+                                    />
+                                </div>
+                            </Show>
 
-                                let card_click = on_asset_click.map(|cb| {
-                                    let id = click_asset_id.clone();
-                                    let n = click_name.clone();
-                                    Callback::new(move |_: String| {
-                                        cb.run((id.clone(), n.clone()));
-                                    })
-                                });
-
-                                if let Some(click_cb) = card_click {
-                                    view! {
-                                        <AssetCard
-                                            asset_id=Signal::derive(move || asset_id.clone())
-                                            name=Signal::derive(move || name.clone())
-                                            size=CardSize::Auto
-                                            show_name=true
-                                            is_static=false
-                                            on_click=click_cb
-                                        />
-                                    }.into_any()
-                                } else {
-                                    view! {
-                                        <AssetCard
-                                            asset_id=Signal::derive(move || asset_id.clone())
-                                            name=Signal::derive(move || name.clone())
-                                            size=CardSize::Auto
-                                            show_name=true
-                                            is_static=true
-                                        />
-                                    }.into_any()
-                                }
-                            }).collect::<Vec<_>>()}
-                        </div>
-
-                        // Sentinel for infinite scroll
-                        {has_more.then(|| view! {
-                            <div class="ui-policy-folder__sentinel" node_ref=sentinel_ref>
-                                <Spinner />
-                                <span>"Loading more..."</span>
+                            <div class="ui-policy-folder__grid" node_ref=grid_ref>
+                                <For
+                                    each={
+                                        let nfts = nfts.clone();
+                                        move || pagination.page_items(&nfts)
+                                    }
+                                    key=|nft| nft.asset_id()
+                                    let:nft
+                                >
+                                    {
+                                        if let Some(cb) = on_asset_click {
+                                            view! { <NftCard nft=nft on_click=cb /> }.into_any()
+                                        } else {
+                                            view! { <NftCard nft=nft /> }.into_any()
+                                        }
+                                    }
+                                </For>
                             </div>
-                        })}
 
-                        // Full policy ID for reference
-                        <div class="ui-policy-folder__policy-id">
-                            <span class="ui-policy-folder__policy-label">"Policy ID:"</span>
-                            <code class="ui-policy-folder__policy-value">{policy_for_display}</code>
+                            // Pagination at bottom (if more than one page)
+                            <Show when=move || has_multiple_pages fallback=|| ()>
+                                <div class="ui-policy-folder__pagination">
+                                    <Pagination state=pagination />
+                                </div>
+                            </Show>
+
+                            // Full policy ID for reference
+                            <div class="ui-policy-folder__policy-id">
+                                <span class="ui-policy-folder__policy-label">"Policy ID:"</span>
+                                <code class="ui-policy-folder__policy-value">{policy_for_display.clone()}</code>
+                            </div>
                         </div>
-                    </div>
+                    }
                 }
-            })}
+            </Show>
         </div>
+    }
+}
+
+/// Internal helper component for rendering a single NFT card
+/// Extracted to simplify the For loop and ensure proper component lifecycle
+#[component]
+fn NftCard(
+    nft: NativeToken,
+    #[prop(optional)] on_click: Option<Callback<(String, String)>>,
+) -> impl IntoView {
+    let asset_id = nft.asset_id();
+    let name = nft.display_name();
+
+    if let Some(cb) = on_click {
+        let id = asset_id.clone();
+        let n = name.clone();
+        let click_handler = Callback::new(move |_: String| {
+            cb.run((id.clone(), n.clone()));
+        });
+
+        view! {
+            <AssetCard
+                asset_id=asset_id
+                name=name
+                size=CardSize::Auto
+                show_name=true
+                is_static=false
+                on_click=click_handler
+            />
+        }
+        .into_any()
+    } else {
+        view! {
+            <AssetCard
+                asset_id=asset_id
+                name=name
+                size=CardSize::Auto
+                show_name=true
+                is_static=true
+            />
+        }
+        .into_any()
     }
 }

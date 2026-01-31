@@ -79,7 +79,7 @@ fn value_to_balance(value: Value) -> WalletBalance {
 }
 
 /// A single native token
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NativeToken {
     /// Policy ID (hex)
     pub policy_id: String,

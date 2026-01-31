@@ -72,7 +72,8 @@
         object-fit: contain;
         filter: blur(2px);
         opacity: 0;
-        transition: opacity 0.15s ease;
+        transition: opacity 0.25s ease;
+        z-index: 1;
 
         &--visible {
             opacity: 1;
@@ -86,24 +87,30 @@
         height: 100%;
         object-fit: contain;
         opacity: 0;
-        transition: opacity 0.15s ease;
-        z-index: 1;
+        transition: opacity 0.25s ease;
+        z-index: 2;
 
         &--loaded {
             opacity: 1;
         }
     }
 
+    &__info {
+        position: relative;
+        padding: 1rem 1.5rem;
+        background: #0f1424;
+        border-top: 1px solid #2a2a4a;
+    }
+
     &__progress {
         position: absolute;
-        bottom: 0;
+        top: 0;
         left: 0;
         right: 0;
-        height: 4px;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 2;
+        height: 3px;
+        background: rgba(0, 0, 0, 0.3);
         overflow: hidden;
-        transition: opacity 0.15s ease;
+        transition: opacity 0.2s ease;
 
         &::after {
             content: "";
@@ -113,19 +120,13 @@
             bottom: 0;
             width: 30%;
             background: linear-gradient(90deg, #4a9eff, #7bb8ff);
-            box-shadow: 0 0 10px rgba(74, 158, 255, 0.5);
+            box-shadow: 0 0 8px rgba(74, 158, 255, 0.6);
             animation: ui-asset-modal-progress 0.8s ease-in-out infinite;
         }
 
         &--hidden {
             opacity: 0;
         }
-    }
-
-    &__info {
-        padding: 1rem 1.5rem;
-        background: #0f1424;
-        border-top: 1px solid #2a2a4a;
     }
 
     &__name {
