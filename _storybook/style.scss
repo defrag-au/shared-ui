@@ -858,6 +858,96 @@ body {
     gap: $spacing-md;
 }
 
+// Wallet Leptos Demo
+.wallet-leptos-demo {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-lg;
+
+    &__section {
+        background: $bg-tertiary;
+        border: 1px solid $border-color;
+        border-radius: $radius;
+        padding: $spacing-md;
+
+        h4 {
+            margin: 0 0 $spacing-md;
+            font-size: 0.9rem;
+            color: $text-muted;
+        }
+    }
+
+    &__wallets {
+        display: flex;
+        gap: $spacing-sm;
+        flex-wrap: wrap;
+    }
+
+    &__info {
+        display: flex;
+        flex-direction: column;
+        gap: $spacing-sm;
+    }
+
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: $spacing-sm;
+
+        .label {
+            color: $text-muted;
+            font-size: 0.85rem;
+            min-width: 80px;
+        }
+
+        code {
+            font-family: $family-mono;
+            font-size: 0.8rem;
+            background: $bg-secondary;
+            padding: 2px 6px;
+            border-radius: $radius;
+        }
+    }
+
+    &__actions {
+        display: flex;
+        gap: $spacing-sm;
+        margin-top: $spacing-md;
+    }
+
+    &__balance {
+        display: flex;
+        align-items: baseline;
+        gap: $spacing-sm;
+    }
+
+    &__ada {
+        font-size: 1.5rem;
+        font-weight: 700;
+        font-family: $family-mono;
+    }
+
+    &__ada-label {
+        color: $text-muted;
+    }
+
+    &__error {
+        background: rgba($danger, 0.1);
+        border: 1px solid rgba($danger, 0.3);
+        border-radius: $radius;
+        padding: $spacing-md;
+        color: $danger;
+
+        p {
+            margin: 0;
+        }
+    }
+}
+
+.text-muted {
+    color: $text-muted;
+}
+
 // Policy folder (collapsible)
 .policy-folder {
     background: $bg-tertiary;

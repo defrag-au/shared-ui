@@ -9,6 +9,7 @@ members = [
     "ui-toast",
     "wallet-core",
     "wallet-pallas",
+    "wallet-leptos",
     "ui-components",
     "ui-loader-macros",
     "_storybook",

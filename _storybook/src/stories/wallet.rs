@@ -1,13 +1,13 @@
 //! Wallet stories - wallet providers, detection, connection flow, balance, and NFT display
 
 use leptos::prelude::*;
-use ui_components::AssetCard;
+use ui_components::WalletNftGallery;
 use wallet_core::{
     detect_wallets, detect_wallets_with_info, ConnectionState, Network, WalletApi, WalletInfo,
     WalletProvider,
 };
-use wallet_pallas::{decode_balance, NativeToken, PolicyGroup, WalletBalance};
-use wasm_bindgen::prelude::*;
+use wallet_leptos::{use_wallet, WalletProvider as WalletProviderComponent};
+use wallet_pallas::{decode_balance, PolicyGroup, WalletBalance};
 use wasm_bindgen_futures::spawn_local;
 
 // ============================================================================
@@ -778,7 +778,7 @@ fn BalanceDisplay(balance: WalletBalance) -> impl IntoView {
 }
 
 // ============================================================================
-// Wallet NFTs Story - Folder-based NFT display with infinite scroll
+// Wallet NFTs Story - Using WalletNftGallery component
 // ============================================================================
 
 #[component]
@@ -788,7 +788,6 @@ pub fn WalletNftsStory() -> impl IntoView {
     let (policy_groups, set_policy_groups) = signal(Vec::<PolicyGroup>::new());
     let (error, set_error) = signal(Option::<String>::None);
     let (connected_provider, set_connected_provider) = signal(Option::<WalletProvider>::None);
-    let (nft_count, set_nft_count) = signal(0usize);
 
     // Detect wallets on mount
     Effect::new(move |_| {
@@ -811,7 +810,6 @@ pub fn WalletNftsStory() -> impl IntoView {
                         Ok(balance_hex) => match decode_balance(&balance_hex) {
                             Ok(decoded) => {
                                 let groups = decoded.nft_policy_groups();
-                                set_nft_count.set(decoded.nft_count());
                                 set_policy_groups.set(groups);
                             }
                             Err(e) => {
@@ -835,7 +833,7 @@ pub fn WalletNftsStory() -> impl IntoView {
         <div>
             <div class="story-header">
                 <h2>"Wallet NFTs"</h2>
-                <p>"Display wallet NFTs grouped by policy with folder-style navigation."</p>
+                <p>"Display wallet NFTs grouped by policy using the WalletNftGallery component."</p>
             </div>
 
             <div class="story-section">
@@ -875,14 +873,6 @@ pub fn WalletNftsStory() -> impl IntoView {
                             }}
                         </div>
 
-                        // Loading state
-                        {move || is_loading.get().then(|| view! {
-                            <div class="nft-demo__loading">
-                                <div class="spinner"></div>
-                                <p>"Fetching NFTs..."</p>
-                            </div>
-                        })}
-
                         // Error state
                         {move || error.get().map(|e| view! {
                             <div class="nft-demo__error">
@@ -890,64 +880,102 @@ pub fn WalletNftsStory() -> impl IntoView {
                             </div>
                         })}
 
-                        // NFT count summary
-                        {move || {
-                            let count = nft_count.get();
-                            let groups = policy_groups.get();
-                            if count > 0 {
-                                Some(view! {
-                                    <div class="nft-demo__summary">
-                                        <span class="nft-demo__count">{count} " NFTs"</span>
-                                        <span class="nft-demo__policies">" across " {groups.len()} " policies"</span>
-                                    </div>
-                                })
-                            } else {
-                                None
-                            }
-                        }}
-
-                        // Policy folders
-                        {move || {
-                            let groups = policy_groups.get();
-                            if !groups.is_empty() {
-                                view! {
-                                    <div class="nft-folders">
-                                        {groups.into_iter().map(|group| {
-                                            view! { <PolicyFolder group=group /> }
-                                        }).collect::<Vec<_>>()}
-                                    </div>
-                                }.into_any()
-                            } else if !is_loading.get() && connected_provider.get().is_some() {
-                                view! {
-                                    <div class="nft-demo__empty">
-                                        <p>"No NFTs detected in this wallet."</p>
-                                        <p class="nft-demo__hint">"NFTs are identified by tokens with quantity = 1"</p>
-                                    </div>
-                                }.into_any()
-                            } else {
-                                view! { <div></div> }.into_any()
-                            }
-                        }}
+                        // NFT Gallery component
+                        <WalletNftGallery
+                            groups=Signal::derive(move || policy_groups.get())
+                            loading=Signal::derive(move || is_loading.get())
+                        />
                     </div>
                 </div>
             </div>
 
             <div class="story-section">
-                <h3>"NFT Detection"</h3>
-                <pre class="code-block">{r#"use wallet_pallas::{decode_balance, PolicyGroup};
+                <h3>"Usage"</h3>
+                <pre class="code-block">{r#"use ui_components::WalletNftGallery;
+use wallet_pallas::PolicyGroup;
 
+// Get NFT groups from wallet balance
 let balance = decode_balance(&balance_hex)?;
+let groups: Vec<PolicyGroup> = balance.nft_policy_groups();
 
-// Get NFT policy groups (policies where most tokens have qty=1)
-let nft_groups: Vec<PolicyGroup> = balance.nft_policy_groups();
+// Display with WalletNftGallery
+<WalletNftGallery
+    groups=Signal::derive(move || groups.clone())
+    loading=Signal::derive(move || is_loading.get())
+    show_summary=true
+    empty_message="No NFTs found in wallet"
+/>"#}</pre>
+            </div>
+        </div>
+    }
+}
 
-for group in nft_groups {
-    println!("Policy: {}", group.policy_id_short);
-    println!("  NFTs: {}", group.nft_count);
+// ============================================================================
+// Wallet Leptos Story - Demonstrating the wallet-leptos context
+// ============================================================================
 
-    // Get only NFT tokens
-    for nft in group.nfts() {
-        println!("    - {} ({})", nft.display_name(), nft.asset_id());
+#[component]
+pub fn WalletLeptosStory() -> impl IntoView {
+    view! {
+        <div>
+            <div class="story-header">
+                <h2>"Wallet Leptos Context"</h2>
+                <p>"Reactive wallet state management using wallet-leptos crate."</p>
+            </div>
+
+            <div class="story-section">
+                <h3>"Live Demo"</h3>
+                <div class="story-canvas">
+                    <WalletProviderComponent>
+                        <WalletLeptosDemo />
+                    </WalletProviderComponent>
+                </div>
+            </div>
+
+            <div class="story-section">
+                <h3>"Usage"</h3>
+                <pre class="code-block">{r#"use wallet_leptos::{WalletProvider, use_wallet, WalletProviderEnum};
+
+// Wrap your app with WalletProvider
+#[component]
+fn App() -> impl IntoView {
+    view! {
+        <WalletProvider auto_detect=true auto_reconnect=true>
+            <MyApp />
+        </WalletProvider>
+    }
+}
+
+// Use the wallet context in any child component
+#[component]
+fn MyApp() -> impl IntoView {
+    let wallet = use_wallet();
+
+    view! {
+        // Available wallets
+        <For each=move || wallet.available_wallets.get() key=|w| w.api_name.clone() let:info>
+            <button on:click=move |_| {
+                if let Some(p) = WalletProviderEnum::from_api_name(&info.api_name) {
+                    wallet.connect(p);
+                }
+            }>
+                {info.name.clone()}
+            </button>
+        </For>
+
+        // Connection state
+        {move || wallet.is_connected().then(|| view! {
+            <p>"Address: " {wallet.address.get()}</p>
+            <p>"Stake: " {wallet.stake_address.get()}</p>
+            <button on:click=move |_| wallet.fetch_balance()>
+                "Fetch Balance"
+            </button>
+        })}
+
+        // Balance
+        {move || wallet.balance.get().map(|b| view! {
+            <p>{format!("{:.6} ADA", b.ada())}</p>
+        })}
     }
 }"#}</pre>
             </div>
@@ -955,111 +983,134 @@ for group in nft_groups {
     }
 }
 
-/// A collapsible folder for a single policy's NFTs
+/// Demo component showing wallet-leptos in action
 #[component]
-fn PolicyFolder(group: PolicyGroup) -> impl IntoView {
-    let (is_expanded, set_is_expanded) = signal(false);
-    let (visible_count, set_visible_count) = signal(12usize); // Initial batch size
+fn WalletLeptosDemo() -> impl IntoView {
+    let wallet = use_wallet();
 
-    let policy_id = group.policy_id.clone();
-    let policy_id_short = group.policy_id_short.clone();
-    let nfts: Vec<NativeToken> = group.nfts().into_iter().cloned().collect();
-    let total_count = nfts.len();
-
-    // Create a node ref for the sentinel element (intersection observer target)
-    let sentinel_ref = NodeRef::<leptos::html::Div>::new();
-
-    // Set up intersection observer for infinite scroll when expanded
-    Effect::new(move |_| {
-        if !is_expanded.get() {
-            return;
-        }
-
-        let Some(sentinel) = sentinel_ref.get() else {
-            return;
-        };
-
-        // Create intersection observer
-        let callback = Closure::wrap(Box::new(
-            move |entries: js_sys::Array, _observer: web_sys::IntersectionObserver| {
-                for entry in entries.iter() {
-                    let entry: web_sys::IntersectionObserverEntry = entry.unchecked_into();
-                    if entry.is_intersecting() {
-                        // Load more items
-                        set_visible_count.update(|count| {
-                            *count = (*count + 12).min(total_count);
-                        });
-                    }
-                }
-            },
-        )
-            as Box<dyn FnMut(js_sys::Array, web_sys::IntersectionObserver)>);
-
-        let options = web_sys::IntersectionObserverInit::new();
-        options.set_root_margin("100px");
-
-        if let Ok(observer) = web_sys::IntersectionObserver::new_with_options(
-            callback.as_ref().unchecked_ref(),
-            &options,
-        ) {
-            observer.observe(&sentinel);
-            // Keep the closure alive
-            callback.forget();
-        }
-    });
+    // Clone wallet context for closures that need to move it
+    let wallet_for_wallets = wallet.clone();
+    let wallet_for_info = wallet.clone();
 
     view! {
-        <div class="policy-folder" class:policy-folder--expanded=move || is_expanded.get()>
-            <button
-                class="policy-folder__header"
-                on:click=move |_| set_is_expanded.update(|v| *v = !*v)
-            >
-                <span class="policy-folder__icon">
-                    {move || if is_expanded.get() { "▼" } else { "▶" }}
-                </span>
-                <span class="policy-folder__name">{policy_id_short.clone()}</span>
-                <span class="policy-folder__count">{total_count} " NFTs"</span>
-            </button>
-
-            {move || is_expanded.get().then(|| {
-                let visible = visible_count.get();
-                let nfts_to_show = nfts.clone().into_iter().take(visible).collect::<Vec<_>>();
-                let has_more = visible < total_count;
-                let policy_for_cards = policy_id.clone();
-
-                view! {
-                    <div class="policy-folder__content">
-                        <div class="policy-folder__grid">
-                            {nfts_to_show.into_iter().map(|nft| {
-                                let asset_id = nft.asset_id();
-                                let name = nft.display_name();
-
-                                view! {
-                                    <AssetCard
-                                        asset_id=Signal::derive(move || asset_id.clone())
-                                        name=Signal::derive(move || name.clone())
-                                        show_name=true
-                                        is_static=true
-                                    />
-                                }
-                            }).collect::<Vec<_>>()}
-                        </div>
-
-                        // Sentinel for infinite scroll
-                        {has_more.then(|| view! {
-                            <div class="policy-folder__sentinel" node_ref=sentinel_ref>
-                                <div class="spinner"></div>
-                                <span class="policy-folder__loading-text">"Loading more..."</span>
+        <div class="wallet-leptos-demo">
+            // Available wallets
+            <div class="wallet-leptos-demo__section">
+                <h4>"Available Wallets"</h4>
+                {move || {
+                    let wallets = wallet_for_wallets.available_wallets.get();
+                    let wallet_inner = wallet_for_wallets.clone();
+                    if wallets.is_empty() {
+                        view! { <p class="text-muted">"No wallets detected"</p> }.into_any()
+                    } else {
+                        view! {
+                            <div class="wallet-leptos-demo__wallets">
+                                {wallets.into_iter().map(|info| {
+                                    let api_name = info.api_name.clone();
+                                    let display_name = info.name.clone();
+                                    let wallet_btn = wallet_inner.clone();
+                                    view! {
+                                        <button
+                                            class="btn btn--outline"
+                                            on:click=move |_| {
+                                                if let Some(provider) = WalletProvider::from_api_name(&api_name) {
+                                                    wallet_btn.connect(provider);
+                                                }
+                                            }
+                                        >
+                                            {display_name}
+                                        </button>
+                                    }
+                                }).collect::<Vec<_>>()}
                             </div>
-                        })}
+                        }.into_any()
+                    }
+                }}
+            </div>
 
-                        // Full policy ID for reference
-                        <div class="policy-folder__policy-id">
-                            <span class="policy-folder__policy-label">"Policy ID:"</span>
-                            <code class="policy-folder__policy-value">{policy_for_cards}</code>
+            // Connection state
+            <div class="wallet-leptos-demo__section">
+                <h4>"Connection State"</h4>
+                {move || {
+                    let state = wallet.connection_state.get();
+                    let (status_class, status_text) = match &state {
+                        ConnectionState::Disconnected => ("status-indicator--disconnected", "Disconnected"),
+                        ConnectionState::Connecting => ("status-indicator--connecting", "Connecting..."),
+                        ConnectionState::Connected { .. } => ("status-indicator--connected", "Connected"),
+                        ConnectionState::Error(_) => ("status-indicator--error", "Error"),
+                    };
+                    view! {
+                        <span class=format!("status-indicator {status_class}")>{status_text}</span>
+                    }
+                }}
+            </div>
+
+            // Connected wallet info
+            {move || {
+                let wallet_inner = wallet_for_info.clone();
+                wallet_for_info.is_connected().then(move || {
+                    let address = wallet_inner.address.get().unwrap_or_default();
+                    let short_addr = if address.len() > 20 {
+                        format!("{}...{}", &address[..10], &address[address.len()-10..])
+                    } else {
+                        address
+                    };
+
+                    let wallet_fetch = wallet_inner.clone();
+                    let wallet_disconnect = wallet_inner.clone();
+
+                    view! {
+                        <div class="wallet-leptos-demo__section">
+                            <h4>"Wallet Info"</h4>
+                            <div class="wallet-leptos-demo__info">
+                                <div class="wallet-leptos-demo__row">
+                                    <span class="label">"Address:"</span>
+                                    <code>{short_addr}</code>
+                                </div>
+                                {wallet_inner.stake_address.get().map(|sa| view! {
+                                    <div class="wallet-leptos-demo__row">
+                                        <span class="label">"Stake Hash:"</span>
+                                        <code>{format!("{}...", &sa[..16])}</code>
+                                    </div>
+                                })}
+                                {wallet_inner.network.get().map(|n| view! {
+                                    <div class="wallet-leptos-demo__row">
+                                        <span class="label">"Network:"</span>
+                                        <span>{format!("{:?}", n)}</span>
+                                    </div>
+                                })}
+                            </div>
+
+                            <div class="wallet-leptos-demo__actions">
+                                <button class="btn btn--outline" on:click=move |_| wallet_fetch.fetch_balance()>
+                                    "Fetch Balance"
+                                </button>
+                                <button class="btn btn--secondary" on:click=move |_| wallet_disconnect.disconnect()>
+                                    "Disconnect"
+                                </button>
+                            </div>
                         </div>
+                    }
+                })
+            }}
+
+            // Balance
+            {move || wallet.balance.get().map(|b| view! {
+                <div class="wallet-leptos-demo__section">
+                    <h4>"Balance"</h4>
+                    <div class="wallet-leptos-demo__balance">
+                        <span class="wallet-leptos-demo__ada">{format!("{:.6}", b.ada())}</span>
+                        <span class="wallet-leptos-demo__ada-label">"ADA"</span>
                     </div>
-                }
+                    <p class="text-muted">{b.token_count()} " native tokens"</p>
+                </div>
+            })}
+
+            // Error display
+            {move || wallet.error.get().map(|e| view! {
+                <div class="wallet-leptos-demo__error">
+                    <p>{e}</p>
+                </div>
             })}
         </div>
     }

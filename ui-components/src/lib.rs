@@ -103,6 +103,12 @@ mod toast;
 mod use_draggable;
 mod user_avatar;
 
+// Wallet feature - components that depend on wallet-pallas types
+#[cfg(feature = "wallet")]
+mod policy_folder;
+#[cfg(feature = "wallet")]
+mod wallet_nft_gallery;
+
 pub use accordion::{Accordion, AccordionItem};
 pub use alert::{Alert, AlertVariant};
 pub use asset_cache::{AssetCache, PreloadAsset};
@@ -145,3 +151,9 @@ pub use toast::{
 };
 pub use use_draggable::{use_draggable, DragAttrs, DragState, Draggable, Reorder};
 pub use user_avatar::{AvatarSize, UserAvatar};
+
+// Wallet feature exports
+#[cfg(feature = "wallet")]
+pub use policy_folder::PolicyFolder;
+#[cfg(feature = "wallet")]
+pub use wallet_nft_gallery::WalletNftGallery;

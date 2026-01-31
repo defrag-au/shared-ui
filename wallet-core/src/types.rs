@@ -83,6 +83,22 @@ impl WalletProvider {
             WalletProvider::Yoroi,
         ]
     }
+
+    /// Get provider from API name (e.g., "eternl" -> Eternl)
+    pub fn from_api_name(name: &str) -> Option<WalletProvider> {
+        match name {
+            "nami" => Some(WalletProvider::Nami),
+            "eternl" => Some(WalletProvider::Eternl),
+            "lace" => Some(WalletProvider::Lace),
+            "flint" => Some(WalletProvider::Flint),
+            "typhon" => Some(WalletProvider::Typhon),
+            "vespr" => Some(WalletProvider::Vespr),
+            "nufi" => Some(WalletProvider::NuFi),
+            "gerowallet" => Some(WalletProvider::Gero),
+            "yoroi" => Some(WalletProvider::Yoroi),
+            _ => None,
+        }
+    }
 }
 
 /// Cardano network
