@@ -90,6 +90,94 @@ pub struct NativeToken {
     pub quantity: u64,
 }
 
+impl NativeToken {
+    /// Get the full asset ID (policy_id + asset_name_hex) for IIIF lookups
+    pub fn asset_id(&self) -> String {
+        format!("{}{}", self.policy_id, self.asset_name_hex)
+    }
+
+    /// Check if this token looks like an NFT (quantity = 1)
+    pub fn is_likely_nft(&self) -> bool {
+        self.quantity == 1
+    }
+
+    /// Get display name (UTF-8 name or truncated hex)
+    pub fn display_name(&self) -> String {
+        self.asset_name.clone().unwrap_or_else(|| {
+            if self.asset_name_hex.len() > 16 {
+                format!("{}...", &self.asset_name_hex[..16])
+            } else if self.asset_name_hex.is_empty() {
+                "(unnamed)".to_string()
+            } else {
+                self.asset_name_hex.clone()
+            }
+        })
+    }
+}
+
+/// A policy group containing multiple assets
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyGroup {
+    /// Policy ID (56 hex chars)
+    pub policy_id: String,
+    /// Short display version of policy ID
+    pub policy_id_short: String,
+    /// All tokens under this policy
+    pub tokens: Vec<NativeToken>,
+    /// Whether this policy likely contains NFTs
+    pub is_likely_nft_policy: bool,
+    /// Count of tokens that appear to be NFTs (quantity = 1)
+    pub nft_count: usize,
+    /// Count of tokens that appear to be fungible (quantity > 1)
+    pub fungible_count: usize,
+}
+
+impl PolicyGroup {
+    /// Create a new policy group from tokens
+    pub fn new(policy_id: String, tokens: Vec<NativeToken>) -> Self {
+        let nft_count = tokens.iter().filter(|t| t.quantity == 1).count();
+        let fungible_count = tokens.len() - nft_count;
+
+        // A policy is likely NFT if majority of tokens have quantity 1
+        let is_likely_nft_policy =
+            nft_count > fungible_count || (nft_count > 0 && fungible_count == 0);
+
+        let policy_id_short = if policy_id.len() >= 16 {
+            format!(
+                "{}...{}",
+                &policy_id[..8],
+                &policy_id[policy_id.len() - 8..]
+            )
+        } else {
+            policy_id.clone()
+        };
+
+        Self {
+            policy_id,
+            policy_id_short,
+            tokens,
+            is_likely_nft_policy,
+            nft_count,
+            fungible_count,
+        }
+    }
+
+    /// Get only NFT tokens (quantity = 1)
+    pub fn nfts(&self) -> Vec<&NativeToken> {
+        self.tokens.iter().filter(|t| t.quantity == 1).collect()
+    }
+
+    /// Get only fungible tokens (quantity > 1)
+    pub fn fungibles(&self) -> Vec<&NativeToken> {
+        self.tokens.iter().filter(|t| t.quantity > 1).collect()
+    }
+
+    /// Total token count
+    pub fn total_count(&self) -> usize {
+        self.tokens.len()
+    }
+}
+
 impl WalletBalance {
     /// Get all native tokens as a flat list
     pub fn tokens(&self) -> Vec<NativeToken> {
@@ -111,5 +199,55 @@ impl WalletBalance {
         }
 
         tokens
+    }
+
+    /// Get assets grouped by policy ID
+    pub fn policy_groups(&self) -> Vec<PolicyGroup> {
+        let mut groups: Vec<PolicyGroup> = self
+            .assets
+            .iter()
+            .map(|(policy_id, asset_map)| {
+                let tokens: Vec<NativeToken> = asset_map
+                    .iter()
+                    .map(|(asset_name_hex, quantity)| {
+                        let asset_name = hex::decode(asset_name_hex)
+                            .ok()
+                            .and_then(|bytes| String::from_utf8(bytes).ok());
+
+                        NativeToken {
+                            policy_id: policy_id.clone(),
+                            asset_name_hex: asset_name_hex.clone(),
+                            asset_name,
+                            quantity: *quantity,
+                        }
+                    })
+                    .collect();
+
+                PolicyGroup::new(policy_id.clone(), tokens)
+            })
+            .collect();
+
+        // Sort by NFT count descending (NFT policies first), then by total count
+        groups.sort_by(|a, b| {
+            b.is_likely_nft_policy
+                .cmp(&a.is_likely_nft_policy)
+                .then_with(|| b.nft_count.cmp(&a.nft_count))
+                .then_with(|| b.total_count().cmp(&a.total_count()))
+        });
+
+        groups
+    }
+
+    /// Get only policy groups that likely contain NFTs
+    pub fn nft_policy_groups(&self) -> Vec<PolicyGroup> {
+        self.policy_groups()
+            .into_iter()
+            .filter(|g| g.is_likely_nft_policy)
+            .collect()
+    }
+
+    /// Get total count of likely NFTs across all policies
+    pub fn nft_count(&self) -> usize {
+        self.tokens().iter().filter(|t| t.quantity == 1).count()
     }
 }

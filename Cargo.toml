@@ -73,9 +73,9 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 tracing = "0.1"
 
 # shared-crates
-asset-intents = { git = "https://github.com/defrag-au/shared-crates", package = "asset-intents", rev = "2d68fcc" }
-worker_utils = { git = "https://github.com/defrag-au/shared-crates", package = "worker_utils", rev = "2d68fcc" }
-cardano-assets = { git = "https://github.com/defrag-au/shared-crates", package = "cardano-assets", rev = "2d68fcc" }
+asset-intents = { git = "https://github.com/defrag-au/shared-crates", package = "asset-intents", rev = "f750432" }
+worker_utils = { git = "https://github.com/defrag-au/shared-crates", package = "worker_utils", rev = "f750432" }
+cardano-assets = { git = "https://github.com/defrag-au/shared-crates", package = "cardano-assets", rev = "f750432" }
 
 # Error handling
 thiserror = "1"

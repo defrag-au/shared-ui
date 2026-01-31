@@ -1,11 +1,13 @@
-//! Wallet stories - wallet providers, detection, connection flow, and balance
+//! Wallet stories - wallet providers, detection, connection flow, balance, and NFT display
 
 use leptos::prelude::*;
+use ui_components::AssetCard;
 use wallet_core::{
     detect_wallets, detect_wallets_with_info, ConnectionState, Network, WalletApi, WalletInfo,
     WalletProvider,
 };
-use wallet_pallas::{decode_balance, WalletBalance};
+use wallet_pallas::{decode_balance, NativeToken, PolicyGroup, WalletBalance};
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 // ============================================================================
@@ -770,6 +772,294 @@ fn BalanceDisplay(balance: WalletBalance) -> impl IntoView {
                         }).collect::<Vec<_>>()}
                     </div>
                 </div>
+            })}
+        </div>
+    }
+}
+
+// ============================================================================
+// Wallet NFTs Story - Folder-based NFT display with infinite scroll
+// ============================================================================
+
+#[component]
+pub fn WalletNftsStory() -> impl IntoView {
+    let (available_wallets, set_available_wallets) = signal(Vec::<WalletProvider>::new());
+    let (is_loading, set_is_loading) = signal(false);
+    let (policy_groups, set_policy_groups) = signal(Vec::<PolicyGroup>::new());
+    let (error, set_error) = signal(Option::<String>::None);
+    let (connected_provider, set_connected_provider) = signal(Option::<WalletProvider>::None);
+    let (nft_count, set_nft_count) = signal(0usize);
+
+    // Detect wallets on mount
+    Effect::new(move |_| {
+        let wallets = detect_wallets();
+        set_available_wallets.set(wallets);
+    });
+
+    // Fetch NFTs from a wallet
+    let fetch_nfts = move |provider: WalletProvider| {
+        set_is_loading.set(true);
+        set_error.set(None);
+        set_policy_groups.set(vec![]);
+
+        spawn_local(async move {
+            match WalletApi::connect(provider).await {
+                Ok(api) => {
+                    set_connected_provider.set(Some(provider));
+
+                    match api.balance().await {
+                        Ok(balance_hex) => match decode_balance(&balance_hex) {
+                            Ok(decoded) => {
+                                let groups = decoded.nft_policy_groups();
+                                set_nft_count.set(decoded.nft_count());
+                                set_policy_groups.set(groups);
+                            }
+                            Err(e) => {
+                                set_error.set(Some(format!("Failed to decode balance: {e}")));
+                            }
+                        },
+                        Err(e) => {
+                            set_error.set(Some(format!("Failed to get balance: {e}")));
+                        }
+                    }
+                }
+                Err(e) => {
+                    set_error.set(Some(format!("Connection failed: {e}")));
+                }
+            }
+            set_is_loading.set(false);
+        });
+    };
+
+    view! {
+        <div>
+            <div class="story-header">
+                <h2>"Wallet NFTs"</h2>
+                <p>"Display wallet NFTs grouped by policy with folder-style navigation."</p>
+            </div>
+
+            <div class="story-section">
+                <h3>"Connect and View NFTs"</h3>
+                <div class="story-canvas">
+                    <div class="nft-demo">
+                        // Wallet selection
+                        <div class="nft-demo__controls">
+                            {move || {
+                                let wallets = available_wallets.get();
+                                let loading = is_loading.get();
+
+                                if wallets.is_empty() {
+                                    view! {
+                                        <p class="nft-demo__hint">"No wallets detected. Install a Cardano wallet extension."</p>
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <div class="nft-demo__buttons">
+                                            {wallets.into_iter().map(|provider| {
+                                                let is_connected = connected_provider.get() == Some(provider);
+                                                view! {
+                                                    <button
+                                                        class="btn"
+                                                        class:btn--primary=is_connected
+                                                        class:btn--outline=!is_connected
+                                                        on:click=move |_| fetch_nfts(provider)
+                                                        disabled=loading
+                                                    >
+                                                        {provider.display_name()}
+                                                    </button>
+                                                }
+                                            }).collect::<Vec<_>>()}
+                                        </div>
+                                    }.into_any()
+                                }
+                            }}
+                        </div>
+
+                        // Loading state
+                        {move || is_loading.get().then(|| view! {
+                            <div class="nft-demo__loading">
+                                <div class="spinner"></div>
+                                <p>"Fetching NFTs..."</p>
+                            </div>
+                        })}
+
+                        // Error state
+                        {move || error.get().map(|e| view! {
+                            <div class="nft-demo__error">
+                                <p>{e}</p>
+                            </div>
+                        })}
+
+                        // NFT count summary
+                        {move || {
+                            let count = nft_count.get();
+                            let groups = policy_groups.get();
+                            if count > 0 {
+                                Some(view! {
+                                    <div class="nft-demo__summary">
+                                        <span class="nft-demo__count">{count} " NFTs"</span>
+                                        <span class="nft-demo__policies">" across " {groups.len()} " policies"</span>
+                                    </div>
+                                })
+                            } else {
+                                None
+                            }
+                        }}
+
+                        // Policy folders
+                        {move || {
+                            let groups = policy_groups.get();
+                            if !groups.is_empty() {
+                                view! {
+                                    <div class="nft-folders">
+                                        {groups.into_iter().map(|group| {
+                                            view! { <PolicyFolder group=group /> }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any()
+                            } else if !is_loading.get() && connected_provider.get().is_some() {
+                                view! {
+                                    <div class="nft-demo__empty">
+                                        <p>"No NFTs detected in this wallet."</p>
+                                        <p class="nft-demo__hint">"NFTs are identified by tokens with quantity = 1"</p>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                view! { <div></div> }.into_any()
+                            }
+                        }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="story-section">
+                <h3>"NFT Detection"</h3>
+                <pre class="code-block">{r#"use wallet_pallas::{decode_balance, PolicyGroup};
+
+let balance = decode_balance(&balance_hex)?;
+
+// Get NFT policy groups (policies where most tokens have qty=1)
+let nft_groups: Vec<PolicyGroup> = balance.nft_policy_groups();
+
+for group in nft_groups {
+    println!("Policy: {}", group.policy_id_short);
+    println!("  NFTs: {}", group.nft_count);
+
+    // Get only NFT tokens
+    for nft in group.nfts() {
+        println!("    - {} ({})", nft.display_name(), nft.asset_id());
+    }
+}"#}</pre>
+            </div>
+        </div>
+    }
+}
+
+/// A collapsible folder for a single policy's NFTs
+#[component]
+fn PolicyFolder(group: PolicyGroup) -> impl IntoView {
+    let (is_expanded, set_is_expanded) = signal(false);
+    let (visible_count, set_visible_count) = signal(12usize); // Initial batch size
+
+    let policy_id = group.policy_id.clone();
+    let policy_id_short = group.policy_id_short.clone();
+    let nfts: Vec<NativeToken> = group.nfts().into_iter().cloned().collect();
+    let total_count = nfts.len();
+
+    // Create a node ref for the sentinel element (intersection observer target)
+    let sentinel_ref = NodeRef::<leptos::html::Div>::new();
+
+    // Set up intersection observer for infinite scroll when expanded
+    Effect::new(move |_| {
+        if !is_expanded.get() {
+            return;
+        }
+
+        let Some(sentinel) = sentinel_ref.get() else {
+            return;
+        };
+
+        // Create intersection observer
+        let callback = Closure::wrap(Box::new(
+            move |entries: js_sys::Array, _observer: web_sys::IntersectionObserver| {
+                for entry in entries.iter() {
+                    let entry: web_sys::IntersectionObserverEntry = entry.unchecked_into();
+                    if entry.is_intersecting() {
+                        // Load more items
+                        set_visible_count.update(|count| {
+                            *count = (*count + 12).min(total_count);
+                        });
+                    }
+                }
+            },
+        )
+            as Box<dyn FnMut(js_sys::Array, web_sys::IntersectionObserver)>);
+
+        let options = web_sys::IntersectionObserverInit::new();
+        options.set_root_margin("100px");
+
+        if let Ok(observer) = web_sys::IntersectionObserver::new_with_options(
+            callback.as_ref().unchecked_ref(),
+            &options,
+        ) {
+            observer.observe(&sentinel);
+            // Keep the closure alive
+            callback.forget();
+        }
+    });
+
+    view! {
+        <div class="policy-folder" class:policy-folder--expanded=move || is_expanded.get()>
+            <button
+                class="policy-folder__header"
+                on:click=move |_| set_is_expanded.update(|v| *v = !*v)
+            >
+                <span class="policy-folder__icon">
+                    {move || if is_expanded.get() { "▼" } else { "▶" }}
+                </span>
+                <span class="policy-folder__name">{policy_id_short.clone()}</span>
+                <span class="policy-folder__count">{total_count} " NFTs"</span>
+            </button>
+
+            {move || is_expanded.get().then(|| {
+                let visible = visible_count.get();
+                let nfts_to_show = nfts.clone().into_iter().take(visible).collect::<Vec<_>>();
+                let has_more = visible < total_count;
+                let policy_for_cards = policy_id.clone();
+
+                view! {
+                    <div class="policy-folder__content">
+                        <div class="policy-folder__grid">
+                            {nfts_to_show.into_iter().map(|nft| {
+                                let asset_id = nft.asset_id();
+                                let name = nft.display_name();
+
+                                view! {
+                                    <AssetCard
+                                        asset_id=Signal::derive(move || asset_id.clone())
+                                        name=Signal::derive(move || name.clone())
+                                        show_name=true
+                                        is_static=true
+                                    />
+                                }
+                            }).collect::<Vec<_>>()}
+                        </div>
+
+                        // Sentinel for infinite scroll
+                        {has_more.then(|| view! {
+                            <div class="policy-folder__sentinel" node_ref=sentinel_ref>
+                                <div class="spinner"></div>
+                                <span class="policy-folder__loading-text">"Loading more..."</span>
+                            </div>
+                        })}
+
+                        // Full policy ID for reference
+                        <div class="policy-folder__policy-id">
+                            <span class="policy-folder__policy-label">"Policy ID:"</span>
+                            <code class="policy-folder__policy-value">{policy_for_cards}</code>
+                        </div>
+                    </div>
+                }
             })}
         </div>
     }

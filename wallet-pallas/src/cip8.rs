@@ -74,7 +74,7 @@ pub fn verify_data_signature(
     let is_valid = key_matches_address;
 
     Ok(DataSignatureInfo {
-        public_key_hex: hex::encode(&public_key),
+        public_key_hex: hex::encode(public_key),
         signature_hex: signature_hex.to_string(),
         is_valid,
         key_hash,
@@ -164,13 +164,9 @@ fn extract_ed25519_public_key(cose_key_bytes: &[u8]) -> Result<[u8; 32], PallasE
                 let mut pubkey = [0u8; 32];
                 pubkey.copy_from_slice(&bytes[i..i + 32]);
                 return Ok(pubkey);
-            } else if (value_header >> 5) == 2 && (value_header & 0x1f) == 32 {
-                // Direct 32-byte encoding (0x58 20 equivalent as 0x78 + inline)
-                // Actually for len 24-255 we use 0x58, for 0-23 we use 0x40-0x57
-                // 32 bytes = 0x58 0x20
-                // This branch handles 0x40 + 32 = 0x60 which is wrong
-                // Let's handle the simpler case where length is embedded
             }
+            // Note: For byte strings longer than 23 bytes, CBOR uses 0x58 + length byte,
+            // which is already handled above. The lower 5 bits (0x1f mask) can only be 0-23.
 
             // Handle case where length is in the lower 5 bits (0-23)
             let embedded_len = (value_header & 0x1f) as usize;
