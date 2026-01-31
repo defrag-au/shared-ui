@@ -9,10 +9,8 @@ members = [
     "ui-toast",
     "wallet-core",
     "ui-components",
-    "ui-cardkit",
     "ui-loader-macros",
     "_storybook",
-    "_gamebook",
     "workers/flow-demo",
     "workers/flow-demo/frontend",
 ]
