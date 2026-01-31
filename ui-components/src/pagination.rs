@@ -62,18 +62,20 @@ impl PaginationState {
 
     /// Set page size (used by adaptive pagination)
     pub fn set_page_size(&self, size: usize) {
-        let old_size = self.page_size.get();
+        // Use get_untracked since we're in a non-reactive context (ResizeObserver callback)
+        let old_size = self.page_size.get_untracked();
         let new_size = size.max(1);
 
         if old_size != new_size {
             // Try to keep roughly the same position in the list
-            let current_page = self.current_page.get();
+            let current_page = self.current_page.get_untracked();
             let first_item_index = (current_page - 1) * old_size;
             let new_page = (first_item_index / new_size) + 1;
 
             self.page_size.set(new_size);
-            self.current_page
-                .set(new_page.clamp(1, self.total_pages().max(1)));
+            // Calculate total_pages inline to avoid reactive read
+            let total_pages = (self.total_items + new_size - 1) / new_size;
+            self.current_page.set(new_page.clamp(1, total_pages.max(1)));
         }
     }
 
@@ -179,16 +181,22 @@ pub fn use_adaptive_pagination(
             return;
         };
 
-        let grid_element: &web_sys::Element = &grid_el;
+        // Clone the element for the initial measurement
+        let grid_element: web_sys::Element = grid_el.clone().into();
 
         // Create callback for ResizeObserver
+        // Use the entry's target() instead of capturing element reference
         let state_clone = state;
         let rows = rows_per_page;
         let callback = Closure::wrap(Box::new(
-            move |_entries: js_sys::Array, _observer: web_sys::ResizeObserver| {
-                if let Some(columns) = get_grid_column_count(grid_element) {
-                    let new_page_size = columns * rows;
-                    state_clone.set_page_size(new_page_size);
+            move |entries: js_sys::Array, _observer: web_sys::ResizeObserver| {
+                // Get target from the ResizeObserverEntry to avoid stale reference
+                if let Some(entry) = entries.get(0).dyn_ref::<web_sys::ResizeObserverEntry>() {
+                    let target = entry.target();
+                    if let Some(columns) = get_grid_column_count(&target) {
+                        let new_page_size = columns * rows;
+                        state_clone.set_page_size(new_page_size);
+                    }
                 }
             },
         )
@@ -196,11 +204,11 @@ pub fn use_adaptive_pagination(
 
         // Create and start observing
         if let Ok(observer) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
-            observer.observe(grid_element);
+            observer.observe(&grid_element);
             callback.forget(); // Keep callback alive
 
             // Do an initial measurement
-            if let Some(columns) = get_grid_column_count(grid_element) {
+            if let Some(columns) = get_grid_column_count(&grid_element) {
                 let new_page_size = columns * rows_per_page;
                 state.set_page_size(new_page_size);
             }
@@ -242,7 +250,7 @@ pub fn Pagination(
     state: PaginationState,
 
     /// Number of page buttons to show on each side of current page
-    #[prop(optional, default = 2)]
+    #[prop(optional, default = 0)]
     sibling_count: usize,
 
     /// Show the page jump input
@@ -293,7 +301,10 @@ pub fn Pagination(
         let mut pages: Vec<PageItem> = Vec::new();
 
         // Always show first page
-        pages.push(PageItem::Page(1));
+        pages.push(PageItem::Page {
+            num: 1,
+            is_sibling: false,
+        });
 
         // Calculate range around current page
         let range_start = current.saturating_sub(sibling_count).max(2);
@@ -304,10 +315,14 @@ pub fn Pagination(
             pages.push(PageItem::Ellipsis);
         }
 
-        // Add pages in range
+        // Add pages in range (these are "siblings" - not first, last, or current)
         for page in range_start..=range_end {
             if page > 1 && page < total {
-                pages.push(PageItem::Page(page));
+                let is_sibling = page != current;
+                pages.push(PageItem::Page {
+                    num: page,
+                    is_sibling,
+                });
             }
         }
 
@@ -318,7 +333,10 @@ pub fn Pagination(
 
         // Always show last page (if more than 1 page)
         if total > 1 {
-            pages.push(PageItem::Page(total));
+            pages.push(PageItem::Page {
+                num: total,
+                is_sibling: false,
+            });
         }
 
         pages
@@ -336,7 +354,7 @@ pub fn Pagination(
         <div class=wrapper_class>
             // First page button
             <button
-                class="ui-pagination__btn ui-pagination__btn--nav"
+                class="ui-pagination__btn ui-pagination__btn--nav ui-pagination__btn--first"
                 on:click=go_first
                 disabled=move || !state.has_prev()
                 title="First page"
@@ -346,7 +364,7 @@ pub fn Pagination(
 
             // Previous button
             <button
-                class="ui-pagination__btn ui-pagination__btn--nav"
+                class="ui-pagination__btn ui-pagination__btn--nav ui-pagination__btn--prev"
                 on:click=go_prev
                 disabled=move || !state.has_prev()
                 title="Previous page"
@@ -354,7 +372,12 @@ pub fn Pagination(
                 "‹"
             </button>
 
-            // Page numbers
+            // Simple current page indicator (shown on mobile)
+            <span class="ui-pagination__current">
+                {move || state.current_page.get()}
+            </span>
+
+            // Page numbers (hidden on mobile)
             <div class="ui-pagination__pages">
                 {move || {
                     page_numbers()
@@ -362,22 +385,25 @@ pub fn Pagination(
                         .enumerate()
                         .map(|(_idx, item)| {
                             match item {
-                                PageItem::Page(page) => {
-                                    let is_current = move || state.current_page.get() == page;
+                                PageItem::Page { num, is_sibling } => {
+                                    let is_current = move || state.current_page.get() == num;
                                     let btn_class = move || {
+                                        let mut classes = String::from("ui-pagination__btn ui-pagination__btn--page");
                                         if is_current() {
-                                            "ui-pagination__btn ui-pagination__btn--page ui-pagination__btn--active"
-                                        } else {
-                                            "ui-pagination__btn ui-pagination__btn--page"
+                                            classes.push_str(" ui-pagination__btn--active");
                                         }
+                                        if is_sibling {
+                                            classes.push_str(" ui-pagination__btn--sibling");
+                                        }
+                                        classes
                                     };
                                     view! {
                                         <button
                                             class=btn_class
-                                            on:click=move |_| state.go_to(page)
+                                            on:click=move |_| state.go_to(num)
                                             disabled=is_current
                                         >
-                                            {page}
+                                            {num}
                                         </button>
                                     }.into_any()
                                 }
@@ -396,7 +422,7 @@ pub fn Pagination(
 
             // Next button
             <button
-                class="ui-pagination__btn ui-pagination__btn--nav"
+                class="ui-pagination__btn ui-pagination__btn--nav ui-pagination__btn--next"
                 on:click=go_next
                 disabled=move || !state.has_next()
                 title="Next page"
@@ -406,7 +432,7 @@ pub fn Pagination(
 
             // Last page button
             <button
-                class="ui-pagination__btn ui-pagination__btn--nav"
+                class="ui-pagination__btn ui-pagination__btn--nav ui-pagination__btn--last"
                 on:click=go_last
                 disabled=move || !state.has_next()
                 title="Last page"
@@ -441,6 +467,6 @@ pub fn Pagination(
 /// Internal enum for page number display
 #[derive(Clone, Copy)]
 enum PageItem {
-    Page(usize),
+    Page { num: usize, is_sibling: bool },
     Ellipsis,
 }

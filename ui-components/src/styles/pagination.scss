@@ -2,16 +2,36 @@
 
 @use "variables" as v;
 
+// Breakpoint for simplified pagination (based on container width)
+$compact-breakpoint: 400px;
+
 .ui-pagination {
     display: flex;
     align-items: center;
     gap: 0.25rem;
     flex-wrap: wrap;
 
+    // Enable container queries
+    container-type: inline-size;
+    container-name: pagination;
+
     &__pages {
         display: flex;
         align-items: center;
         gap: 0.25rem;
+    }
+
+    // Simple current page indicator (shown when compact)
+    &__current {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        min-width: 2rem;
+        height: 2rem;
+        padding: 0 0.5rem;
+        color: v.$text-light;
+        font-size: 0.85rem;
+        font-variant-numeric: tabular-nums;
     }
 
     &__btn {
@@ -78,40 +98,21 @@
     }
 
     &__info {
-        margin-left: 0.5rem;
-        font-size: 0.8rem;
-        color: v.$text-muted;
+        display: none;
     }
 
     &__jump {
-        width: 4rem;
-        height: 2rem;
-        margin-left: 0.5rem;
-        padding: 0 0.5rem;
-        background: v.$bg-tertiary;
-        border: 1px solid v.$border-color;
-        border-radius: v.$card-radius-sm;
-        color: v.$text-light;
-        font-size: 0.85rem;
-        font-family: inherit;
-        text-align: center;
+        display: none;
+    }
+}
 
-        &:focus {
-            outline: none;
-            border-color: v.$accent-primary;
-        }
+// Container queries for compact mode
+@container pagination (max-width: #{$compact-breakpoint}) {
+    .ui-pagination__pages {
+        display: none;
+    }
 
-        &::placeholder {
-            color: v.$text-muted;
-            font-size: 0.75rem;
-        }
-
-        // Hide spin buttons
-        &::-webkit-outer-spin-button,
-        &::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        -moz-appearance: textfield;
+    .ui-pagination__current {
+        display: flex;
     }
 }
