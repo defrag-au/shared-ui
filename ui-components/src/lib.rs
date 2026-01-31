@@ -88,6 +88,7 @@ mod memory_card;
 mod modal;
 mod modal_context;
 mod modal_stack;
+mod pagination;
 mod player_card;
 mod progress_bar;
 mod rating;
@@ -102,6 +103,15 @@ mod textarea;
 mod toast;
 mod use_draggable;
 mod user_avatar;
+
+// Wallet feature - components that depend on wallet-pallas types
+#[cfg(feature = "wallet")]
+mod policy_folder;
+#[cfg(feature = "wallet")]
+mod wallet_nft_gallery;
+
+// Asset modal (no wallet feature needed - just needs cardano-assets)
+mod asset_modal;
 
 pub use accordion::{Accordion, AccordionItem};
 pub use alert::{Alert, AlertVariant};
@@ -128,6 +138,7 @@ pub use loading_overlay::{LoadingOverlay, Spinner, SpinnerSize};
 pub use memory_card::MemoryCard;
 pub use modal::Modal;
 pub use modal_stack::{ModalStack, ModalStackContext};
+pub use pagination::{use_adaptive_pagination, use_pagination, Pagination, PaginationState};
 pub use player_card::PlayerCard;
 pub use progress_bar::ProgressBar;
 pub use rating::{Rating, RatingSize};
@@ -145,3 +156,12 @@ pub use toast::{
 };
 pub use use_draggable::{use_draggable, DragAttrs, DragState, Draggable, Reorder};
 pub use user_avatar::{AvatarSize, UserAvatar};
+
+// Wallet feature exports
+#[cfg(feature = "wallet")]
+pub use policy_folder::PolicyFolder;
+#[cfg(feature = "wallet")]
+pub use wallet_nft_gallery::WalletNftGallery;
+
+// Asset modal export
+pub use asset_modal::AssetModal;

@@ -4,7 +4,13 @@ version.workspace = true
 edition.workspace = true
 description = "Reusable Leptos components for Cardano applications"
 
+[features]
+default = []
+wallet = ["wallet-pallas"]
+
 [dependencies]
+# Wallet types (optional)
+wallet-pallas = { path = "../wallet-pallas", optional = true }
 # Leptos framework
 leptos = { version = "0.8", features = ["csr"] }
 
@@ -20,6 +26,7 @@ wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 web-sys = { workspace = true, features = [
     "Blob",
+    "CssStyleDeclaration",
     "DataTransfer",
     "DomRect",
     "DragEvent",
@@ -28,8 +35,13 @@ web-sys = { workspace = true, features = [
     "HtmlCollection",
     "HtmlElement",
     "HtmlImageElement",
+    "IntersectionObserver",
+    "IntersectionObserverEntry",
+    "IntersectionObserverInit",
     "Node",
     "PointerEvent",
+    "ResizeObserver",
+    "ResizeObserverEntry",
     "Response",
     "Url",
     "Window",

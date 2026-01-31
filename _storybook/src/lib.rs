@@ -61,6 +61,11 @@ pub enum Story {
     // Wallet Core
     WalletProviders,
     ConnectionStates,
+    WalletDetection,
+    WalletConnection,
+    WalletBalance,
+    WalletNfts,
+    WalletLeptos,
     // UI Flow
     FlowOverview,
     FlowState,
@@ -122,6 +127,11 @@ impl Story {
             // Wallet
             Story::WalletProviders,
             Story::ConnectionStates,
+            Story::WalletDetection,
+            Story::WalletConnection,
+            Story::WalletBalance,
+            Story::WalletNfts,
+            Story::WalletLeptos,
             Story::FlowOverview,
             Story::FlowState,
             Story::FlowOperations,
@@ -180,6 +190,11 @@ impl Story {
             // Wallet
             Story::WalletProviders => "Wallet Providers",
             Story::ConnectionStates => "Connection States",
+            Story::WalletDetection => "Live Detection",
+            Story::WalletConnection => "Connection Flow",
+            Story::WalletBalance => "Balance & Assets",
+            Story::WalletNfts => "NFT Gallery",
+            Story::WalletLeptos => "Leptos Context",
             Story::FlowOverview => "Overview",
             Story::FlowState => "FlowState Trait",
             Story::FlowOperations => "Operations",
@@ -235,7 +250,13 @@ impl Story {
             Story::DropEditorComponent => "Editors",
             // Hooks
             Story::UseDraggableHook => "Hooks",
-            Story::WalletProviders | Story::ConnectionStates => "Wallet Core",
+            Story::WalletProviders
+            | Story::ConnectionStates
+            | Story::WalletDetection
+            | Story::WalletConnection
+            | Story::WalletBalance
+            | Story::WalletNfts
+            | Story::WalletLeptos => "Wallet Core",
             Story::FlowOverview | Story::FlowState | Story::FlowOperations => "UI Flow",
             Story::LoadingStates | Story::LoaderConfig => "UI Loader",
             Story::ToastTypes | Story::ToastUsage => "UI Toast",
@@ -456,6 +477,21 @@ fn StoryContent(story: ReadSignal<Story>) -> impl IntoView {
         </Show>
         <Show when=move || story.get() == Story::ConnectionStates fallback=|| ()>
             <stories::ConnectionStatesStory />
+        </Show>
+        <Show when=move || story.get() == Story::WalletDetection fallback=|| ()>
+            <stories::WalletDetectionStory />
+        </Show>
+        <Show when=move || story.get() == Story::WalletConnection fallback=|| ()>
+            <stories::WalletConnectionStory />
+        </Show>
+        <Show when=move || story.get() == Story::WalletBalance fallback=|| ()>
+            <stories::WalletBalanceStory />
+        </Show>
+        <Show when=move || story.get() == Story::WalletNfts fallback=|| ()>
+            <stories::WalletNftsStory />
+        </Show>
+        <Show when=move || story.get() == Story::WalletLeptos fallback=|| ()>
+            <stories::WalletLeptosStory />
         </Show>
         <Show when=move || story.get() == Story::FlowOverview fallback=|| ()>
             <stories::FlowOverviewStory />

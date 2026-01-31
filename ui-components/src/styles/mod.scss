@@ -28,6 +28,7 @@
 @use "info_grid";
 @use "color_swatch";
 @use "rating";
+@use "pagination";
 
 // Form components
 @use "button";
@@ -59,3 +60,8 @@
 
 // Utility components
 @use "draggable_stack";
+
+// Wallet components (available with "wallet" feature)
+@use "policy_folder";
+@use "wallet_nft_gallery";
+@use "asset_modal";
