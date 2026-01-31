@@ -14,6 +14,9 @@ wasm = ["dep:wasm-bindgen", "dep:js-sys"]
 # Core wallet functionality
 wallet-core = { path = "../wallet-core" }
 
+# Cardano asset utilities
+cardano-assets = { workspace = true }
+
 # Pallas Cardano primitives
 pallas-addresses = "1.0.0-alpha.3"
 pallas-codec = "1.0.0-alpha.3"

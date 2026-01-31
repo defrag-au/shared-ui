@@ -132,6 +132,33 @@ impl Address {
         }
     }
 
+    /// Get the stake address (reward address) in bech32 format
+    ///
+    /// Returns the stake address derived from this address's staking credential,
+    /// encoded as bech32 (stake1... for mainnet, stake_test1... for testnet).
+    pub fn stake_address_bech32(&self) -> Option<String> {
+        use pallas_addresses::{StakeAddress, StakePayload};
+
+        match &self.inner {
+            PallasAddress::Shelley(addr) => {
+                let network = addr.network();
+                let stake_payload = match addr.delegation() {
+                    pallas_addresses::ShelleyDelegationPart::Key(hash) => {
+                        StakePayload::Stake(pallas_addresses::StakeKeyHash::from(hash.as_ref()))
+                    }
+                    pallas_addresses::ShelleyDelegationPart::Script(hash) => {
+                        StakePayload::Script(pallas_addresses::ScriptHash::from(hash.as_ref()))
+                    }
+                    _ => return None,
+                };
+
+                let stake_addr = StakeAddress::new(network, stake_payload);
+                stake_addr.to_bech32().ok()
+            }
+            _ => None,
+        }
+    }
+
     /// Get a shortened display version of the address
     pub fn display_short(&self) -> String {
         match self.to_bech32() {

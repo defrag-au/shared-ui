@@ -47,13 +47,12 @@ impl WalletContext {
         let address: RwSignal<Option<String>> = RwSignal::new(None);
 
         // Derive stake address from payment address
-        // Returns the stake key hash as hex if available
+        // Returns the stake address in bech32 format (stake1... or stake_test1...)
         let stake_address = Memo::new(move |_| {
             address.get().and_then(|addr| {
                 wallet_pallas::Address::from_hex(&addr)
                     .ok()
-                    .and_then(|a| a.stake_hash())
-                    .map(|hash| hex::encode(hash))
+                    .and_then(|a| a.stake_address_bech32())
             })
         });
 

@@ -1067,11 +1067,18 @@ fn WalletLeptosDemo() -> impl IntoView {
                                     <span class="label">"Address:"</span>
                                     <code>{short_addr}</code>
                                 </div>
-                                {wallet_inner.stake_address.get().map(|sa| view! {
-                                    <div class="wallet-leptos-demo__row">
-                                        <span class="label">"Stake Hash:"</span>
-                                        <code>{format!("{}...", &sa[..16])}</code>
-                                    </div>
+                                {wallet_inner.stake_address.get().map(|sa| {
+                                    let short_stake = if sa.len() > 24 {
+                                        format!("{}...{}", &sa[..12], &sa[sa.len()-8..])
+                                    } else {
+                                        sa.clone()
+                                    };
+                                    view! {
+                                        <div class="wallet-leptos-demo__row">
+                                            <span class="label">"Stake:"</span>
+                                            <code>{short_stake}</code>
+                                        </div>
+                                    }
                                 })}
                                 {wallet_inner.network.get().map(|n| view! {
                                     <div class="wallet-leptos-demo__row">

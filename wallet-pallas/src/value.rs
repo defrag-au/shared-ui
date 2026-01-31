@@ -3,6 +3,7 @@
 //! Decode CBOR-encoded Cardano values (lovelace + multi-assets) from CIP-30 wallet API.
 
 use crate::PallasError;
+use cardano_assets::AssetId;
 use pallas_codec::minicbor;
 use pallas_primitives::conway::Value;
 use serde::{Deserialize, Serialize};
@@ -101,18 +102,76 @@ impl NativeToken {
         self.quantity == 1
     }
 
-    /// Get display name (UTF-8 name or truncated hex)
+    /// Get display name with CIP-67 prefix stripped and PascalCase split
+    ///
+    /// This provides a more human-readable name by:
+    /// 1. Stripping CIP-67 prefixes (e.g., (100), (222), (333))
+    /// 2. Splitting PascalCase into separate words
+    /// 3. Falling back to truncated hex if not valid UTF-8
     pub fn display_name(&self) -> String {
-        self.asset_name.clone().unwrap_or_else(|| {
-            if self.asset_name_hex.len() > 16 {
-                format!("{}...", &self.asset_name_hex[..16])
-            } else if self.asset_name_hex.is_empty() {
-                "(unnamed)".to_string()
-            } else {
-                self.asset_name_hex.clone()
+        // Try to parse as AssetId and strip CIP-67 prefix
+        if let Ok(asset_id) = AssetId::new(self.policy_id.clone(), self.asset_name_hex.clone()) {
+            let stripped = asset_id.strip_cip67();
+            let name = stripped.asset_name();
+
+            if !name.is_empty() && name != self.asset_name_hex {
+                // Successfully decoded to UTF-8, now split PascalCase
+                return split_pascal_case(&name);
             }
-        })
+        }
+
+        // Fall back to original asset_name if available
+        if let Some(ref name) = self.asset_name {
+            return split_pascal_case(name);
+        }
+
+        // Final fallback: truncated hex
+        if self.asset_name_hex.len() > 16 {
+            format!("{}...", &self.asset_name_hex[..16])
+        } else if self.asset_name_hex.is_empty() {
+            "(unnamed)".to_string()
+        } else {
+            self.asset_name_hex.clone()
+        }
     }
+}
+
+/// Split a PascalCase or camelCase string into space-separated words
+///
+/// Examples:
+/// - "UnsignedAlgorithms" -> "Unsigned Algorithms"
+/// - "BlackFlag1234" -> "Black Flag 1234"
+/// - "NFTProject" -> "NFT Project"
+/// - "Already Spaced" -> "Already Spaced"
+fn split_pascal_case(s: &str) -> String {
+    if s.is_empty() {
+        return s.to_string();
+    }
+
+    let mut result = String::with_capacity(s.len() + 10);
+    let chars: Vec<char> = s.chars().collect();
+
+    for (i, &c) in chars.iter().enumerate() {
+        if i > 0 {
+            let prev = chars[i - 1];
+            let is_boundary =
+                // Lowercase followed by uppercase: "aB" -> "a B"
+                (prev.is_lowercase() && c.is_uppercase()) ||
+                // Letter followed by digit: "a1" -> "a 1"
+                (prev.is_alphabetic() && c.is_ascii_digit() && (i + 1 >= chars.len() || !chars[i + 1].is_ascii_digit() || !prev.is_ascii_digit())) ||
+                // Digit followed by letter: "1a" -> "1 a"
+                (prev.is_ascii_digit() && c.is_alphabetic()) ||
+                // Uppercase followed by uppercase then lowercase: "ABc" -> "A Bc"
+                (prev.is_uppercase() && c.is_uppercase() && i + 1 < chars.len() && chars[i + 1].is_lowercase());
+
+            if is_boundary && !prev.is_whitespace() {
+                result.push(' ');
+            }
+        }
+        result.push(c);
+    }
+
+    result
 }
 
 /// A policy group containing multiple assets
@@ -249,5 +308,64 @@ impl WalletBalance {
     /// Get total count of likely NFTs across all policies
     pub fn nft_count(&self) -> usize {
         self.tokens().iter().filter(|t| t.quantity == 1).count()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_split_pascal_case_basic() {
+        assert_eq!(
+            split_pascal_case("UnsignedAlgorithms"),
+            "Unsigned Algorithms"
+        );
+        assert_eq!(split_pascal_case("BlackFlag"), "Black Flag");
+        assert_eq!(split_pascal_case("HelloWorld"), "Hello World");
+    }
+
+    #[test]
+    fn test_split_pascal_case_with_numbers() {
+        assert_eq!(split_pascal_case("BlackFlag1234"), "Black Flag 1234");
+        assert_eq!(split_pascal_case("Pirate1086"), "Pirate 1086");
+        assert_eq!(split_pascal_case("NFT123Collection"), "NFT 123 Collection");
+    }
+
+    #[test]
+    fn test_split_pascal_case_acronyms() {
+        assert_eq!(split_pascal_case("NFTProject"), "NFT Project");
+        assert_eq!(split_pascal_case("HTTPServer"), "HTTP Server");
+        assert_eq!(split_pascal_case("IOError"), "IO Error");
+    }
+
+    #[test]
+    fn test_split_pascal_case_already_spaced() {
+        assert_eq!(split_pascal_case("Already Spaced"), "Already Spaced");
+        assert_eq!(split_pascal_case("hello world"), "hello world");
+    }
+
+    #[test]
+    fn test_split_pascal_case_single_word() {
+        assert_eq!(split_pascal_case("Hello"), "Hello");
+        assert_eq!(split_pascal_case("ALLCAPS"), "ALLCAPS");
+        assert_eq!(split_pascal_case("lowercase"), "lowercase");
+    }
+
+    #[test]
+    fn test_split_pascal_case_empty() {
+        assert_eq!(split_pascal_case(""), "");
+    }
+
+    #[test]
+    fn test_native_token_display_name() {
+        // Standard token
+        let token = NativeToken {
+            policy_id: "b3dab69f7e6100849434fb1781e34bd12a916557f6231b8d2629b6f6".to_string(),
+            asset_name_hex: "50697261746531303836".to_string(), // "Pirate1086"
+            asset_name: Some("Pirate1086".to_string()),
+            quantity: 1,
+        };
+        assert_eq!(token.display_name(), "Pirate 1086");
     }
 }
