@@ -1,6 +1,15 @@
 //! Web-specific loading orchestrator (requires `web` feature)
 //!
 //! This module provides the [`LoadingOrchestrator`] for wasm-bindgen based frameworks.
+//!
+//! ## Token Persistence for SPAs
+//!
+//! When using client-side routing (e.g., Leptos Router), the URL query params can be
+//! lost during navigation. To handle this, the loader stores the token in sessionStorage
+//! after successful auth validation. On subsequent page loads or refreshes, the token
+//! is read from sessionStorage if not present in the URL.
+//!
+//! This allows SPAs to navigate freely without losing authentication.
 
 use std::cell::RefCell;
 use std::future::Future;
@@ -13,6 +22,54 @@ use ui_core::runtime::{get_query_param, init_widget_with_level};
 use wasm_bindgen::JsCast;
 
 pub use tracing::Level;
+
+/// sessionStorage key for persisted token
+const TOKEN_STORAGE_KEY: &str = "auth_token";
+
+/// Get the auth token, checking URL params first then sessionStorage
+fn get_token() -> Option<String> {
+    // First check URL query params (fresh link from Discord)
+    if let Some(token) = get_query_param("token") {
+        if !token.is_empty() {
+            return Some(token);
+        }
+    }
+
+    // Fall back to sessionStorage (SPA navigation/refresh)
+    get_session_storage_token()
+}
+
+/// Get token from sessionStorage
+fn get_session_storage_token() -> Option<String> {
+    web_sys::window()
+        .and_then(|w| w.session_storage().ok())
+        .flatten()
+        .and_then(|storage| storage.get_item(TOKEN_STORAGE_KEY).ok())
+        .flatten()
+        .filter(|t| !t.is_empty())
+}
+
+/// Store token in sessionStorage for SPA persistence
+fn store_token(token: &str) {
+    if let Some(storage) = web_sys::window()
+        .and_then(|w| w.session_storage().ok())
+        .flatten()
+    {
+        let _ = storage.set_item(TOKEN_STORAGE_KEY, token);
+        tracing::debug!("Token stored in sessionStorage for SPA persistence");
+    }
+}
+
+/// Clear token from sessionStorage (e.g., on logout or expiry)
+pub fn clear_stored_token() {
+    if let Some(storage) = web_sys::window()
+        .and_then(|w| w.session_storage().ok())
+        .flatten()
+    {
+        let _ = storage.remove_item(TOKEN_STORAGE_KEY);
+        tracing::debug!("Token cleared from sessionStorage");
+    }
+}
 
 /// Configuration for the loading orchestrator
 #[derive(Debug, Clone)]
@@ -390,12 +447,17 @@ impl LoadingOrchestrator {
         let handle = LoadingHandle::new();
         handle.show_loading(&config.initial_message);
 
-        // Parse URL params
-        let token = get_query_param("token");
+        // Parse URL params - check URL first, then sessionStorage for SPA persistence
+        let token = get_token();
         let world_id = get_query_param("world");
 
         // Validate auth
-        let auth = AuthState::from_token(token);
+        let auth = AuthState::from_token(token.clone());
+
+        // Store valid token in sessionStorage for SPA navigation/refresh
+        if let (Some(token), AuthState::Authenticated(_)) = (&token, &auth) {
+            store_token(token);
+        }
 
         // Extract return URL for error screens (before we check auth status)
         let discord_url = auth
